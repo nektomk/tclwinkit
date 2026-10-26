@@ -1,0 +1,10 @@
+# Build trees and artifacts
+build/
+dist/
+vendor/
+
+# Editors
+*.swp
+*~
+.vscode/
+.idea/
