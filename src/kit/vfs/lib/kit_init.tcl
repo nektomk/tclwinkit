@@ -82,8 +82,21 @@ package ifneeded tdbc::sqlite3 1.1.13 [list apply {{dir} {
 # jpegtcl/tifftcl via their *tcl_InitStubs calls at load time.
 # ---------------------------------------------------------------------
 if {[package provide Tk] ne ""} {
-    package ifneeded tkimg 2.1.2 [list load {} Tkimg]
-    package ifneeded img::base 2.1.2 [list package require tkimg]
+    # Img base has two spellings depending on the build system:
+    # nmake/MSVC provides "tkimg", TEA/MinGW provides "img::base".
+    # Load once via the static prefix, then satisfy whichever spelling
+    # the C init did not provide itself.
+    foreach ::winkit::n {tkimg img::base} {
+	package ifneeded $::winkit::n 2.1.2 [list apply {{name} {
+	    if {[package provide tkimg] eq "" && [package provide img::base] eq ""} {
+		load {} Tkimg
+	    }
+	    if {[package provide $name] eq ""} {
+		package provide $name 2.1.2
+	    }
+	}} $::winkit::n]
+    }
+    unset -nocomplain ::winkit::n
     package ifneeded zlibtcl   1.3.2 [list load {} Zlibtcl]
     package ifneeded pngtcl    1.6.58 [list load {} Pngtcl]
     package ifneeded jpegtcl   10.0.0 [list load {} Jpegtcl]
