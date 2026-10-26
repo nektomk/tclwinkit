@@ -56,7 +56,7 @@ chk "thread create/join" {
     expr {$t > 0}
 }
 
-# itcl smoke
+# itcl smoke (also proves itcl.tcl was found in the zipfs image)
 chk "itcl class" {
     itcl::class Foo { method bar {} { return baz } }
     Foo f
@@ -66,10 +66,76 @@ chk "itcl class" {
     set r
 }
 
-if {$::tcl_platform(platform) eq "windows"} {
-    chk "twapi (if present)" {
-	if {[catch {package require twapi} v]} { set v "not included ($v)" }
-	set v
+# registry real call
+chk "registry keys" {
+    expr {[llength [registry keys HKEY_CURRENT_USER]] > 0}
+}
+
+# twapi: package + real call + COM via dyncall FFI
+chk "twapi" {
+    package require twapi
+    set v [twapi::get_os_version]
+    "$v ([twapi::get_temp_path] ne {})"
+}
+chk "twapi COM (dyncall)" {
+    package require twapi_com
+    set wsh [twapi::comobj -create WScript.Shell]
+    set name [$wsh ExpandEnvironmentStrings {%COMPUTERNAME%}]
+    $wsh -destroy
+    expr {$name ne "" && $name ne "%COMPUTERNAME%"}
+}
+
+# tcllib samples
+chk "tcllib base64" {
+    package require base64
+    base64::encode {kit}
+}
+chk "tcllib struct::queue" {
+    package require struct::queue
+    struct::queue q
+    q put a b
+    set r [q get]
+    q destroy
+    set r
+}
+chk "tcllib textutil" {
+    package require textutil
+    textutil::unduplicate {a a b}
+}
+
+# TclReadLine (pure-Tcl REPL helper)
+chk "TclReadLine" {package require TclReadLine}
+
+# CAWT core (pure Tcl over twapi COM; no Office is touched)
+chk "cawtcore" {
+    package require cawtcore
+    package provide cawtcore
+}
+
+# GUI-only checks
+if {[package provide Tk] ne ""} {
+    chk "package Img" {package require Img}
+    chk "Img png round-trip" {
+	set f [file join [file tempfile] kitimg.png]
+	image create photo p1
+	p1 put {{red green} {blue black}}
+	p1 write $f -format png
+	image create photo p2 -file $f
+	set r "[p2 width]x[p2 height] [p2 get 0 0]"
+	image delete p1 p2
+	file delete -force $f
+	set r
+    }
+    chk "tklib canvas::zoom" {package require canvas::zoom}
+    chk "tk widgets" {
+	destroy .smoke
+	toplevel .smoke
+	label .smoke.l -text tclwinkit
+	pack .smoke.l
+	update
+	set r [.smoke.l cget -text]
+	destroy .smoke
+	set r
     }
 }
 

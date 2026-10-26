@@ -5,9 +5,16 @@
 #	Lives inside the attached zipfs image at //zipfs:/app/lib/kit_init.tcl.
 #
 #	Responsibilities:
-#	  * extend auto_path with pure-Tcl package trees in the image;
+#	  * extend auto_path with pure-Tcl package trees in the image
+#	    (tcllib/tklib module trees live one level below lib/tcllibX.Y);
+#	  * declare `load {}` package indices for statically linked
+#	    extensions (Img family);
 #	  * declare name aliases for statically registered binary packages;
 #	  * expose the kit version banner variable.
+#
+#	Note: directories directly under lib/ that carry a pkgIndex.tcl
+#	(twapi, cawt, TclReadLine, ...) are discovered automatically by
+#	Tcl's depth-1 package index scan once lib/ itself is in auto_path.
 
 namespace eval ::winkit {
     variable root    //zipfs:/app
@@ -16,9 +23,8 @@ namespace eval ::winkit {
 }
 
 # ---------------------------------------------------------------------
-# auto_path: tcllib/tklib installed trees (their children are the
-# module directories carrying pkgIndex.tcl files), plus any standalone
-# package directories placed directly under lib/.
+# auto_path: tcllib/tklib trees (their children are the module
+# directories carrying pkgIndex.tcl files) and any pkgs/ tree.
 # ---------------------------------------------------------------------
 namespace eval ::winkit {
     variable libdir
@@ -50,6 +56,52 @@ package ifneeded tdbc::sqlite3 1.1.13 [list apply {{dir} {
     package require sqlite3
     source -encoding utf-8 [file join $dir tdbcsqlite3.tcl]
 }} //zipfs:/app/lib/tdbc]
+
+# ---------------------------------------------------------------------
+# Img 2.1.2 (GUI variant only): statically linked, driven through
+# `load {} <Prefix>` where prefixes match the Tcl_StaticLibrary() calls
+# in kit_register.c. Format handlers pull img::base/zlibtcl/pngtcl/
+# jpegtcl/tifftcl via their *tcl_InitStubs calls at load time.
+# ---------------------------------------------------------------------
+if {[package provide Tk] ne ""} {
+    package ifneeded img::base 2.1.2 [list load {} Tkimg]
+    package ifneeded zlibtcl   1.3.2 [list load {} Zlibtcl]
+    package ifneeded pngtcl    1.6.58 [list load {} Pngtcl]
+    package ifneeded jpegtcl   10.0.0 [list load {} Jpegtcl]
+    package ifneeded tifftcl   4.7.2 [list load {} Tifftcl]
+    foreach {::winkit::t ::winkit::p} {
+	bmp Tkimgbmp       dted Tkimgdted     flir Tkimgflir
+	gif Tkimggif       ico Tkimgico       jpeg Tkimgjpeg
+	pcx Tkimgpcx       pixmap Tkimgpixmap png Tkimgpng
+	ppm Tkimgppm       ps Tkimgps        raw Tkimgraw
+	sgi Tkimgsgi       sun Tkimgsun      tga Tkimgtga
+	tiff Tkimgtiff     window Tkimgwindow xbm Tkimgxbm
+	xpm Tkimgxpm
+    } {
+	package ifneeded img::$::winkit::t 2.1.2 [list load {} $::winkit::p]
+    }
+    unset -nocomplain ::winkit::t ::winkit::p
+
+    # Union package: mirrors base/pkgIndex.tcl.in ( Img = all standard
+    # format handlers; dted/flir/gif/raw/ps remain opt-in via img::<fmt> ).
+    package ifneeded Img 2.1.2 {
+	package require img::window
+	package require img::tga
+	package require img::ico
+	package require img::pcx
+	package require img::sgi
+	package require img::sun
+	package require img::xbm
+	package require img::xpm
+	package require img::jpeg
+	package require img::png
+	package require img::tiff
+	package require img::bmp
+	package require img::ppm
+	package require img::pixmap
+	package provide Img 2.1.2
+    }
+}
 
 # tcl::tm module paths inside the image (if a tm/ tree is present)
 if {[namespace which ::tcl::tm::path] ne ""} {

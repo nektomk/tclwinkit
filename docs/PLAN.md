@@ -1,4 +1,4 @@
-# tclwinkit — план сборки
+# tclwinkit — план сборки (обновлён по результатам ресёрча)
 
 ## Конфигурация (согласовано с заказчиком)
 
@@ -7,110 +7,125 @@
 | Ядро | Tcl 9.0.4 + Tk 9.0.4 (x64) |
 | Цепочки | **MSVC 19.51** и **MinGW-w64 GCC 16.1** (обе, для сравнения) |
 | Исполняемые файлы | на каждую цепочку: консольный `tclwinkit.exe` + GUI `winkitwish.exe` |
-| Pure-Tcl пакеты | tcllib, tklib (в zipfs) |
-| Бинарные пакеты (статически) | Itcl 4.3.8, Thread 3.0.6, tdbc 1.1.13 + tdbc::sqlite3 (sqlite 3.53.0), tdbc::odbc, TWAPI, Img, CAWT, tclreadline |
+| Pure-Tcl пакеты | tcllib 2.0, tklib 0.9, CAWT 3.1.1, TclReadLine (в zipfs) |
+| Бинарные пакеты (статически) | Itcl 4.3.8, Thread 3.0.6, tdbc 1.1.13 + tdbc::sqlite3 (sqlite 3.53.0), tdbc::odbc, TWAPI 5.2.0 (+dyncall 0.9), Img 2.1.2 (img::base + zlibtcl/pngtcl/jpegtcl/tifftcl + 19 форматов) |
+| REPL-надстройка | **TclReadLine** (pure Tcl, BSD) вместо C-tclreadline: GNU readline — GPL-3, под MSVC не поддерживается. Требуется Windows-shim (низкоуровневые proc через TWAPI console API + трансляция клавиш) |
 | Формат | один файл: статический exe + прицепленный ZIP (zipfs), без внешних зависимостей |
 
-Всё перечисленное, кроме TWAPI/Img/CAWT/tclreadline/tcllib/tklib, уже лежит в
-`pkgs/` тарбола Tcl 9.0.4 (itcl4.3.8, thread3.0.6, tdbc1.1.13, tdbcsqlite3-1.1.13,
-tdbcodbc1.1.13, sqlite3.53.0).
+Bundled pkgs уже лежат в `pkgs/` тарбола Tcl 9.0.4: itcl4.3.8, thread3.0.6,
+tdbc1.1.13, tdbcsqlite3-1.1.13 (pure Tcl!), tdbcodbc1.1.13, sqlite3.53.0
+(amalgamation внутри, в compat/sqlite3). tdbcmysql/tdbcpostgres пропускаем
+(нужны SDK MySQL/libpq).
 
-## Как устроен single-file в Tcl 9
+## Ключевые факты (проверены по исходникам)
 
-1. **Статическое ядро.** `nmake -f makefile.vc release OPTS=static` даёт
-   `tcl90s.lib` + raw-шелл; bundled pkgs (`pkgs` target) собираются статическими
-   либами (опция `staticpkg` в 9.0 упразднена — статика включает их по умолчанию).
-2. **zipfs-прицеп.** ZIP, собранный `zipfs mkzip out.zip stage.vfs stage.vfs`
-   (strip-аргумент = корень), просто конкатенируется с exe (`COPY /b exe+zip`).
-   При старте `TclZipfs_AppHook` монтирует его в `//zipfs:/app`, ищет
-   `//zipfs:/app/tcl_library/init.tcl`; если в корне zip есть `main.tcl` — он
-   становится startup-скриптом (starkit-режим; **мы main.tcl не кладём**, чтобы
-   exe вёл себя как обычный tclsh/wish).
-3. **auto_path.** `init.tcl` добавляет в `auto_path` каталог `tcl_library` и его
-   **родителя** (т.е. корень `//zipfs:/app`). Значит pure-Tcl пакеты, лежащие
-   соседними каталогами с pkgIndex.tcl, находятся автоматически; для tcllib/tklib
-   (у них pkgIndex'ы в подкаталогах модулей) наш AppInit дополнительно делает
-   `lappend auto_path //zipfs:/app/tcllib2.x //zipfs:/app/tklib0.x`.
-4. **Бинарные расширения** DLL из zipfs грузить нельзя → линкуем статически и
-   регистрируем в собственном AppInit через `Tcl_StaticLibrary()` (API Tcl 9;
-   в `tclAppInit.c` так сделаны Registry/Dde). Хук `TCL_LOCAL_APPINIT` позволяет
-   подсунуть свой AppInit без переписывания tclAppInit.c.
+1. **Статическое ядро MSVC**: `nmake -f makefile.vc release OPTS=static,nomsvcrt`
+   → либы с суффиксом **`sx`** (tcl90sx.lib, tcl9tk90sx.lib, tcl9itcl438sx.lib…)
+   и `tclsh90sx.exe`/`wish90sx.exe`, не зависящие от VCRUNTIME (проверено objdump:
+   только KERNEL32/ADVAPI32/NETAPI32/USER32/USERENV/WS2_32).
+2. **zipfs-прицеп**: `zipfs mkzip out.zip kit.vfs kit.vfs` + конкатенация
+   `COPY /b exe+zip`. `TclZipfs_AppHook` монтирует в `//zipfs:/app`.
+   **Уточнение ресёрча**: DLL из zipfs в Tcl 9.0 грузить МОЖНО (`load` прозрачно
+   извлекает файл в %TEMP% — tclZipfs.c возвращает EXDEV, tclIOUtil.c копирует).
+   Это план Б; основной путь — статическая линковка (чище, без %TEMP%).
+3. **Tcl_StaticLibrary(interp, "Prefix", Init, SafeInit)** делает библиотеку
+   грузимой через `load {} Prefix` (точное, регистрозависимое совпадение префикса).
+   `package require X` работает, если pkgIndex/ifneeded вызывает `load {} X`.
+   Статический tclsh резолвит registry/dde вообще без pkgIndex — ядро знает о них.
+4. **TWAPI 5.2.0**: nmake-сборка `OPTS=static,nomsvcrt` сама генерирует
+   pkgIndex.tcl с fallback на `load {} Twapi` (официальная поддержка статики).
+   Требует dyncall (bundled prebuilt — /MD); мы пересобираем dyncall 0.9 из
+   исходников (dyncall.org) с /MT и подменяем либы (единый CRT).
+   Нужно: `-I<tcl>\libtommath` в INCLUDE (tclTomMath.h → tommath.h).
+   Tcl-часть: library/*.tcl (44 файла), twapi.tcl требует `registry`.
+5. **Img 2.1.2**: каждый формат — TEA/TIP477 пакет (`win/makefile.vc`, общий
+   `win/rules-img.vc`). Init-символы: `Tkimg_Init` (img::base), `Zlibtcl_Init`,
+   `Pngtcl_Init`, `Jpegtcl_Init`, `Tifftcl_Init`, форматы — `Tkimg<type>_Init`
+   (генерируются из init.c-шаблона). Версии: img::* 2.1.2, zlibtcl 1.3.2,
+   pngtcl 1.6.58, jpegtcl 10.0.0, tifftcl 4.7.2. Форматы тянут зависимости сами
+   через `*tcl_InitStubs` при `load {}`. Порядок сборки: base → zlib → libjpeg →
+   libpng → libtiff → 19 форматов.
+6. **CAWT 3.1.1 — pure Tcl** (COM через twapi::comobj; cawt.dll не существует).
+   Пакеты: cawt (мета) + cawtcore/cawtexcel/cawtword/… — свой pkgIndex.tcl
+   расширяет auto_path. Нужен twapi ≥5.1.
+7. **itcl4** ищет itcl.tcl в `[file dirname $tcl_library]/itcl4.3.8/` → кладём
+   `itcl4.3.8/itcl.tcl` в корень zip.
+8. **tdbc**: C-часть (Tdbc_Init) + Tcl-часть tdbc.tcl (wrapper в kit_register.c
+   sourc'ит её из zipfs). tdbc::sqlite3 — pure Tcl (tdbcsqlite3.tcl).
+9. **TclReadLine**: pure Tcl, но заточен под POSIX (`exec stty`, ANSI-escapes,
+   Expect). Для Windows нужен shim: rawInput/lineInput/getColumns/cleanup через
+   twapi console API + трансляция Windows-клавиш (0xE0-скан-коды → ANSI).
+10. **MinGW**: `configure --disable-shared` в win/ (tcl, tk) и в pkgs/*;
+    make сам создаёт staging libtcl.vfs/tcl_library, libtk.vfs/tk_library и
+    прицепляет zip к tclsh90s.exe/wish90s.exe. Зависимости exe: только
+    системные DLL + api-ms-win-crt-* (UCRT входит в Win10+). Kit-exe линкуем
+    с `-static -municode` (полностью автономный).
 
 ## Структура VFS (staging `kit.vfs/`)
 
 ```
 kit.vfs/
-  tcl_library/        <- копия library/ ядра; manifest.txt -> pkgIndex.tcl;
-                         registry/ и dde/ pkgIndex удалить (регистрируются статически)
-  tk_library/         <- копия library/ Tk (+ manifest -> pkgIndex), для GUI-exe
-  tcllib2.x/          <- модули tcllib (после install в staging)
-  tklib0.x/           <- модули tklib
-  twapi/              <- Tcl-часть TWAPI (pkgIndex.tcl + *.tcl)
-  img*/               <- Tcl-обвязка Img (если есть)
-  cawt/               <- Tcl-часть CAWT (cawt.tcl + pkgIndex.tcl)
-  tclreadline/        <- Tcl-обвязка tclreadline
-  tdbc/ thread/ ...   <- Tcl-части бинарных pkgs, не попавшие в tcl_library
+  tcl_library/          <- из libtcl.vfs ядра (registry/dde pkgIndex уже удалены)
+  tk_library/           <- из libtk.vfs (только GUI)
+  itcl4.3.8/itcl.tcl    <- itcl ищет рядом с [file dirname $tcl_library]
+  thread_library/ttrace.tcl
+  lib/
+    kit_init.tcl        <- автопуть, алиасы, load {}-индексы Img
+    tdbc/{tdbc.tcl,tdbcsqlite3.tcl}
+    twapi/*.tcl + pkgIndex.tcl   <- вендорный, с load {} Twapi fallback
+    cawt/{pkgIndex.tcl,cawtapp.tcl,Cawt*/…}
+    TclReadLine/{tclreadline.tcl,pkgIndex.tcl}
+    tcllib2.0/<134 модуля>       <- modules/ из тарбола
+    tklib0.9/<35 модулей>        <- только GUI
 ```
 
-Бинарные части (команды) пакетов уже в exe — pkgIndex.tcl в VFS для них
-подменяем на `package ifneeded X ver {list ...}` без `load` (или используем
-`package require` напрямую: статическая регистрация делает пакет «присутствующим»).
+Каталоги lib/<pkg>/ с pkgIndex.tcl находятся сами: Tcl сканирует auto_path
+на глубину 1 (lib/ добавлен в auto_path → lib/twapi/pkgIndex.tcl виден).
+Для tcllib/tklib добавляем в auto_path сами каталоги tcllib2.0/tklib0.9
+(их pkgIndex'ы — на глубину 1 ниже).
 
 ## Этапы сборки
 
 ### A. MSVC (`build/msvc/`)
-1. `nmake release OPTS=static` в tcl9.0.4/win → tcl90s.lib, tclsh90s(-raw).exe,
-   статические либы bundled pkgs, staging `libtcl.vfs/tcl_library`.
-2. `nmake release OPTS=static TCLDIR=..\tcl9.0.4` в tk9.0.4/win → tk90s.lib, wish.
-3. Внешние расширения (TWAPI, Img, tclreadline, CAWT): статические .lib
-   (nmake/TEA makefile.vc со STATIC_BUILD; детали по результатам ресёрча).
-4. `src/kit/kit_main.c` (консоль) и `src/kit/kit_wish_main.c` (GUI): регистрация
-   всех пакетов + auto_path-довески; линковка с tcl90s/tk90s/все .lib.
-5. Стажинг kit.vfs → `zipfs mkzip` (свежесобранным tclsh90s) → `COPY /b` → exe.
+1. `scripts/build-msvc-core.bat` — Tcl+pkgs+Tk `OPTS=static,nomsvcrt` ✅
+2. `scripts/build-msvc-ext.bat` — dyncall 0.9 (/MT) → twapi `OPTS=static,nomsvcrt` ✅
+3. `scripts/build-msvc-img.bat` — base, support-либы, 19 форматов (OPTS=static,nomsvcrt)
+4. `scripts/build-msvc-kit.bat` — kit_register.c ×2 (консоль/GUI-флавор) +
+   kit_main.c + kit_wish_main.c; линковка sx-либ + glob pkgs/twapi/img (*sx.lib, *stub.lib)
+5. `scripts/assemble-msvc-kit.ps1` — staging → zipfs mkzip (tclsh90sx) → COPY /b → dist/
 
-### B. MinGW (`build/mingw/`, под MSYS2-оболочкой UCRT64)
-1. `configure --disable-shared --enable-threads --prefix=...` + `make -j16`
-   в tcl9.0.4/unix → libtcl90.a, tclsh9.0.exe.
-2. Аналогично tk9.0.4/unix → libtk90.a.
-3. Bundled pkgs: у каждого свой configure → `--disable-shared` → .a.
-4. Внешние расширения: TEA `configure --disable-shared` (TWAPI/Img/tclreadline;
-   tclreadline против readline из MSYS2 ucrt64; CAWT — по итогам ресёрча).
-5. Тот же kit_main.c, линковка gcc -static (libgcc/libwinpthread статически),
-   staging + mkzip + конкатенация.
+### B. MinGW (`build/mingw/`, MSYS2 UCRT64)
+1. `scripts/build-mingw-core.sh` — tcl, tk (`configure --disable-shared`), pkgs ✅/⏳
+2. `scripts/build-mingw-ext.sh` — dyncall (gcc) → twapi (TEA, CPPFLAGS+=libtommath)
+   → Img (top-level configure --disable-shared)
+3. `scripts/build-mingw-kit.sh` — gcc -O2 -static -municode; архивы перечисляем
+   дважды (циклические зависимости); -mwindows для GUI
+4. `scripts/assemble-mingw-kit.ps1` — тот же staging, mkzip через mingw tclsh90s.exe
 
-### C. Тесты (на каждый exe)
-- `info patchlevel`, `package require` всех заявленных пакетов;
-- sqlite: создать БД, вставить/прочитать; twapi: `twapi::get_os_version`;
-- GUI-smoke: окно с кнопкой/канвасом (Img: загрузить PNG);
-- tclreadline: интерактивный запуск, строка с редактированием;
-- CAWT: при наличии MS Office — открыть Excel/создать документ (осторожно, live);
-- размер exe, запуск с флешки-подобного read-only каталога, двойной клик.
+### C. Тесты (на каждый из 4 exe)
+- `tests/smoke.tcl`: patchlevel, zipfs, все package require, sqlite/tdbc/thread/
+  itcl round-trips, registry, twapi + COM через dyncall (WScript.Shell),
+  tcllib (base64/struct/textutil), cawtcore, TclReadLine; GUI: Img PNG
+  round-trip, tklib, виджеты.
+- Интерактив: REPL с TclReadLine-shim (после основной сборки).
+- CAWT live-тест: только при наличии MS Office (осторожно, отдельный сценарий).
+- Переносимость: запуск из read-only каталога, отсутствие зависимостей (objdump),
+  размер, время старта.
 
 ### D. Артефакты
 `dist/`: tclwinkit-msvc.exe, winkitwish-msvc.exe, tclwinkit-mingw.exe,
-winkitwish-mingw.exe + README + отчёт сравнения цепочек (размер, скорость
-старта, результаты тестов).
+winkitwish-mingw.exe + README + отчёт сравнения цепочек.
 
-## Каталоги проекта
+## Риски и статус
 
-```
-vendor/    тарболы/скачанные исходники
-build/     деревья сборки (msvc/, mingw/)
-src/kit/   kit_main.c, kit_wish_main.c, Tcl-довески (kit init)
-scripts/   build-msvc-core.bat, build-mingw-core.sh, build-ext-*, assemble-kit.*
-dist/      финальные exe
-docs/      ENVIRONMENT.md, PLAN.md, отчёты
-```
-
-## Риски
-
-- **CAWT**: возможно, распространяется только бинарно (MSVC-сборка) — тогда
-  в MinGW-вариант не попадёт, а в MSVC-вариант пойдёт DLL? (из zipfs DLL не
-  грузится — нужен план Б: только если есть исходники).
-- **tclreadline под MSVC**: требует GNU readline; порта под MSVC может не быть →
-  в MSVC-варианте функция может быть ограничена (или замена на linenoise-REPL).
-- **Img/TWAPI статикой**: TEA-сборки обычно дают DLL; статлибы собираем вручную
-  (cl/gcc по списку исходников) — это рабочая, но ручная процедура.
-- **Tk статический + zipfs**: wish с прицепленным zip должен искать tk_library
-  в `//zipfs:/app/tk_library` — проверяем эмпирически (в nmake-сборке Tk уже
-  поддерживает embed; для MinGW делаем staging сами).
+- ~~CAWT бинарный~~ → **решено**: pure Tcl 3.1.1, только zipfs.
+- ~~tclreadline/GPL~~ → **решено**: TclReadLine (BSD). Остался Windows-shim
+  (raw console через twapi + трансляция клавиш) — единственная «ручная» часть.
+- ~~Img статикой вручную~~ → TIP477 nmake/TEA поддерживают OPTS=static;
+  MSVC-сборка идёт штатно (base+zlib+libjpeg+libpng+libtiff+форматы).
+- ~~tommath для twapi~~ → для статики символы уже в tcl90sx.lib; нужен только
+  include-путь при компиляции.
+- Смешивание CRT: dyncall пересобран с /MT — весь MSVC-exe на одном CRT.
+- Осталось проверить: статические stub-цепочки Img в одном exe (tkimgstub и
+  друзья), twapi-статика в /MT exe (COM-тест в smoke), MinGW top-level
+  configure Img (может потребоваться per-package сборка).
