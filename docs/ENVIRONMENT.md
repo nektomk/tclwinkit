@@ -62,3 +62,20 @@
    truly-single-file нужно линковать статически в exe, т.к. DLL из zipfs не грузятся.
 3. Подсистема exe (console vs windows) — одна на файл; консольный вариант
    (tclsh-стиль) сохраняет отладочный вывод, Tk-окна при этом работают.
+
+## Итоговый статус (2026-10-26)
+
+Проект собран и проверен полностью:
+
+- `dist/`: tclwinkit-msvc.exe (23.75 МБ), winkitwish-msvc.exe (29.47 МБ),
+  tclwinkit-mingw.exe (24.46 МБ), winkitwish-mingw.exe (30.85 МБ).
+- `tests/smoke.tcl` — SMOKE OK на всех четырёх exe (~25 проверок: версии,
+  zipfs, все package require, sqlite/tdbc round-trips, thread, itcl, registry,
+  twapi+COM, http, zlib, tcllib, CAWT, TclReadLine; GUI: Img PNG, tklib,
+  виджеты Tk).
+- `scripts/test-repl.ps1` — интерактивный REPL (TclReadLine + Win32-shim):
+  история, стрелки, Shift-Tab-дополнение, exit 0 — OK на MSVC и MinGW.
+- Портируемость: зависимости — только системные DLL (MSVC без CRT-DLL;
+  MinGW — UCRT api-ms-win-crt-*, Win10+); запуск из read-only каталога OK;
+  GUI-exe без аргументов живут в event loop.
+- Подробности техрешений: PLAN.md; сравнение цепочек: COMPARISON.md.

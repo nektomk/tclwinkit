@@ -62,6 +62,7 @@ function New-VfsTree {
     New-Item -ItemType Directory -Force "$Stage\kit.vfs\lib\TclReadLine" | Out-Null
     Copy-Item "$Common\TclReadLine\tclreadline.tcl" "$Stage\kit.vfs\lib\TclReadLine\"
     Copy-Item "$Common\TclReadLine\pkgIndex.tcl"    "$Stage\kit.vfs\lib\TclReadLine\"
+    Copy-Item "$Root\src\kit\vfs\lib\TclReadLine\tclreadline-win.tcl" "$Stage\kit.vfs\lib\TclReadLine\"
 
     # tcllib 2.0 module tree (every module dir carries its pkgIndex.tcl)
     New-Item -ItemType Directory -Force "$Stage\kit.vfs\lib\tcllib2.0" | Out-Null
@@ -71,6 +72,10 @@ function New-VfsTree {
         # tklib 0.9 (GUI variant only)
         New-Item -ItemType Directory -Force "$Stage\kit.vfs\lib\tklib0.9" | Out-Null
         Copy-Item -Recurse "$Common\tklib-0.9\modules\*" "$Stage\kit.vfs\lib\tklib0.9\"
+    } else {
+        # Console startup script: tclsh semantics + TclReadLine REPL.
+        # The GUI kit intentionally has NO main.tcl (stock wish behaviour).
+        Copy-Item "$Root\src\kit\vfs\main.tcl" "$Stage\kit.vfs\"
     }
 }
 

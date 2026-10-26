@@ -53,8 +53,23 @@ tdbc1.1.13, tdbcsqlite3-1.1.13 (pure Tcl!), tdbcodbc1.1.13, sqlite3.53.0
 8. **tdbc**: C-часть (Tdbc_Init) + Tcl-часть tdbc.tcl (wrapper в kit_register.c
    sourc'ит её из zipfs). tdbc::sqlite3 — pure Tcl (tdbcsqlite3.tcl).
 9. **TclReadLine**: pure Tcl, но заточен под POSIX (`exec stty`, ANSI-escapes,
-   Expect). Для Windows нужен shim: rawInput/lineInput/getColumns/cleanup через
-   twapi console API + трансляция Windows-клавиш (0xE0-скан-коды → ANSI).
+   fileevent+`read stdin`). Реализован shim `tclreadline-win.tcl` (TWAPI):
+   rawInput/lineInput → `SetConsoleMode` (посимвольно, без echo; Ctrl+C в raw
+   приходит как \x03 и чистит строку), ANSI-вывод → бит
+   ENABLE_VIRTUAL_TERMINAL_PROCESSING (0x4) через raw `twapi::SetConsoleMode`
+   (символьные флаги TWAPI его не знают), getColumns →
+   `get_console_screen_buffer_info -windowsize`, interact → синхронный цикл
+   `ReadConsoleInput` (`twapi::_console_read_input_records`): key-записи
+   (vkey+модификаторы+char) транслируются в ANSI (`\033[A..D`, `\033[1;5x`
+   ctrl, `\033[1;2x` shift, `\033[Z` shift-tab, `\033[H/F`, `\033[3~`), а
+   `read stdin` переименован в заглушку («») — ввод идёт мимо канала.
+   Логика редактирования/истории/дополнения вендора не тронута.
+   `main.tcl` (корень zip, ТОЛЬКО консольный кит): семантика tclsh
+   (script args / -encoding / pipe-цикл stdin с продолжением после ошибок /
+   интерактив), детект консоли по РЕАЛЬНОМУ stdin-хендлу
+   (`get_standard_handle`+`GetConsoleMode`; `get_console_handle` не годится —
+   он открывает CONIN$ даже при перенаправленном stdin). GUI-кит без main.tcl
+   = сток wish (свой console-виджет).
 10. **MinGW**: `configure --disable-shared` в win/ (tcl, tk) и в pkgs/*;
     make сам создаёт staging libtcl.vfs/tcl_library, libtk.vfs/tk_library и
     прицепляет zip к tclsh90s.exe/wish90s.exe. Зависимости exe: только
@@ -65,16 +80,17 @@ tdbc1.1.13, tdbcsqlite3-1.1.13 (pure Tcl!), tdbcodbc1.1.13, sqlite3.53.0
 
 ```
 kit.vfs/
+  main.tcl              <- ТОЛЬКО консольный кит (tclsh-семантика + REPL)
   tcl_library/          <- из libtcl.vfs ядра (registry/dde pkgIndex уже удалены)
   tk_library/           <- из libtk.vfs (только GUI)
   itcl4.3.8/itcl.tcl    <- itcl ищет рядом с [file dirname $tcl_library]
   thread_library/ttrace.tcl
   lib/
     kit_init.tcl        <- автопуть, алиасы, load {}-индексы Img
-    tdbc/{tdbc.tcl,tdbcsqlite3.tcl}
+    tdbc/{tdbc.tcl,tdbcsqlite3.tcl,tdbcodbc.tcl}
     twapi/*.tcl + pkgIndex.tcl   <- вендорный, с load {} Twapi fallback
     cawt/{pkgIndex.tcl,cawtapp.tcl,Cawt*/…}
-    TclReadLine/{tclreadline.tcl,pkgIndex.tcl}
+    TclReadLine/{tclreadline.tcl,pkgIndex.tcl,tclreadline-win.tcl}
     tcllib2.0/<134 модуля>       <- modules/ из тарбола
     tklib0.9/<35 модулей>        <- только GUI
 ```
@@ -89,43 +105,59 @@ kit.vfs/
 ### A. MSVC (`build/msvc/`)
 1. `scripts/build-msvc-core.bat` — Tcl+pkgs+Tk `OPTS=static,nomsvcrt` ✅
 2. `scripts/build-msvc-ext.bat` — dyncall 0.9 (/MT) → twapi `OPTS=static,nomsvcrt` ✅
-3. `scripts/build-msvc-img.bat` — base, support-либы, 19 форматов (OPTS=static,nomsvcrt)
+3. `scripts/build-msvc-img.bat` — base, support-либы, 19 форматов (OPTS=static,nomsvcrt) ✅
 4. `scripts/build-msvc-kit.bat` — kit_register.c ×2 (консоль/GUI-флавор) +
-   kit_main.c + kit_wish_main.c; линковка sx-либ + glob pkgs/twapi/img (*sx.lib, *stub.lib)
-5. `scripts/assemble-msvc-kit.ps1` — staging → zipfs mkzip (tclsh90sx) → COPY /b → dist/
+   kit_main.c + kit_wish_main.c; линковка sx-либ + glob pkgs/twapi/img (*sx.lib, *stub.lib) ✅
+5. `scripts/assemble-msvc-kit.ps1` — staging → быстрый .NET-zip (forward-slash
+   entries; `zipfs mkzip` слишком медленный, ~9 мин против ~1 мин) → конкатенация
+   exe+zip стримами → dist/ ✅
 
 ### B. MinGW (`build/mingw/`, MSYS2 UCRT64)
-1. `scripts/build-mingw-core.sh` — tcl, tk (`configure --disable-shared`), pkgs ✅/⏳
-2. `scripts/build-mingw-ext.sh` — dyncall (gcc) → twapi (TEA, CPPFLAGS+=libtommath)
-   → Img (top-level configure --disable-shared)
+1. `scripts/build-mingw-core.sh` — tcl, tk (`configure --disable-shared`), pkgs ✅
+2. `scripts/build-mingw-ext.sh` — dyncall (gcc; + `repack-dyncall.sh` — makefile
+   dyncall оставляет пустые .a) → twapi (TEA, CPPFLAGS+=libtommath) → Img
+   (top-level configure --disable-shared; base предоставляет `img::base`,
+   а не `tkimg` — kit_init обрабатывает оба имени) ✅
 3. `scripts/build-mingw-kit.sh` — gcc -O2 -static -municode; архивы перечисляем
-   дважды (циклические зависимости); -mwindows для GUI
-4. `scripts/assemble-mingw-kit.ps1` — тот же staging, mkzip через mingw tclsh90s.exe
+   дважды (циклические зависимости); -mwindows для GUI; -ltdh -luuid вручную ✅
+4. `scripts/assemble-mingw-kit.ps1` — тот же staging/zip-механизм, что MSVC ✅
 
-### C. Тесты (на каждый из 4 exe)
-- `tests/smoke.tcl`: patchlevel, zipfs, все package require, sqlite/tdbc/thread/
-  itcl round-trips, registry, twapi + COM через dyncall (WScript.Shell),
-  tcllib (base64/struct/textutil), cawtcore, TclReadLine; GUI: Img PNG
-  round-trip, tklib, виджеты.
-- Интерактив: REPL с TclReadLine-shim (после основной сборки).
-- CAWT live-тест: только при наличии MS Office (осторожно, отдельный сценарий).
-- Переносимость: запуск из read-only каталога, отсутствие зависимостей (objdump),
-  размер, время старта.
+### C. Тесты — ✅ все зелёные
+- `tests/smoke.tcl`: SMOKE OK на всех 4 exe (patchlevel, zipfs, все package
+  require, sqlite/tdbc round-trips c UTF-8, thread, itcl, registry, twapi + COM
+  (WScript.Shell через dyncall), http, zlib, tcllib, cawtcore, TclReadLine;
+  GUI: Img PNG round-trip (image width/height!), tklib canvas::zoom, виджеты).
+- `scripts/test-repl.ps1`: REPL-тест инъекцией клавиш (AttachConsole +
+  WriteConsoleInput): история по Up, Shift-Tab-дополнение (info patc→patchlevel),
+  Left+вставка символа, exit code 0 — OK на MSVC и MinGW. История сохраняется
+  в ~/.tclline_history.
+- CAWT live-тест: только при наличии MS Office (отдельный сценарий, не блокирует).
+- Переносимость: objdump — только системные DLL (MSVC без CRT-DLL; MinGW —
+  api-ms-win-crt-* UCRT-форвардеры); запуск из read-only каталога — SMOKE OK;
+  GUI-exe без аргументов живут в event loop (двойной клик).
 
 ### D. Артефакты
 `dist/`: tclwinkit-msvc.exe, winkitwish-msvc.exe, tclwinkit-mingw.exe,
 winkitwish-mingw.exe + README + отчёт сравнения цепочек.
 
-## Риски и статус
+## Риски и статус — ВСЁ РЕШЕНО
 
 - ~~CAWT бинарный~~ → **решено**: pure Tcl 3.1.1, только zipfs.
-- ~~tclreadline/GPL~~ → **решено**: TclReadLine (BSD). Остался Windows-shim
-  (raw console через twapi + трансляция клавиш) — единственная «ручная» часть.
-- ~~Img статикой вручную~~ → TIP477 nmake/TEA поддерживают OPTS=static;
-  MSVC-сборка идёт штатно (base+zlib+libjpeg+libpng+libtiff+форматы).
-- ~~tommath для twapi~~ → для статики символы уже в tcl90sx.lib; нужен только
-  include-путь при компиляции.
-- Смешивание CRT: dyncall пересобран с /MT — весь MSVC-exe на одном CRT.
-- Осталось проверить: статические stub-цепочки Img в одном exe (tkimgstub и
-  друзья), twapi-статика в /MT exe (COM-тест в smoke), MinGW top-level
-  configure Img (может потребоваться per-package сборка).
+- ~~tclreadline/GPL~~ → **решено**: TclReadLine (BSD) + Windows-shim
+  `tclreadline-win.tcl` (twapi console API; см. п.9 выше). Ключевая грабля:
+  `source` shim-файла из proc в namespace ::winkit определял proc'и
+  ОТНОСИТЕЛЬНО текущего namespace — все имена в shim'е теперь с `::`.
+- ~~Img статикой вручную~~ → TIP477 nmake/TEA поддерживают OPTS=static ✅.
+  Минговая TEA-base даёт `img::base` вместо `tkimg` — dual-name ifneeded в
+  kit_init.tcl (грузим один раз, допредоставляем отсутствующее имя).
+- ~~tommath для twapi~~ → include-путь при компиляции; символы в tcl90sx ✅.
+- ~~Смешивание CRT~~ → dyncall пересобран с /MT (MSVC); MinGW -static ✅.
+- ~~stub-цепочки Img / twapi-статика / MinGW Img~~ → проверены smoke-тестами
+  (PNG round-trip в GUI, COM-тест twapi в обоих консолях) ✅.
+- `main.tcl` в корне zip (консоль): tclsh-семантика (script/-encoding/pipe/
+  интерактив), catch нормализует `return -code N` в код N (не 2!).
+  Детект консоли — по РЕАЛЬНОМУ stdin-хендлу (get_standard_handle +
+  GetConsoleMode), не по CONIN$.
+- Zip-attachment: exe+zip конкатенация; zip обязан иметь forward-slash имена
+  entry (.NET CreateFromDirectory пишет backslash — непригоден; собираем
+  per-entry через CreateEntryFromFile).
