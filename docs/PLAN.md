@@ -161,3 +161,91 @@ winkitwish-mingw.exe + README + отчёт сравнения цепочек.
 - Zip-attachment: exe+zip конкатенация; zip обязан иметь forward-slash имена
   entry (.NET CreateFromDirectory пишет backslash — непригоден; собираем
   per-entry через CreateEntryFromFile).
+
+## Вторая волна пакетов (Itk, Iwidgets, rl_json, mpexpr, tkdnd, Treectrl)
+
+Итоговый состав: rl_json 0.17.8 + mpexpr 1.2 — в оба кита; Itk 4.2.7 +
+Iwidgets 4.1.1 + tkdnd 2.9.5 + Treectrl 2.5.2 — только GUI. **winico отброшен**:
+трей и уведомления полностью покрывает TWAPI (`twapi::systemtray::addicon`
++ `load_icon_from_file/system`), дублировать не стали. Демо/примеры/man в кит
+не кладутся (решение пользователя). Все патчи — в `patches/` + `patches/README.md`.
+
+Ключевые находки:
+
+- **Tcl 9 убрал публичный `Tcl_Backslash`** (mpparse.c mpexpr зовёт его в 6 местах)
+  → компактный шим `MpBackslash` (семантика 8.6) под `#if TCL_MAJOR_VERSION > 8`.
+  Внутренний `TclParseBackslash` из tclInt.h не подходит — другая сигнатура.
+- **`finally` — ключевое слово SEH в MSVC**: 256 goto-меток `finally:` в
+  rl_json generic/*.c переименованы в `finally_label`.
+- **MSVC-препроцессор по умолчанию не тянет вариативный выбор макроса**
+  (CHECK_ARGS_LABEL) → обязателен `/Zc:preprocessor`.
+- **nmake не отслеживает смену defines**: dedup.obj скомпилировался с пустым
+  `#if DEDUP` ДО добавления `/DDEDUP=1` и не пересобирался → LNK2001
+  new_stringobj_dedup/free_cache. Лечится удалением outdir (clean).
+- **rl_jsonBuildInfo.c + rl_jsonUuid.h**: MinGW configure генерирует заголовок
+  в корень дерева (находится через `-I.`), MSVC makefile его не знает →
+  obj добавлен в PRJ_OBJS вручную, сгенерированный uuid-заголовок скопирован
+  в `generic/` (quoted include ищет рядом с файлом).
+- **`mkstemp` отсутствует в MSVC CRT**; в rl_json используется только
+  debug-командой `checkmem` → `#if defined(_MSC_VER)`-заглушка `(Tcl_SetErrno(EINVAL), -1)`.
+- **Конфликт `DllMain`**: tkWinTree.c (treectrl) и twapi.c оба определяют
+  DllMain → в статическом ките LNK2005/multiple definition. DllMain treectrl
+  обёрнут в `#ifndef STATIC_BUILD` (нужен только чтобы поймать HMODULE для
+  GetModuleFileNameA; с NULL возвращает путь exe — для кита верно).
+- **itk несёт свой rules.vc 1.19 БЕЗ targets.vc** → переименован в rules.vc.own,
+  работает fallback на tcl'овский rules.vc 1.16. Апстрим-баг makefile.vc
+  (`echo TK_DIR = \> nmakehlp.out` обрезает файл, стирая предыдущие строки)
+  исправлен на `\>>` — в itk и rl_json.
+- **tkdnd — C++ (OleDND.cpp с extern "C")**: линковка kit'а идёт gcc → добавлен
+  `-lstdc++` в GUI-вариант MinGW.
+- **rl_json MinGW**: configure-пробы (Tcl_GetBytesFromObj и др.) врут —
+  линкуются против stub и системного tcl.h 8.6 из /ucrt64/include; лечится
+  `CPPFLAGS="-I$TCL/generic -I$TCL/win" LIBS="-L$TCL/win -ltcl90"`; сборка
+  строго in-tree (Makefile использует относительный `-Iteabase`).
+- **mpexpr не собирается ни одним штатным способом под Tcl 9** (мезон/nmake
+  ломаются на легаси-макросах) → легаси-макросы в mpexpr.h/zmath.h
+  (`_ANSI_ARGS_`, `TCL_VARARGS_DEF/START`, CONST) + кастомный gcc-цикл в
+  build-mingw-ext2.sh с `-fpermissive`. `#define VOID void` НЕ добавлять —
+  ломает winnt.h (`#ifndef VOID` guarding typedef'ов CHAR/SHORT).
+- **Itk_Init сам НЕ грузит itcl** → обёртка `ItkKit_Init` в kit_register.c
+  делает `package require itcl` перед `Itk_Init`. Оба имени (`Itk` и `itk`)
+  itk предоставляет сам (Tcl_PkgProvideEx ×2 в itkBase.c).
+- **itk ищет библиотеку как `[file dirname $tcl_library]/itk$patchLevel`** →
+  стадия `itk4.2.7/` в КОРНЕ zip (рядом с itcl4.3.8/). Treectrl —
+  `tcl_findLibrary` → `::treectrl_library` выставляется до `load {} Treectrl`
+  (ifneeded-скрипт в kit_init.tcl).
+- **Iwidgets pkgIndex не нужен**: ifneeded регистрирует kit_init.tcl,
+  `iwidgets.tcl` генерится из `.in` на стадии сборки
+  (@PACKAGE_VERSION@→4.1.1, @itcl_VERSION@→4.3.8). Классы autoload'ятся
+  из `generic/tclIndex`.
+- **tkdnd в статике**: нативный pkgIndex зовёт `tkdnd::initialise`, которая
+  грузит DLL; kit_init.tcl повторяет её win32-путь вручную и делает
+  `load {} Tkdnd` (C-часть статическая). `_windowingsystem` = windows,
+  `_platform_namespace` = olednd, temp dir из `%TEMP%`.
+- **mpexpr вызывает `Tcl_InitStubs(interp, "8.5", 0)`** — Tcl 9 отклоняет и
+  "8.5", и "8.6" (version conflict) → под `#if TCL_MAJOR_VERSION >= 9`
+  заменено на "9.0"; второй вызов `Tcl_PkgRequire(interp,"Tcl","8.5",0)`
+  вообще исключён для Tcl 9. Команды: `mpexpr`, `mpformat`; оператор `**`
+  отсутствует (mpexpr 1.2 старше Tcl 8.5) — использовать `pow(x,y)`.
+- **Tcl 9 ужесточил разрешение квалифицырованных имён переменных**: внутри
+  `namespace eval ::ns` имя `$ns::var` больше НЕ фолбэчится в глобаль —
+  ищется как `::ns::ns::var` (в 8.6 работало). Последствия для iwidgets.tcl:
+  `$iwidgets::library` → `$library` (variable-linked), `lappend auto_path` →
+  `lappend ::auto_path` (иначе правится ::iwidgets::auto_path и autoload
+  классов ломается). Правки — на стадии генерации в assemble-скриптах.
+- **iwidgets.tcl делает `package forget Itk`**, если Itk ещё не предоставлен —
+  убивает наш ifneeded. В ifneeded Iwidgets добавлен предварительный
+  `package require Itk`.
+- **tkdnd: generic/windows/compat используют относительные namespace**
+  (`namespace eval generic/olednd`) — нативный `::tkdnd::initialise` грузит их
+  через обёртку `::tkdnd::source`, чей proc-фрейм уже в контексте ::tkdnd.
+  Реплика в kit_init зовёт `::tkdnd::source` напрямую + выставляет
+  `_platform_namespace olednd` (читается в рантайме для конверсии типов).
+  `namespace eval ::tkdnd { ... $dir ... }` НЕ работает: в eval-блоке
+  переменные резолвятся в namespace, а не в локальном фрейме apply.
+- **rl_json MSVC**: без `/DHAVE_TCL_GETNUMBERFROMOBJ=1 /DTIP445_SHIM=0
+  /DGETBYTES_SHIM=0` init падает «Can't retrieve objType for int» (в Tcl 9
+  числовые objType не регистрируются по имени). `Rl_json_Init` читает
+  переменную `dir` из кадра вызова (вендорный pkgIndex передаёт её через
+  apply) → ifneeded обёрнут в `apply {{dir} {load {} Rl_json}}`.
+

@@ -92,6 +92,42 @@ chk "tcllib base64" {
     package require base64
     base64::encode {kit}
 }
+
+# rl_json: get/set round-trip (ensemble-style rl_json::json)
+chk "rl_json" {
+    package require rl_json
+    set j {{"name":"kit","n":[1,2,3],"ok":true}}
+    set name [rl_json::json get $j name]
+    set sum 0
+    foreach v [rl_json::json get $j n] { incr sum $v }
+    set j2 [rl_json::json set $j added 42]
+    expr {$name eq {kit} && $sum == 6 && [rl_json::json get $j2 added] == 42 \
+	    ? "$name/$sum/[rl_json::json type $j2]" : "mismatch: $name $sum"}
+}
+
+# mpexpr: arbitrary precision beyond 64 bit + mpformat
+# (mpexpr 1.2 is pre-8.5: no ** operator, use pow(); results are MP floats)
+chk "mpexpr bigint" {
+    package require Mpexpr
+    set r [mpexpr {pow(2,100)}]
+    expr {$r eq {1267650600228229401496703205376.0} ? {ok} : "got $r"}
+}
+chk "mpformat" {
+    set r [mpformat {%d} [mpexpr {pow(2,62) + 1}]]
+    expr {$r eq {4611686018427387905} ? $r : "got $r"}
+}
+
+# twapi system tray: add/modify/remove notification-area icon
+# (system icons come back typed HICON_SHARED — cast to HICON for addicon
+#  and do NOT free_icon a shared handle)
+chk "twapi system tray" {
+    set hshared [twapi::load_icon_from_system INFORMATION]
+    set hico [twapi::cast_handle $hshared HICON]
+    set id [twapi::systemtray::addicon $hico]
+    twapi::systemtray::modifyicon $id -tip {tclwinkit smoke}
+    twapi::systemtray::removeicon $id
+    expr {[string is integer -strict $id] ? "id=$id" : "bad id $id"}
+}
 chk "tcllib struct::queue" {
     package require struct::queue
     struct::queue q
@@ -138,6 +174,60 @@ if {[package provide Tk] ne ""} {
 	update
 	set r [.smoke.l cget -text]
 	destroy .smoke
+	set r
+    }
+
+    # Itk: dual spelling provided by C init + itk.tcl found in zipfs
+    chk "Itk" {
+	package require Itk
+	set v1 [package provide Itk]
+	set v2 [package provide itk]
+	expr {$v1 ne "" && $v2 ne "" && [llength [info commands itk::usual]] > 0 \
+		? "$v1/$v2" : "missing: '$v1' '$v2'"}
+    }
+
+    # Iwidgets: real megawidget on top of Itcl/Itk (autoload from generic/tclIndex)
+    chk "Iwidgets entryfield" {
+	package require Iwidgets
+	destroy .smokeiw
+	toplevel .smokeiw
+	iwidgets::entryfield .smokeiw.ef -labeltext Name
+	pack .smokeiw.ef
+	update
+	.smokeiw.ef insert end kit
+	set r [.smokeiw.ef get]
+	destroy .smokeiw
+	set r
+    }
+
+    # tkdnd: static C part + win32 OleDND Tcl scripts
+    chk "tkdnd drop_target" {
+	package require tkdnd
+	destroy .smokednd
+	toplevel .smokednd
+	label .smokednd.l -text drop
+	pack .smokednd.l
+	update
+	tkdnd::drop_target register .smokednd.l DND_Text
+	tkdnd::drag_source register .smokednd.l DND_Text
+	set tmp [tkdnd::GetDropFileTempDirectory]
+	tkdnd::drop_target unregister .smokednd.l
+	destroy .smokednd
+	expr {$tmp ne "" ? "[package provide tkdnd] tmp=$tmp" : "no temp dir"}
+    }
+
+    # Treectrl: widget creation + treectrl.tcl bindings loaded via ::treectrl_library
+    chk "treectrl widget" {
+	package require treectrl
+	destroy .smoketc
+	toplevel .smoketc
+	treectrl .smoketc.tc
+	pack .smoketc.tc
+	.smoketc.tc column create -text Col -width 80
+	set i [.smoketc.tc item create]
+	update
+	set r "[package provide treectrl] item=$i cmds=[llength [info commands TreeCtrl::*]]"
+	destroy .smoketc
 	set r
     }
 }

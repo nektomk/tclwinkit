@@ -12,10 +12,10 @@ Portable single-file Tcl 9 distribution for Windows x64.
 
 | Файл | Тулчейн | Подсистема | Размер |
 |---|---|---|---|
-| `tclwinkit-msvc.exe` | MSVC 19.51 (static CRT) | console | ~23.8 МБ |
-| `winkitwish-msvc.exe` | MSVC 19.51 (static CRT) | GUI | ~29.5 МБ |
-| `tclwinkit-mingw.exe` | MinGW-w64 GCC 16.1 (UCRT) | console | ~24.5 МБ |
-| `winkitwish-mingw.exe` | MinGW-w64 GCC 16.1 (UCRT) | GUI | ~30.9 МБ |
+| `tclwinkit-msvc.exe` | MSVC 19.51 (static CRT) | console | ~24.0 МБ |
+| `winkitwish-msvc.exe` | MSVC 19.51 (static CRT) | GUI | ~30.6 МБ |
+| `tclwinkit-mingw.exe` | MinGW-w64 GCC 16.1 (UCRT) | console | ~24.8 МБ |
+| `winkitwish-mingw.exe` | MinGW-w64 GCC 16.1 (UCRT) | GUI | ~32.6 МБ |
 
 Консольный exe = drop-in замена `tclsh` (те же семантики аргументов, pipe-режима
 и кодов возврата) + интерактивный REPL с редактированием строки, историей и
@@ -29,6 +29,8 @@ Portable single-file Tcl 9 distribution for Windows x64.
 | Tk | 9.0.4 | статически (GUI-exe) |
 | registry / dde | 1.3.7 / 1.4.6 | статически (часть ядра) |
 | Itcl | 4.3.8 | статически + `itcl4.3.8/itcl.tcl` в zip |
+| Itk | 4.2.7 | статически + `itk4.2.7/` в zip (GUI-exe) |
+| Iwidgets | 4.1.1 | pure Tcl (zipfs, GUI-exe) |
 | Thread | 3.0.6 | статически + `thread_library/ttrace.tcl` |
 | tdbc | 1.1.13 | статически + `lib/tdbc/tdbc.tcl` |
 | sqlite3 | 3.53.0 | статически |
@@ -36,6 +38,10 @@ Portable single-file Tcl 9 distribution for Windows x64.
 | tdbc::odbc | 1.1.13 | статически + `lib/tdbc/tdbcodbc.tcl` |
 | TWAPI | 5.2.0 | статически (+ dyncall 0.9) + Tcl-часть в zipfs |
 | Img (tkimg) | 2.1.2 | статически: base, zlibtcl 1.3.2, pngtcl 1.6.58, jpegtcl 10.0.0, tifftcl 4.7.2, 19 форматов |
+| rl_json | 0.17.8 | статически (обе сборки; `rl_json::json get/set/...`) |
+| mpexpr | 1.2 | статически (обе сборки; команды `mpexpr`, `mpformat`) |
+| tkdnd | 2.9.5 | статически + Tcl-часть в zipfs (GUI-exe; drag-and-drop) |
+| Treectrl | 2.5.2 | статически + `lib/treectrl2.5.2/` в zipfs (GUI-exe) |
 | tcllib | 2.0 | pure Tcl (zipfs) |
 | tklib | 0.9 | pure Tcl (zipfs, GUI-exe) |
 | CAWT | 3.1.1 | pure Tcl (zipfs) |
@@ -50,6 +56,25 @@ tclwinkit-msvc.exe                        ;# интерактивный REPL
 winkitwish-msvc.exe app.tcl               ;# как wish
 winkitwish-msvc.exe                       ;# GUI + Tk console widget
 ```
+
+### Иконка в трее (свернуть приложение)
+
+winico в кит не входит — его полностью покрывает TWAPI:
+
+```tcl
+package require twapi
+wm withdraw .                                   ;# спрятать главное окно
+set hico [twapi::load_icon_from_file myapp.ico] ;# свой .ico -> HICON
+# системная иконка: HICON_SHARED, нужен каст и без free_icon:
+# set hico [twapi::cast_handle [twapi::load_icon_from_system INFORMATION] HICON]
+set id [twapi::systemtray::addicon $hico [list show]]
+twapi::systemtray::modifyicon $id -tip "Моё приложение"
+proc show {args} { wm deiconify . }             ;# клик по иконке — показать окно
+# twapi::systemtray::modifyicon $id -balloon "Готово" -balloontitle "Статус"
+# twapi::systemtray::removeicon $id             ;# убрать иконку
+# twapi::free_icon $hico                        ;# только для load_icon_from_file
+```
+
 
 ### REPL (консольный кит)
 
@@ -72,7 +97,7 @@ VirtualTerminalProcessing (Windows 10+).
 `~/winkitwishrc.tcl` (GUI).
 
 Проверка в REPL: `package require` любого пакета из таблицы выше
-(`package names` показывает ~520 зарегистрированных пакетов).
+(`package names` показывает 523 зарегистрированных пакета).
 
 ## Портируемость
 
@@ -91,12 +116,14 @@ VirtualTerminalProcessing (Windows 10+).
 scripts\build-msvc-core.bat     # Tcl+Tk+pkgs: nmake OPTS=static,nomsvcrt
 scripts\build-msvc-ext.bat      # dyncall 0.9 + TWAPI 5.2.0 (MSVC)
 scripts\build-msvc-img.bat      # Img 2.1.2: base, support, 19 форматов
+scripts\build-msvc-ext2.bat     # rl_json, mpexpr, itk, tkdnd, treectrl (MSVC)
 scripts\build-msvc-kit.bat      # kit_register/kit_main/kit_wish_main + линковка exe
 scripts\assemble-msvc-kit.ps1   # staging VFS -> zip -> прицеп к exe -> dist\
 
 $env:MSYSTEM='UCRT64'
 C:\msys64\usr\bin\bash.exe -lc /c/src/winkit/scripts/build-mingw-core.sh
 C:\msys64\usr\bin\bash.exe -lc /c/src/winkit/scripts/build-mingw-ext.sh   # + repack-dyncall.sh
+C:\msys64\usr\bin\bash.exe -lc /c/src/winkit/scripts/build-mingw-ext2.sh  # rl_json, mpexpr, itk, tkdnd, treectrl
 C:\msys64\usr\bin\bash.exe -lc /c/src/winkit/scripts/build-mingw-kit.sh
 scripts\assemble-mingw-kit.ps1
 ```
@@ -110,8 +137,9 @@ scripts\test-repl.ps1                      # интерактивный REPL (и
 
 `tests\smoke.tcl` покрывает: версии/zipfs, registry, dde, itcl, Thread, tdbc,
 sqlite3 (+round-trip), tdbc::sqlite3 (+round-trip), tdbc::odbc, http, zlib,
-twapi (+COM), tcllib, CAWT, TclReadLine; в GUI — Img (PNG round-trip), tklib,
-виджеты Tk.
+twapi (+COM, +иконка в трее), rl_json (+round-trip), mpexpr (2**100), tcllib,
+CAWT, TclReadLine; в GUI — Img (PNG round-trip), tklib, виджеты Tk, Itk,
+Iwidgets (entryfield), tkdnd (drop/drag target), Treectrl (виджет+колонки).
 
 ## Структура zipfs-образа
 
@@ -121,16 +149,20 @@ twapi (+COM), tcllib, CAWT, TclReadLine; в GUI — Img (PNG round-trip), tklib,
   tcl_library/          скриптовая библиотека Tcl
   tk_library/           только GUI
   itcl4.3.8/itcl.tcl
+  itk4.2.7/             только GUI: itk.tcl + Archetype/Widget/Toplevel.itk
   thread_library/ttrace.tcl
   lib/
     kit_init.tcl        бутстрап: auto_path, package ifneeded для load {},
-                        алиасы имён (tkimg/img::base, Itcl/itcl, ...)
+                        алиасы имён (tkimg/img::base, Itcl/itcl, Itk/itk, ...)
     tdbc/{tdbc.tcl,tdbcsqlite3.tcl,tdbcodbc.tcl}
     twapi/*.tcl + pkgIndex.tcl
     cawt/…
     TclReadLine/{tclreadline.tcl,pkgIndex.tcl,tclreadline-win.tcl}
     tcllib2.0/<модули>
     tklib0.9/<модули>        только GUI
+    iwidgets4.1.1/           только GUI: iwidgets.tcl + generic/ (~50 классов)
+    tkdnd2.9.5/              только GUI: 7 Tcl-скриптов tkdnd
+    treectrl2.5.2/           только GUI: treectrl.tcl, filelist-bindings.tcl
 ```
 
 Бинарные пакеты регистрируются в `kit_register.c` через `Tcl_StaticLibrary`

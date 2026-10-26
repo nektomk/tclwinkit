@@ -61,6 +61,16 @@ package ifneeded tdbc::odbc 1.1.13 [list apply {{dir} {
 }} //zipfs:/app/lib/tdbc]
 
 # ---------------------------------------------------------------------
+# rl_json 0.17.8 / mpexpr 1.2: pure C extensions, both kit variants.
+# Rl_json_Init provides "rl_json"; Mpexpr_Init provides "Mpexpr".
+# NB: Rl_json_Init reads the variable `dir` from the calling frame (the
+# vendor pkgIndex passes the package dir through `apply`) — mirror that.
+# ---------------------------------------------------------------------
+package ifneeded rl_json 0.17.8 [list apply {{dir} {load {} Rl_json}} //zipfs:/app/lib]
+package ifneeded Mpexpr 1.2     [list load {} Mpexpr]
+package ifneeded mpexpr 1.2     [list package require Mpexpr]
+
+# ---------------------------------------------------------------------
 # Aliases: canonical static registrations use one spelling; provide the
 # common alternative spellings as thin redirects. (The static table has
 # "itcl" and "Thread"; tclsqlite answers to "sqlite3".)
@@ -133,6 +143,64 @@ if {[package provide Tk] ne ""} {
 	package require img::pixmap
 	package provide Img 2.1.2
     }
+
+    # -----------------------------------------------------------------
+    # Itk 4.2.7 / Iwidgets 4.1.1 (Itcl-based megawidgets).
+    # Itk_Init requires itcl to be loaded (the ItkKit_Init wrapper in
+    # kit_register.c runs `package require itcl` first), locates its
+    # itk.tcl under [file dirname $tcl_library]/itk4.2.7 (zipfs root)
+    # and provides BOTH spellings "Itk" and "itk" itself.
+    # Iwidgets is pure Tcl: iwidgets.tcl + generic/*.itk auto_load tree.
+    # -----------------------------------------------------------------
+    package ifneeded Itk 4.2.7 [list load {} Itk]
+    package ifneeded itk 4.2.7 [list package require Itk]
+    # NB: iwidgets.tcl runs `package forget Itk` when Itk is not yet
+    # provided (killing our own ifneeded registration) — require Itk first.
+    package ifneeded Iwidgets 4.1.1 [list apply {{} {
+	package require Itk
+	source -encoding utf-8 //zipfs:/app/lib/iwidgets4.1.1/iwidgets.tcl
+    }}]
+    package ifneeded iwidgets 4.1.1 [list package require Iwidgets]
+
+    # -----------------------------------------------------------------
+    # tkdnd 2.9.5: static C part (Tkdnd_Init provides "tkdnd").
+    # The native pkgIndex sources tkdnd.tcl and calls tkdnd::initialise,
+    # which loads a DLL; for the static kit we replicate its win32
+    # steps here with `load {} Tkdnd` in place of the DLL load.
+    # -----------------------------------------------------------------
+    package ifneeded tkdnd 2.9.5 [list apply {{dir} {
+	source -encoding utf-8 [file join $dir tkdnd.tcl]
+	set ::tkdnd::_package_dir $dir
+	set ::tkdnd::_windowingsystem windows
+	set ::tkdnd::_drop_file_temp_dir [file normalize \
+	    [expr {[info exists ::env(TEMP)] ? $::env(TEMP) : [pwd]}]]
+	# tkdnd_generic/windows/compat use RELATIVE namespaces (`namespace
+	# eval generic/olednd`) — the native ::tkdnd::initialise sources them
+	# through the ::tkdnd::source wrapper so they land under ::tkdnd.
+	# Calling the wrapper directly replicates that exactly (its proc
+	# frame runs in the ::tkdnd namespace, and it defaults to utf-8).
+	::tkdnd::source [file join $dir tkdnd_generic.tcl]
+	::tkdnd::source [file join $dir tkdnd_windows.tcl]
+	set ::tkdnd::_platform_namespace olednd
+	load {} Tkdnd
+	::tkdnd::source [file join $dir tkdnd_compat.tcl]
+	::tkdnd::olednd::initialise
+    }} //zipfs:/app/lib/tkdnd2.9.5]
+    package ifneeded tkdnd::utils 2.9.5 [list apply {{dir} {
+	package require tkdnd
+	source -encoding utf-8 [file join $dir tkdnd_utils.tcl]
+	package provide tkdnd::utils 2.9.5
+    }} //zipfs:/app/lib/tkdnd2.9.5]
+
+    # -----------------------------------------------------------------
+    # Treectrl 2.5.2: set ::treectrl_library BEFORE the load —
+    # Treectrl_Init runs tcl_findLibrary which sources treectrl.tcl
+    # (which in turn sources filelist-bindings.tcl from its own dir).
+    # -----------------------------------------------------------------
+    package ifneeded treectrl 2.5.2 [list apply {{dir} {
+	set ::treectrl_library $dir
+	load {} Treectrl
+    }} //zipfs:/app/lib/treectrl2.5.2]
 }
 
 # tcl::tm module paths inside the image (if a tm/ tree is present)

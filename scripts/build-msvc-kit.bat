@@ -21,7 +21,8 @@ mkdir %KITOUT% 2>nul
 
 rem ---- compile flags mirroring the core static nomsvcrt build ---------
 set KITDEFS=/DSTDC_HEADERS /DUSE_NMAKE=1 /DHAVE_STDINT_H=1 /DHAVE_INTTYPES_H=1 /DHAVE_STDBOOL_H=1 /DTCL_THREADS=1 /DUSE_THREAD_ALLOC=1 /DSTATIC_BUILD /DNDEBUG /DTCL_CFG_OPTIMIZED /DTCL_CFG_DO64BIT /DUNICODE /D_UNICODE
-set KITPKGS=/DKIT_HAVE_ITCL /DKIT_HAVE_THREAD /DKIT_HAVE_TDBC /DKIT_HAVE_SQLITE3 /DKIT_HAVE_TDBCODBC /DKIT_HAVE_TWAPI
+set KITPKGS=/DKIT_HAVE_ITCL /DKIT_HAVE_THREAD /DKIT_HAVE_TDBC /DKIT_HAVE_SQLITE3 /DKIT_HAVE_TDBCODBC /DKIT_HAVE_TWAPI /DKIT_HAVE_RLJSON /DKIT_HAVE_MPEXPR
+set KITGUIS=/DKIT_HAVE_IMG /DKIT_GUI /DKIT_HAVE_ITK /DKIT_HAVE_TKDND /DKIT_HAVE_TREECTRL
 set TCLINC=/I"%TCLROOT%\generic" /I"%TCLROOT%\win" /I"%TCLROOT%\libtommath"
 set TKINC=%TCLINC% /I"%TKROOT%\generic" /I"%TKROOT%\win" /I"%TKROOT%\xlib"
 set CFLAGS=/nologo /c /O2 /MT /W3 %KITDEFS%
@@ -40,6 +41,12 @@ set TWAPILIBS=%TWAPILIBS% "%EXT%\dyncall-0.9\dyncall\libdyncall_s.lib" "%EXT%\dy
 rem ---- Img (GUI only) ---------------------------------------------------
 set IMGLIBS=
 for %%p in (base zlib libjpeg libpng libtiff bmp dted flir gif ico jpeg pcx pixmap png ppm ps raw sgi sun tga tiff window xbm xpm) do call :addlibs2 IMGLIBS "%IMG%\%%p\win\%OUTDIR%"
+rem ---- ext2: rl_json + mpexpr (console & GUI) ---------------------------
+set EXT2LIBS=
+for %%p in (rl_json-0.17.8 mpexpr) do call :addlibs2 EXT2LIBS "%EXT%\%%p\win\%OUTDIR%"
+rem ---- ext2 GUI-only: itk + tkdnd + treectrl ----------------------------
+set EXT2GUILIBS=
+for %%p in (itk-4.2.7 tkdnd-2.9.5 tktreectrl-2.5.1) do call :addlibs2 EXT2GUILIBS "%EXT%\%%p\win\%OUTDIR%"
 
 rem ---- system libs -------------------------------------------------------
 set TCSYS=kernel32.lib advapi32.lib netapi32.lib userenv.lib ws2_32.lib odbc32.lib cfgmgr32.lib credui.lib crypt32.lib iphlpapi.lib mpr.lib ole32.lib oleaut32.lib pdh.lib powrprof.lib psapi.lib rpcrt4.lib secur32.lib setupapi.lib shell32.lib shlwapi.lib user32.lib uxtheme.lib version.lib winmm.lib winspool.lib wintrust.lib wtsapi32.lib gdi32.lib
@@ -52,18 +59,18 @@ echo === Compiling kit sources ===
 rem console flavor of kit_register (no Img: it needs Tk)
 cl %CFLAGS% %KITPKGS% %TCLINC% "%KITSRC%\kit_register.c" /Fo%KITOUT%\kit_register_c.obj || exit /b 1
 rem GUI flavor (with Img)
-cl %CFLAGS% %KITPKGS% /DKIT_HAVE_IMG /DKIT_GUI %TKINC% "%KITSRC%\kit_register.c" /Fo%KITOUT%\kit_register_g.obj || exit /b 1
+cl %CFLAGS% %KITPKGS% %KITGUIS% %TKINC% "%KITSRC%\kit_register.c" /Fo%KITOUT%\kit_register_g.obj || exit /b 1
 cl %CFLAGS% %KITPKGS% %TCLINC% "%KITSRC%\kit_main.c" /Fo%KITOUT%\kit_main.obj || exit /b 1
-cl %CFLAGS% %KITPKGS% /DKIT_HAVE_IMG /DKIT_GUI %TKINC% "%KITSRC%\kit_wish_main.c" /Fo%KITOUT%\kit_wish_main.obj || exit /b 1
+cl %CFLAGS% %KITPKGS% %KITGUIS% %TKINC% "%KITSRC%\kit_wish_main.c" /Fo%KITOUT%\kit_wish_main.obj || exit /b 1
 
 rem ---- link console kit ----------------------------------------------------
 echo === Linking tclwinkit-raw.exe (console) ===
-link %LFLAGS% -subsystem:console -out:%KITOUT%\tclwinkit-raw.exe %KITOUT%\kit_main.obj %KITOUT%\kit_register_c.obj %CORELIBS% %PKGLIBS% %TWAPILIBS% %TCSYS% || exit /b 1
+link %LFLAGS% -subsystem:console -out:%KITOUT%\tclwinkit-raw.exe %KITOUT%\kit_main.obj %KITOUT%\kit_register_c.obj %CORELIBS% %PKGLIBS% %TWAPILIBS% %EXT2LIBS% %TCSYS% || exit /b 1
 for %%m in ("%TCLOUT%\tclsh90sx.exe.manifest" "%TCLOUT%\tclsh90s.exe.manifest") do if exist %%m mt -nologo -manifest %%m -outputresource:%KITOUT%\tclwinkit-raw.exe;1
 
 rem ---- link GUI kit ---------------------------------------------------------
 echo === Linking winkitwish-raw.exe (GUI) ===
-link %LFLAGS% -subsystem:windows -out:%KITOUT%\winkitwish-raw.exe %KITOUT%\kit_wish_main.obj %KITOUT%\kit_register_g.obj %TKCORELIBS% %CORELIBS% %PKGLIBS% %TWAPILIBS% %IMGLIBS% %TKSYS% || exit /b 1
+link %LFLAGS% -subsystem:windows -out:%KITOUT%\winkitwish-raw.exe %KITOUT%\kit_wish_main.obj %KITOUT%\kit_register_g.obj %TKCORELIBS% %CORELIBS% %PKGLIBS% %TWAPILIBS% %EXT2LIBS% %IMGLIBS% %EXT2GUILIBS% %TKSYS% || exit /b 1
 for %%m in ("%TKOUT%\wish90sx.exe.manifest" "%TKOUT%\wish.exe.manifest") do if exist %%m mt -nologo -manifest %%m -outputresource:%KITOUT%\winkitwish-raw.exe;1
 
 echo === MSVC KIT EXES BUILT ===

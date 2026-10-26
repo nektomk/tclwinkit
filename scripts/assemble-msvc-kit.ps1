@@ -72,6 +72,39 @@ function New-VfsTree {
         # tklib 0.9 (GUI variant only)
         New-Item -ItemType Directory -Force "$Stage\kit.vfs\lib\tklib0.9" | Out-Null
         Copy-Item -Recurse "$Common\tklib-0.9\modules\*" "$Stage\kit.vfs\lib\tklib0.9\"
+
+        # Itk 4.2.7: Itk_Init finds itk.tcl at [file dirname $tcl_library]/itk4.2.7/
+        New-Item -ItemType Directory -Force "$Stage\kit.vfs\itk4.2.7" | Out-Null
+        Copy-Item "$Ext\itk-4.2.7\library\*" "$Stage\kit.vfs\itk4.2.7\"
+
+        # Iwidgets 4.1.1 (pure Tcl): iwidgets.tcl generated from the template,
+        # widget classes autoload from generic/tclIndex
+        New-Item -ItemType Directory -Force "$Stage\kit.vfs\lib\iwidgets4.1.1\generic" | Out-Null
+        $iw = [System.IO.File]::ReadAllText("$Common\iwidgets-4.1.1\iwidgets.tcl.in")
+        $iw = $iw.Replace('@itcl_VERSION@', '4.3.8').Replace('@PACKAGE_VERSION@', '4.1.1')
+        # Tcl 9 rejects `package require Tcl/Tk 8.0` (version conflict);
+        # 8.6- means ">= 8.6, including 9.x" and works on both.
+        $iw = $iw.Replace('package require Tcl 8.0', 'package require Tcl 8.6-')
+        $iw = $iw.Replace('package require Tk 8.0', 'package require Tk 8.6-')
+        # Tcl 9 resolves qualified variable names strictly relative to the
+        # current namespace (no implicit global fallback): inside
+        # `namespace eval ::iwidgets`, $iwidgets::library would look for
+        # ::iwidgets::iwidgets::library. Use the `variable`-linked simple name.
+        $iw = $iw.Replace('lappend auto_path $iwidgets::library', 'lappend auto_path $library')
+        $iw = $iw.Replace('[file join $iwidgets::library $subdir]', '[file join $library $subdir]')
+        # Same Tcl 9 strictness: inside the namespace eval, `lappend auto_path`
+        # would modify ::iwidgets::auto_path instead of the global one.
+        $iw = $iw.Replace('lappend auto_path', 'lappend ::auto_path')
+        [System.IO.File]::WriteAllText("$Stage\kit.vfs\lib\iwidgets4.1.1\iwidgets.tcl", $iw)
+        Get-ChildItem "$Common\iwidgets-4.1.1\generic" -File | Copy-Item -Destination "$Stage\kit.vfs\lib\iwidgets4.1.1\generic\"
+
+        # tkdnd 2.9.5: Tcl side (kit_init.tcl wires the static C part)
+        New-Item -ItemType Directory -Force "$Stage\kit.vfs\lib\tkdnd2.9.5" | Out-Null
+        Copy-Item "$Ext\tkdnd-2.9.5\library\*.tcl" "$Stage\kit.vfs\lib\tkdnd2.9.5\"
+
+        # Treectrl 2.5.2: treectrl.tcl + filelist-bindings.tcl (::treectrl_library)
+        New-Item -ItemType Directory -Force "$Stage\kit.vfs\lib\treectrl2.5.2" | Out-Null
+        Copy-Item "$Ext\tktreectrl-2.5.1\library\*.tcl" "$Stage\kit.vfs\lib\treectrl2.5.2\"
     } else {
         # Console startup script: tclsh semantics + TclReadLine REPL.
         # The GUI kit intentionally has NO main.tcl (stock wish behaviour).

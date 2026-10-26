@@ -21,6 +21,15 @@
  *   KIT_HAVE_IMG       - link Img 2.1.2    (external; GUI variant only:
  *                        img::base + zlibtcl/pngtcl/jpegtcl/tifftcl +
  *                        19 format handlers)
+ *   KIT_HAVE_RLJSON    - link rl_json 0.17 (external; both variants)
+ *   KIT_HAVE_MPEXPR    - link mpexpr 1.2   (external; both variants)
+ *   KIT_HAVE_ITK       - link Itk 4.2      (external; GUI variant only;
+ *                        Tcl side itk.tcl staged at zipfs root itk4.2.7/,
+ *                        requires itcl to be loaded first - see wrapper)
+ *   KIT_HAVE_TKDND     - link tkdnd 2.9    (external; GUI variant only;
+ *                        Tcl side staged in lib/tkdnd2.9.5/)
+ *   KIT_HAVE_TREECTRL  - link treectrl 2.5 (external; GUI variant only;
+ *                        Tcl side staged in lib/treectrl2.5.1/)
  *
  * Pure-Tcl packages (tcllib, tklib, cawt 3.1.1, TclReadLine, tdbc::sqlite3,
  * ttrace) need no registration here - they live in the zipfs image and are
@@ -60,6 +69,21 @@ extern Tcl_LibraryInitProc Tdbcodbc_Init;
 #endif
 #ifdef KIT_HAVE_TWAPI
 extern Tcl_LibraryInitProc Twapi_Init;
+#endif
+#ifdef KIT_HAVE_RLJSON
+extern Tcl_LibraryInitProc Rl_json_Init;
+#endif
+#ifdef KIT_HAVE_MPEXPR
+extern Tcl_LibraryInitProc Mpexpr_Init;
+#endif
+#ifdef KIT_HAVE_ITK
+extern Tcl_LibraryInitProc Itk_Init;
+#endif
+#ifdef KIT_HAVE_TKDND
+extern Tcl_LibraryInitProc Tkdnd_Init;
+#endif
+#ifdef KIT_HAVE_TREECTRL
+extern Tcl_LibraryInitProc Treectrl_Init;
 #endif
 #ifdef KIT_HAVE_IMG
 /* img::base + stub-table support packages */
@@ -123,6 +147,22 @@ TdbcOdbcKit_Init(Tcl_Interp *interp)
 	return TCL_ERROR;
     }
     return Tdbcodbc_Init(interp);
+}
+#endif
+
+#ifdef KIT_HAVE_ITK
+static int
+ItkKit_Init(Tcl_Interp *interp)
+{
+    /*
+     * Itk_Init requires Itcl to be initialized first (itcl stub table);
+     * mirror the dependency explicitly so `load {} Itk` works standalone.
+     */
+    if (Tcl_EvalEx(interp, "package require itcl", TCL_AUTO_LENGTH,
+	    TCL_EVAL_GLOBAL) == TCL_ERROR) {
+	return TCL_ERROR;
+    }
+    return Itk_Init(interp);
 }
 #endif
 
@@ -194,6 +234,21 @@ Kit_RegisterPackages(
     Tcl_StaticLibrary(NULL, "Tkimgwindow", Tkimgwindow_Init, NULL);
     Tcl_StaticLibrary(NULL, "Tkimgxbm", Tkimgxbm_Init, NULL);
     Tcl_StaticLibrary(NULL, "Tkimgxpm", Tkimgxpm_Init, NULL);
+#endif
+#ifdef KIT_HAVE_RLJSON
+    Tcl_StaticLibrary(NULL, "Rl_json", Rl_json_Init, NULL);
+#endif
+#ifdef KIT_HAVE_MPEXPR
+    Tcl_StaticLibrary(NULL, "Mpexpr", Mpexpr_Init, NULL);
+#endif
+#ifdef KIT_HAVE_ITK
+    Tcl_StaticLibrary(NULL, "Itk", ItkKit_Init, NULL);
+#endif
+#ifdef KIT_HAVE_TKDND
+    Tcl_StaticLibrary(NULL, "Tkdnd", Tkdnd_Init, NULL);
+#endif
+#ifdef KIT_HAVE_TREECTRL
+    Tcl_StaticLibrary(NULL, "Treectrl", Treectrl_Init, NULL);
 #endif
 
     /*

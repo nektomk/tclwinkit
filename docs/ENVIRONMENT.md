@@ -67,12 +67,14 @@
 
 Проект собран и проверен полностью:
 
-- `dist/`: tclwinkit-msvc.exe (23.75 МБ), winkitwish-msvc.exe (29.47 МБ),
-  tclwinkit-mingw.exe (24.46 МБ), winkitwish-mingw.exe (30.85 МБ).
-- `tests/smoke.tcl` — SMOKE OK на всех четырёх exe (~25 проверок: версии,
+- `dist/`: tclwinkit-msvc.exe (23.97 МБ), winkitwish-msvc.exe (30.59 МБ),
+  tclwinkit-mingw.exe (24.84 МБ), winkitwish-mingw.exe (32.61 МБ).
+- `tests/smoke.tcl` — SMOKE OK на всех четырёх exe (~35 проверок: версии,
   zipfs, все package require, sqlite/tdbc round-trips, thread, itcl, registry,
-  twapi+COM, http, zlib, tcllib, CAWT, TclReadLine; GUI: Img PNG, tklib,
-  виджеты Tk).
+  twapi+COM, http, zlib, rl_json (round-trip), mpexpr (2**100, mpformat),
+  twapi system tray (addicon/removeicon), tcllib, CAWT, TclReadLine;
+  GUI: Img PNG, tklib, виджеты Tk, Itk, Iwidgets (entryfield),
+  tkdnd (drop/drag target), Treectrl (виджет+колонки+item)).
 - `scripts/test-repl.ps1` — интерактивный REPL (TclReadLine + Win32-shim):
   история, стрелки, Shift-Tab-дополнение, exit 0 — OK на MSVC и MinGW.
 - Портируемость: зависимости — только системные DLL (MSVC без CRT-DLL;

@@ -1,0 +1,151 @@
+/*
+ *
+ * mpexpr.h 
+ * mpexpr - multiple precision expresion evaluator
+ *
+ *          hacked up from Tcl 7.6 tclExpr.c file
+ *          and some from 'calc'.
+ *
+ * Copyright 1998 Tom Poindexter
+ *
+ * copyright notices from borrowed code:
+ *
+ *---------------------------------------------------------------------------
+ * Copyright (c) 1994 David I. Bell
+ * Permission is granted to use, distribute, or modify this source,
+ * provided that this copyright notice remains intact.
+ *
+ *---------------------------------------------------------------------------
+ *
+ *      This file contains the code to evaluate expressions for
+ *      Tcl.
+ *
+ *      This implementation of floating-point support was modelled
+ *      after an initial implementation by Bill Carpenter.
+ *
+ *
+ * Copyright (c) 1987-1994 The Regents of the University of California.
+ * Copyright (c) 1994 Sun Microsystems, Inc.
+ *
+ *
+ */
+
+
+#ifndef _MPEXPRH
+#define _MPEXPRH
+
+#include <ctype.h>
+
+#include <tcl.h>
+
+#undef TCL_STORAGE_CLASS
+#ifdef BUILD_Mpexpr
+# define TCL_STORAGE_CLASS DLLEXPORT
+#else
+# ifdef USE_TCL_STUBS
+#  define TCL_STORAGE_CLASS
+# else
+#  define TCL_STORAGE_CLASS DLLIMPORT
+# endif
+#endif
+
+#if TCL_MAJOR_VERSION < 8
+# define Tcl_GetStringResult(interp) ((interp)->result)
+#endif
+
+#if (TCL_MAJOR_VERSION < 8) || ((TCL_MAJOR_VERSION == 8) && (TCL_MINOR_VERSION == 0))
+typedef void * Tcl_ThreadDataKey;
+
+/* Leaks size bytes per process -- do not care */
+#define Tcl_GetThreadData(keyPtr, size) (*(keyPtr) == NULL) \
+    ? *(keyPtr) = ckalloc(size), memset((*keyPtr), 0, (size)), (*keyPtr) \
+    : *(keyPtr)
+
+#define TCL_DECLARE_MUTEX(name)
+#define Tcl_MutexLock(mutexPtr)
+#define Tcl_MutexUnlock(mutexPtr)
+#endif
+
+#ifndef CONST
+# define CONST
+#endif
+
+#ifndef CONST84
+# define CONST84
+#endif
+
+/* modern tcl.h no longer defines _ANSI_ARGS_ */
+#ifndef _ANSI_ARGS_
+# define _ANSI_ARGS_(x) x
+#endif
+
+/* Tcl 8.0-era varargs helpers removed from modern tcl.h */
+#ifndef TCL_VARARGS_DEF
+# define TCL_VARARGS_DEF(type,name) (type name, ...)
+#endif
+#ifndef TCL_VARARGS_START
+# define TCL_VARARGS_START(type,name,ap) (va_start(ap, name), name)
+#endif
+
+#include "qmath.h"
+
+#define MPEXPR_VERSION   "1.2"
+
+#define MP_PRECISION_DEF      17
+#define MP_PRECISION_VAR      "mp_precision"
+#define MP_PRECISION_MAX      10000
+
+typedef struct Mp_Data {
+    Tcl_Interp *interp;
+    char *precVarName;
+    long precision;
+    NUMBER *epsilon;
+    Tcl_Command exprCmd;
+    Tcl_HashTable *funcTable;
+    Tcl_Command fmtCmd;
+} Mp_Data;
+
+EXTERN int		Mp_ExprString _ANSI_ARGS_((Tcl_Interp *interp,
+			    CONST char *string, Mp_Data *mdPtr));
+EXTERN int              Mp_FormatString _ANSI_ARGS_((Tcl_Interp *interp,
+			    int argc, CONST84 char **argv));
+
+/* hacked tclParse routines that don't rely on Tcl internals */
+
+typedef struct ParseValue {
+    char *buffer;               /* Address of first character in
+                                 * output buffer. */
+    char *next;                 /* Place to store next character in
+                                 * output buffer. */
+    char *end;                  /* Address of the last usable character
+                                 * in the buffer. */
+    void (*expandProc) _ANSI_ARGS_((struct ParseValue *pvPtr, int needed));
+                                /* Procedure to call when space runs out;
+                                 * it will make more space. */
+    ClientData clientData;      /* Arbitrary information for use of
+                                 * expandProc. */
+    int noEval;			/* Whether parsing should include evaluation */
+} ParseValue;
+
+EXTERN int              MpParseBraces _ANSI_ARGS_((Tcl_Interp *interp,
+                            CONST char *string, CONST char **termPtr, ParseValue *pvPtr));
+EXTERN void             MpExpandParseValue _ANSI_ARGS_((ParseValue *pvPtr,
+                            int needed));
+EXTERN int              MpParseQuotes _ANSI_ARGS_((Tcl_Interp *interp,
+                            CONST char *string, int termChar, int flags,
+                            CONST char **termPtr, ParseValue *pvPtr));
+EXTERN int              MpParseNestedCmd _ANSI_ARGS_((Tcl_Interp *interp,
+                            CONST char *string, int flags, CONST char **termPtr,
+                            ParseValue *pvPtr));
+EXTERN CONST char *     Mp_ParseVar _ANSI_ARGS_((Tcl_Interp *interp,
+                            CONST char *string, CONST char **termPtr, int noEval));
+
+EXTERN NUMBER *		Atoq _ANSI_ARGS_((CONST char *, CONST char **));
+#define Qfree(q)  qfree(q); (q)=NULL
+
+
+/* include declares from tclInt.h, so we won't have to find Tcl source dir */
+
+#define UCHAR(c) ((unsigned char) (c))
+
+#endif 
