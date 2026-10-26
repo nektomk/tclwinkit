@@ -53,3 +53,37 @@ MinGW: сборка кастомным gcc-циклом в `scripts/build-mingw-
 
 Патчей нет. C++-файл `TkDND_OleDND.cpp` уже имеет `extern "C"` у `Tkdnd_Init`;
 при линковке gcc (не g++) добавлен `-lstdc++`.
+
+## Iwidgets 4.1.1 (`iwidgets/`)
+
+Pure-Tcl пакет (копируется в `kit.vfs/lib/iwidgets4.1.1/` на этапе assemble),
+поэтому правки применяются к дереву `build/common/iwidgets-4.1.1/` — оно одно на
+обе сборки. Контрольные копии: `iwidgets/generic/` (runtime) и `iwidgets/tests/`
+(тестовые наборы). После фикса статики в дочерних interp (`pkgIndex.tcl`) и
+Tk-ресурсов курсоров оставалось 135 падений; все устранены, **3308/3308**.
+
+### Runtime (`generic/`) — реальные баги под Tcl/Tk 9
+
+| Файл | Правка |
+|---|---|
+| `colors.itcl` | `case $i \` → `switch -- $i \` (команда `case` удалена в Tcl 9). Один вызов в `hsbToRgb` → каскад давал падения во всех виджетах, использующих `iwidgets::colors::bottomShadow/topShadow` (tabnotebook, usual, …) |
+| `canvasprintbox.itk` | два `case $x in {` → `switch -- $x {` (`ezPaperInfo`: размеры бумаги + ориентация). Каскад: canvasprintbox 31 F, canvasprintdialog 52 F, usual c3/c4 |
+| `radiobox.itk` | `trace variable … w` → `trace add variable … write`, `trace vdelete … w` → `trace remove variable … write`. Синтаксис `trace variable` удалён в Tcl 9 → 33 F radiobox + usual c32 |
+| `scopedobject.itcl` | то же в конструкторе/деструкторе (`trace add/remove variable … undef`). Scopedobject — базовый класс, поэтому починка сняла большую часть точечных падений (checkbox, combobox, hierarchy, menubar, toolbar, scrolledhtml, scrolledtext, extbutton, …) |
+| `checkbox.itk`, `radiobox.itk` | `flash` теперь явно `return`: в Tk 9 `button flash` оставляет в результате имя индикаторного изображения (`::tk::icons::indicator16_…`), а документированный результат метода — пустая строка |
+
+Порядок аргументов важен: `trace add variable NAME op CMD`, а не `trace add NAME op CMD`
+(первая попытка дала `bad option "::itcl::internal::variables::…": must be execution,
+command, or variable`).
+
+### Тесты (`tests/`) — легаси-ожидания, несовместимые с Tk 9 / Windows
+
+| Файл | Правка |
+|---|---|
+| `combobox.test` | `bad screen distance "bogus"` → `expected screen distance but got "bogus"` (Tk 9 переформулировал сообщение; 4 F) |
+| `extbutton.test` | `image "bogus" doesn't exist` → `does not exist` (1 F) |
+| `menubar.test`, `toolbar.test` | `-underline -1` → ожидаемый `{}`: Tk 9 хранит «нет подчёркивания» как пустое значение, а не `-1` (3 F) |
+| `hierarchy.test` | `glob $env(HOME)/*` на Windows даёт пустой список (обратные слеши — экранирование), отсюда `the node doesn't exist` в Hierarchy-3.9…3.12; введён `set homedir [string map {\\ /} $env(HOME)]`, `get_files` использует ту же переменную, чтобы UID узлов совпадали байт-в-байт (4 F) |
+| `scrolledtext.test`, `scrolledhtml.test` | жёстко зашитый Unix-путь `/tmp/…` в `export` → `$::iwtmp` = `[string map {\\ /} $env(TEMP)]` (2 F) |
+
+Все правки помечены комментарием `WINKIT:` там, где меняется логика теста.
