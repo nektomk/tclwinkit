@@ -43,6 +43,24 @@ namespace eval ::winkit {
 }
 
 # ---------------------------------------------------------------------
+# Primary package indices for the statically linked binary extensions.
+# Tcl_StaticLibrary() only makes `load {} <Prefix>` work; the package
+# system still needs ifneeded entries. Prefixes must match the exact
+# strings registered in kit_register.c.
+# ---------------------------------------------------------------------
+package ifneeded itcl 4.3.8       [list load {} itcl]
+package ifneeded Thread 3.0.6     [list load {} Thread]
+package ifneeded tdbc 1.1.13      [list load {} tdbc]
+package ifneeded sqlite3 3.53.0   [list load {} sqlite3]
+# tdbc::odbc: the C Init attaches constructors to the OO classes created
+# by tdbcodbc.tcl, so the script must be sourced BEFORE load (same order
+# as the native pkgIndex.tcl).
+package ifneeded tdbc::odbc 1.1.13 [list apply {{dir} {
+    source -encoding utf-8 [file join $dir tdbcodbc.tcl]
+    load {} tdbc::odbc
+}} //zipfs:/app/lib/tdbc]
+
+# ---------------------------------------------------------------------
 # Aliases: canonical static registrations use one spelling; provide the
 # common alternative spellings as thin redirects. (The static table has
 # "itcl" and "Thread"; tclsqlite answers to "sqlite3".)
@@ -64,7 +82,8 @@ package ifneeded tdbc::sqlite3 1.1.13 [list apply {{dir} {
 # jpegtcl/tifftcl via their *tcl_InitStubs calls at load time.
 # ---------------------------------------------------------------------
 if {[package provide Tk] ne ""} {
-    package ifneeded img::base 2.1.2 [list load {} Tkimg]
+    package ifneeded tkimg 2.1.2 [list load {} Tkimg]
+    package ifneeded img::base 2.1.2 [list package require tkimg]
     package ifneeded zlibtcl   1.3.2 [list load {} Zlibtcl]
     package ifneeded pngtcl    1.6.58 [list load {} Pngtcl]
     package ifneeded jpegtcl   10.0.0 [list load {} Jpegtcl]

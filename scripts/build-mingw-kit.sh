@@ -27,7 +27,7 @@ TKCORELIBS="$TK/win/libtcl9tk90.a $TK/win/libtkstub.a"
 # bundled pkgs: static libs from the --disable-shared builds in pkgs/*
 PKGLIBS=$(ls $TCL/pkgs/*/libtcl9*.a $TCL/pkgs/*/lib*stub*.a 2>/dev/null | sort -u | tr '\n' ' ')
 # twapi + dyncall
-TWAPIOBJ=$(ls "$EXT"/twapi-5.2.0/bld/libtwapi*.a 2>/dev/null | grep -v '\.dll\.a' | head -1)
+TWAPIOBJ=$(ls "$EXT"/twapi-5.2.0/bld/lib*twapi*.a 2>/dev/null | grep -v '\.dll\.a' | head -1)
 if [ -z "$TWAPIOBJ" ]; then echo "TWAPI STATIC LIB NOT FOUND"; exit 1; fi
 DCL=$(find "$EXT/dyncall-0.9" -name 'libdyncall_s.a' | head -1)
 DYLD=$(find "$EXT/dyncall-0.9" -name 'libdynload_s.a' | head -1)
@@ -38,8 +38,8 @@ IMGLIBS=$(find "$EXT/Img-2.1.2/bld" -name 'lib*.a' ! -name '*dll.a' 2>/dev/null 
 
 TCSYS="-lnetapi32 -luserenv -lws2_32 -ladvapi32 -lkernel32 -luser32 -lodbc32 \
  -lcfgmgr32 -lcredui -lcrypt32 -lgdi32 -liphlpapi -lmpr -lole32 -loleaut32 -lpdh \
- -lpowrprof -lpsapi -lrpcrt4 -lsecur32 -lsetupapi -lshell32 -lshlwapi -luxtheme \
- -lversion -lwinmm -lwinspool -lwintrust -lwtsapi32"
+ -lpowrprof -lpsapi -lrpcrt4 -lsecur32 -lsetupapi -lshell32 -lshlwapi -ltdh -luxtheme \
+ -luuid -lversion -lwinmm -lwinspool -lwintrust -lwtsapi32"
 TKSYS="$TCSYS -limm32 -lcomdlg32 -lcomctl32 -loleacc -luuid"
 LDFLAGS="-static -municode -Wl,--stack,2300000"
 

@@ -27,6 +27,7 @@ int _CRT_glob = 0;	/* Disable globbing of argv (MinGW) */
 extern "C" {
 #endif
 extern int Kit_RegisterPackages(Tcl_Interp *interp);
+int Tcl_AppInit(Tcl_Interp *interp);	/* defined below */
 #ifdef __cplusplus
 }
 #endif

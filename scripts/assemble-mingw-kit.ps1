@@ -35,6 +35,7 @@ function New-VfsTree {
     New-Item -ItemType Directory -Force "$Stage\kit.vfs\lib\tdbc" | Out-Null
     Copy-Item "$Pkgs\tdbc1.1.13\library\tdbc.tcl"               "$Stage\kit.vfs\lib\tdbc\"
     Copy-Item "$Pkgs\tdbcsqlite3-1.1.13\library\tdbcsqlite3.tcl" "$Stage\kit.vfs\lib\tdbc\"
+    Copy-Item "$Pkgs\tdbcodbc1.1.13\library\tdbcodbc.tcl"        "$Stage\kit.vfs\lib\tdbc\"
 
     # itcl 4 finds its itcl.tcl at [file dirname $tcl_library]/itcl<ver>/
     New-Item -ItemType Directory -Force "$Stage\kit.vfs\itcl4.3.8" | Out-Null
@@ -81,29 +82,50 @@ function New-VfsTree {
 
 function New-KitZip {
     param([string]$ZipName)
-    $zipper = @"
-cd [list {$(($Stage -replace '\\','/'))}]
-file delete -force [list $ZipName]
-zipfs mkzip [list $ZipName] kit.vfs kit.vfs
-"@
-    Set-Content -Path "$Stage\zipper.tcl" -Value $zipper -Encoding ascii
-    Push-Location $Stage
+    # Fast pure-.NET zip with forward-slash entry names and directory
+    # entries (zipfs-compatible; ~100x faster than zipfs mkzip).
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $zipPath = "$Stage\$ZipName"
+    Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
+    $zip = [System.IO.Compression.ZipFile]::Open($zipPath, 'Create')
     try {
-        & "$TclWin\tclsh90s.exe" "$Stage\zipper.tcl"
-        if ($LASTEXITCODE -ne 0) { throw "zipfs mkzip failed for $ZipName" }
-    } finally { Pop-Location }
+        $root = (Resolve-Path "$Stage\kit.vfs").Path.TrimEnd('\') + '\'
+        $dirs = [System.Collections.Generic.HashSet[string]]::new()
+        Get-ChildItem -LiteralPath "$Stage\kit.vfs" -Recurse -File | ForEach-Object {
+            $rel = $_.FullName.Substring($root.Length) -replace '\\','/'
+            $d = [System.IO.Path]::GetDirectoryName($rel) -replace '\\','/'
+            while ($d -and $dirs.Add($d)) {
+                $null = $zip.CreateEntry($d + '/')
+                $d = [System.IO.Path]::GetDirectoryName($d) -replace '\\','/'
+            }
+            $null = [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
+                $zip, $_.FullName, $rel,
+                [System.IO.Compression.CompressionLevel]::Fastest)
+        }
+    } finally { $zip.Dispose() }
+}
+
+function Join-Binaries {
+    param([string[]]$Parts, [string]$Destination)
+    $out = [System.IO.File]::Create($Destination)
+    try {
+        foreach ($p in $Parts) {
+            $in = [System.IO.File]::OpenRead($p)
+            try { $in.CopyTo($out) } finally { $in.Dispose() }
+        }
+    } finally { $out.Dispose() }
 }
 
 # ---- console kit -------------------------------------------------------
 New-VfsTree
 New-KitZip 'kit-console.zip'
-cmd /c copy /b "`"$Kit\tclwinkit-raw.exe`"+`"$Stage\kit-console.zip`" `"$Dist\tclwinkit-mingw.exe`"" | Out-Null
+Join-Binaries @("$Kit\tclwinkit-raw.exe", "$Stage\kit-console.zip") "$Dist\tclwinkit-mingw.exe"
 if (-not (Test-Path "$Dist\tclwinkit-mingw.exe")) { throw 'attach failed (console)' }
 
 # ---- GUI kit ------------------------------------------------------------
 New-VfsTree -WithTk
 New-KitZip 'kit-gui.zip'
-cmd /c copy /b "`"$Kit\winkitwish-raw.exe`"+`"$Stage\kit-gui.zip`" `"$Dist\winkitwish-mingw.exe`"" | Out-Null
+Join-Binaries @("$Kit\winkitwish-raw.exe", "$Stage\kit-gui.zip") "$Dist\winkitwish-mingw.exe"
 if (-not (Test-Path "$Dist\winkitwish-mingw.exe")) { throw 'attach failed (gui)' }
 
 Get-ChildItem $Dist\*-mingw.exe | Select-Object Name, @{n='MB';e={[math]::Round($_.Length/1MB,2)}}

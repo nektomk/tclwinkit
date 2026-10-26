@@ -13,8 +13,8 @@ chk "tcl version"        {info patchlevel}
 chk "zipfs app mounted"  {expr {[file isdirectory //zipfs:/app/tcl_library] ? {yes} : {no}} }
 chk "exe path"           {file normalize [info nameofexecutable]}
 
-chk "package Registry"   {package require Registry}
-chk "package Dde"        {package require Dde}
+chk "package registry"   {package require registry}
+chk "package dde"        {package require dde}
 chk "package itcl"       {package require itcl}
 chk "package Thread"     {package require Thread}
 chk "package tdbc"       {package require tdbc}
@@ -26,7 +26,8 @@ chk "package zlib cmd"   {expr {[llength [info commands zlib]] > 0}}
 
 # sqlite round-trip
 chk "sqlite3 db" {
-    set f [file join [file tempfile] kitdb.sqlite]
+    set f [file join [file normalize $::env(TEMP)] kitdb-[pid].sqlite]
+    file delete -force $f
     sqlite3 db $f
     db eval {CREATE TABLE t(x INTEGER PRIMARY KEY, y TEXT)}
     db eval {INSERT INTO t(y) VALUES('привет'), ('kit')}
@@ -39,14 +40,15 @@ chk "sqlite3 db" {
 # tdbc round-trip
 chk "tdbc sqlite3" {
     package require tdbc::sqlite3
-    set f [file join [file tempfile] kittdbc.sqlite]
+    set f [file join [file normalize $::env(TEMP)] kittdbc-[pid].sqlite]
+    file delete -force $f
     tdbc::sqlite3::connection create db $f
     db allrows {CREATE TABLE q(a)}
-    db insert q {a 42}
+    db allrows {INSERT INTO q(a) VALUES(42)}
     set r [db allrows {SELECT a FROM q}]
     db close
     file delete -force $f
-    lindex $r 0 a
+    dict get [lindex $r 0] a
 }
 
 # thread round-trip
@@ -75,11 +77,11 @@ chk "registry keys" {
 chk "twapi" {
     package require twapi
     set v [twapi::get_os_version]
-    "$v ([twapi::get_temp_path] ne {})"
+    expr {$v ne "" ? $v : "empty"}
 }
 chk "twapi COM (dyncall)" {
     package require twapi_com
-    set wsh [twapi::comobj -create WScript.Shell]
+    set wsh [twapi::comobj WScript.Shell]
     set name [$wsh ExpandEnvironmentStrings {%COMPUTERNAME%}]
     $wsh -destroy
     expr {$name ne "" && $name ne "%COMPUTERNAME%"}
@@ -98,9 +100,9 @@ chk "tcllib struct::queue" {
     q destroy
     set r
 }
-chk "tcllib textutil" {
-    package require textutil
-    textutil::unduplicate {a a b}
+chk "tcllib fileutil" {
+    package require fileutil
+    fileutil::fullnormalize [info nameofexecutable]
 }
 
 # TclReadLine (pure-Tcl REPL helper)
@@ -116,12 +118,13 @@ chk "cawtcore" {
 if {[package provide Tk] ne ""} {
     chk "package Img" {package require Img}
     chk "Img png round-trip" {
-	set f [file join [file tempfile] kitimg.png]
+	set f [file join [file normalize $::env(TEMP)] kitimg-[pid].png]
+	file delete -force $f
 	image create photo p1
 	p1 put {{red green} {blue black}}
 	p1 write $f -format png
 	image create photo p2 -file $f
-	set r "[p2 width]x[p2 height] [p2 get 0 0]"
+	set r "[image width p2]x[image height p2] [p2 get 0 0]"
 	image delete p1 p2
 	file delete -force $f
 	set r
