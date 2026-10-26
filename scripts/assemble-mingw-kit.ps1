@@ -28,8 +28,9 @@ function New-VfsTree {
         Copy-Item -Recurse "$TkWin\libtk.vfs\tk_library" "$Stage\kit.vfs\tk_library"
     }
 
-    # Kit Tcl bootstrap
+    # Kit Tcl bootstrap + physical package index for static/mixed packages
     Copy-Item "$Root\src\kit\vfs\lib\kit_init.tcl" "$Stage\kit.vfs\lib\"
+    Copy-Item "$Root\src\kit\vfs\lib\pkgIndex.tcl" "$Stage\kit.vfs\lib\"
 
     # Tcl sides of mixed packages
     New-Item -ItemType Directory -Force "$Stage\kit.vfs\lib\tdbc" | Out-Null

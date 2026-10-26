@@ -58,6 +58,80 @@ chk "thread create/join" {
     expr {$t > 0}
 }
 
+# ---------------------------------------------------------------------
+# Static packages must be visible in CHILD interpreters (slave, safe,
+# thread). The kit registers the C inits via Tcl_StaticLibrary() (process
+# global table) AND ships a physical package index at //zipfs:/app/lib/
+# pkgIndex.tcl, which every new interp discovers because init.tcl puts
+# [file dirname $tcl_library] (= //zipfs:/app) on its ::auto_path.
+# Without both halves, `thread create {package require sqlite3}` -- a
+# typical pattern in real apps -- fails with "can't find package".
+# ---------------------------------------------------------------------
+chk "slave interp: package require sqlite3" {
+    set i [interp create]
+    set v [$i eval {package require sqlite3}]
+    set r [$i eval {sqlite3 db :memory:; set x [db eval {select 40+2}]; db close; set x}]
+    interp delete $i
+    expr {$v ne "" && $r eq {42} ? "sqlite3 $v" : "bad: $v / $r"}
+}
+chk "thread::create + package require sqlite3" {
+    set t [thread::create {
+	package require sqlite3
+	sqlite3 db :memory:
+	set ::res [db eval {select 40+2}]
+	db close
+	thread::wait
+    }]
+    set r [thread::send $t {set ::res}]
+    thread::release $t -join
+    expr {$r eq {42} ? $r : "got $r"}
+}
+chk "slave interp: load {} itcl / Itcl" {
+    set i [interp create]
+    load {} itcl $i
+    set n [$i eval {namespace children :: itcl}]
+    interp delete $i
+    set j [interp create]
+    load {} Itcl $j
+    set m [$j eval {namespace children :: itcl}]
+    interp delete $j
+    expr {$n ne {} && $m ne {} ? "both spellings ok" : "itcl:$n Itcl:$m"}
+}
+chk "thread::create + itcl class" {
+    set t [thread::create {
+	package require itcl
+	itcl::class SmkCls { method m {} {return ok} }
+	SmkCls o
+	set ::res [o m]
+	itcl::delete object o
+	itcl::delete class SmkCls
+	thread::wait
+    }]
+    set r [thread::send $t {set ::res}]
+    thread::release $t -join
+    expr {$r eq {ok} ? $r : "got $r"}
+}
+chk "thread::create + twapi_base" {
+    set t [thread::create {
+	package require twapi_base
+	set ::res [twapi::get_os_version]
+	thread::wait
+    }]
+    set r [thread::send $t {set ::res}]
+    thread::release $t -join
+    expr {$r ne {} ? [lindex $r 0] : "empty"}
+}
+chk "safe interp: load {} Rl_json" {
+    # rl_json has no unsafe surface: Rl_json_SafeInit delegates to Init.
+    # Preload in main first (Rl_json_Init reads $dir only on first load).
+    package require rl_json
+    set s [interp create -safe]
+    load {} Rl_json $s
+    set r [$s eval {::rl_json::json get {{"a":41}} a}]
+    interp delete $s
+    expr {$r == 41 ? "safe json=$r" : "got $r"}
+}
+
 # itcl smoke (also proves itcl.tcl was found in the zipfs image)
 chk "itcl class" {
     itcl::class Foo { method bar {} { return baz } }

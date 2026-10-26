@@ -56,6 +56,17 @@ gcc -c $CFLAGS $PKGS $GUIS $TKINC "$SRC/kit_register.c" -o kit_register_g.o
 gcc -c $CFLAGS $PKGS $TCLINC "$SRC/kit_main.c" -o kit_main.o
 gcc -c $CFLAGS $PKGS $GUIS $TKINC "$SRC/kit_wish_main.c" -o kit_wish_main.o
 
+# ---- Tk resources for the GUI kit (X11 cursor names, tk icon, dialogs) --
+# Tk on Windows resolves -cursor names like "gumby" through
+# LoadCursorA(Tk_GetHINSTANCE(), name): those are named CURSOR resources in
+# the exe (stock wish gets them via win/rc/wish.rc -> tk_base.rc). Without
+# them every X11-style cursor spec fails ("bad cursor spec").
+# cwd = Tk's rc dir so the relative cursorNN.cur / tk.ico paths resolve.
+echo "=== compiling kit_wish.rc (Tk cursor resources) ==="
+( cd "$TK/win/rc" && windres -i "$SRC/kit_wish.rc" -o "$OUT/kit_wish_res.o" \
+    -O coff -I "$TK/win/rc" -I "$TK/generic" -I "$TCL/generic" \
+    --define STATIC_BUILD=1 )
+
 # ---- link console (archive list doubled to resolve circular deps) ---------
 echo "=== linking tclwinkit-raw.exe (console) ==="
 gcc $LDFLAGS -o tclwinkit-raw.exe kit_main.o kit_register_c.o \
@@ -65,6 +76,7 @@ gcc $LDFLAGS -o tclwinkit-raw.exe kit_main.o kit_register_c.o \
 # -lstdc++: tkdnd's OleDND.cpp is C++ (linked with gcc, needs the C++ runtime)
 echo "=== linking winkitwish-raw.exe (GUI) ==="
 gcc $LDFLAGS -mwindows -o winkitwish-raw.exe kit_wish_main.o kit_register_g.o \
+  kit_wish_res.o \
   $TKCORELIBS $CORELIBS $PKGLIBS $TWAPILIBS $IMGLIBS $EXT2LIBS $EXT2GUILIBS \
   $TKCORELIBS $CORELIBS $PKGLIBS $TWAPILIBS $IMGLIBS $EXT2LIBS $EXT2GUILIBS $TKSYS -lstdc++
 

@@ -63,6 +63,19 @@ cl %CFLAGS% %KITPKGS% %KITGUIS% %TKINC% "%KITSRC%\kit_register.c" /Fo%KITOUT%\ki
 cl %CFLAGS% %KITPKGS% %TCLINC% "%KITSRC%\kit_main.c" /Fo%KITOUT%\kit_main.obj || exit /b 1
 cl %CFLAGS% %KITPKGS% %KITGUIS% %TKINC% "%KITSRC%\kit_wish_main.c" /Fo%KITOUT%\kit_wish_main.obj || exit /b 1
 
+rem ---- Tk resources for the GUI kit (X11 cursor names, tk icon, dialogs) --
+rem Tk on Windows resolves -cursor names like "gumby" through
+rem LoadCursorA(Tk_GetHINSTANCE(), name): the cursors are named CURSOR
+rem resources in the exe (stock wish gets them via win/rc/wish.rc ->
+rem tk_base.rc). Without them every X11-style cursor spec fails.
+rem cwd = Tk's rc dir so the relative cursorNN.cur / tk.ico paths resolve.
+echo === Compiling kit_wish.rc (Tk cursor resources) ===
+pushd "%TKROOT%\win\rc"
+rc -nologo -fo "%KITOUT%\kit_wish.res" -r -i "%TKROOT%\generic" -i "%TKROOT%\win" -i "%TKROOT%\win\rc" /DSTATIC_BUILD=1 "%KITSRC%\kit_wish.rc"
+set RCERR=%ERRORLEVEL%
+popd
+if not "%RCERR%"=="0" exit /b 1
+
 rem ---- link console kit ----------------------------------------------------
 echo === Linking tclwinkit-raw.exe (console) ===
 link %LFLAGS% -subsystem:console -out:%KITOUT%\tclwinkit-raw.exe %KITOUT%\kit_main.obj %KITOUT%\kit_register_c.obj %CORELIBS% %PKGLIBS% %TWAPILIBS% %EXT2LIBS% %TCSYS% || exit /b 1
@@ -70,7 +83,7 @@ for %%m in ("%TCLOUT%\tclsh90sx.exe.manifest" "%TCLOUT%\tclsh90s.exe.manifest") 
 
 rem ---- link GUI kit ---------------------------------------------------------
 echo === Linking winkitwish-raw.exe (GUI) ===
-link %LFLAGS% -subsystem:windows -out:%KITOUT%\winkitwish-raw.exe %KITOUT%\kit_wish_main.obj %KITOUT%\kit_register_g.obj %TKCORELIBS% %CORELIBS% %PKGLIBS% %TWAPILIBS% %EXT2LIBS% %IMGLIBS% %EXT2GUILIBS% %TKSYS% || exit /b 1
+link %LFLAGS% -subsystem:windows -out:%KITOUT%\winkitwish-raw.exe %KITOUT%\kit_wish_main.obj %KITOUT%\kit_register_g.obj %KITOUT%\kit_wish.res %TKCORELIBS% %CORELIBS% %PKGLIBS% %TWAPILIBS% %EXT2LIBS% %IMGLIBS% %EXT2GUILIBS% %TKSYS% || exit /b 1
 for %%m in ("%TKOUT%\wish90sx.exe.manifest" "%TKOUT%\wish.exe.manifest") do if exist %%m mt -nologo -manifest %%m -outputresource:%KITOUT%\winkitwish-raw.exe;1
 
 echo === MSVC KIT EXES BUILT ===

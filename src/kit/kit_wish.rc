@@ -1,0 +1,24 @@
+/*
+ * kit_wish.rc -- resource script for the winkitwish (GUI) kit executable.
+ *
+ * On Windows, Tk implements the X11 cursor names ("gumby", "hand1",
+ * "top_left_arrow", "trek", ...) as named CURSOR resources in the
+ * executable itself: tkWinCursor.c's TkGetCursorByName() falls back to
+ * LoadCursorA(Tk_GetHINSTANCE(), <name>) after the system-cursor table
+ * misses. The stock wish.exe gets these from win/rc/wish.rc, which
+ * #includes tk_base.rc under STATIC_BUILD. Our kit links Tk statically
+ * but had no resource script at all, so every X11-style cursor name
+ * failed with 'bad cursor spec' -- breaking ~50 iwidgets tests, 5 itk
+ * tests and any app option DB (-cursor gumby in busy.c defaults).
+ *
+ * Including Tk's tk_base.rc here restores the full cursor set (plus the
+ * FILEOPENORD dialog template and the tk icon that Tk's own resources
+ * carry). Compiled with cwd = Tk's win/rc directory so the relative
+ * "cursorNN.cur" / "tk.ico" references resolve.
+ */
+
+#ifndef STATIC_BUILD
+#  define STATIC_BUILD 1
+#endif
+
+#include "tk_base.rc"

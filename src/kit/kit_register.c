@@ -72,12 +72,18 @@ extern Tcl_LibraryInitProc Twapi_Init;
 #endif
 #ifdef KIT_HAVE_RLJSON
 extern Tcl_LibraryInitProc Rl_json_Init;
+extern Tcl_LibraryInitProc Rl_json_SafeInit;	/* present in 0.17.8
+	* (generic/rl_json.c): plain delegation to Rl_json_Init. Registering
+	* it makes `load {} Rl_json <safe-interp>` work (fixes misc-3.2). */
 #endif
 #ifdef KIT_HAVE_MPEXPR
 extern Tcl_LibraryInitProc Mpexpr_Init;
 #endif
 #ifdef KIT_HAVE_ITK
 extern Tcl_LibraryInitProc Itk_Init;
+extern Tcl_LibraryInitProc Itk_SafeInit;	/* generic/itkBase.c: same
+	* init minus the unsafe bits; needed for `load {} Itk <safe-interp>`
+	* (itk interp.test interp-1.2). */
 #endif
 #ifdef KIT_HAVE_TKDND
 extern Tcl_LibraryInitProc Tkdnd_Init;
@@ -164,6 +170,24 @@ ItkKit_Init(Tcl_Interp *interp)
     }
     return Itk_Init(interp);
 }
+
+/*
+ * ItkKit_SafeInit --
+ *
+ *	Safe-interp counterpart. Itk's Initialize() pulls in the itcl
+ *	stub table (Itcl_InitStubs), so itcl must be installed in the
+ *	target interp first. Best-effort `package require itcl` (safe
+ *	base allows require of statically-registered safe-capable
+ *	packages); if itcl is already there this is a no-op, and if it
+ *	is not, Itk_SafeInit reports the real error itself.
+ */
+static int
+ItkKit_SafeInit(Tcl_Interp *interp)
+{
+    (void) Tcl_EvalEx(interp, "package require itcl", TCL_AUTO_LENGTH,
+	    TCL_EVAL_GLOBAL);
+    return Itk_SafeInit(interp);
+}
 #endif
 
 /*
@@ -187,7 +211,20 @@ Kit_RegisterPackages(
     Tcl_StaticLibrary(NULL, "Dde", Dde_Init, Dde_SafeInit);
 
 #ifdef KIT_HAVE_ITCL
+    /*
+     * Prefix lookup in the static table is case-sensitive (strcmp).
+     * Register BOTH spellings: lowercase "itcl" (what kit_init/pkgIndex
+     * ifneeded scripts use) and titled "Itcl" (what itcl's and itk's own
+     * interp.test files pass to `load "" <Prefix> <slave>`). The static
+     * table is process-global, so these entries make the packages
+     * loadable into ANY interp: slave/safe interps via `load {} P <slave>`
+     * and thread::create interps via `package require` (the ifneeded
+     * entries live in the staged lib/pkgIndex.tcl, discovered by
+     * tclPkgUnknown because //zipfs:/app is on every new interp's
+     * auto_path).
+     */
     Tcl_StaticLibrary(NULL, "itcl", Itcl_Init, Itcl_SafeInit);
+    Tcl_StaticLibrary(NULL, "Itcl", Itcl_Init, Itcl_SafeInit);
 #endif
 #ifdef KIT_HAVE_THREAD
     Tcl_StaticLibrary(NULL, "Thread", Thread_Init, NULL);
@@ -236,13 +273,16 @@ Kit_RegisterPackages(
     Tcl_StaticLibrary(NULL, "Tkimgxpm", Tkimgxpm_Init, NULL);
 #endif
 #ifdef KIT_HAVE_RLJSON
-    Tcl_StaticLibrary(NULL, "Rl_json", Rl_json_Init, NULL);
+    /* SafeInit provided: rl_json has no unsafe surface, safe interps may
+     * load it (misc-3.2 in the vendor test suite). */
+    Tcl_StaticLibrary(NULL, "Rl_json", Rl_json_Init, Rl_json_SafeInit);
 #endif
 #ifdef KIT_HAVE_MPEXPR
     Tcl_StaticLibrary(NULL, "Mpexpr", Mpexpr_Init, NULL);
 #endif
 #ifdef KIT_HAVE_ITK
-    Tcl_StaticLibrary(NULL, "Itk", ItkKit_Init, NULL);
+    /* SafeInit wrapper: itcl-first, then Itk_SafeInit (see above). */
+    Tcl_StaticLibrary(NULL, "Itk", ItkKit_Init, ItkKit_SafeInit);
 #endif
 #ifdef KIT_HAVE_TKDND
     Tcl_StaticLibrary(NULL, "Tkdnd", Tkdnd_Init, NULL);

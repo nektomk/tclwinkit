@@ -27,8 +27,10 @@ function New-VfsTree {
         Copy-Item -Recurse "$TkOut\libtk.vfs\tk_library" "$Stage\kit.vfs\tk_library"
     }
 
-    # Kit Tcl bootstrap
+    # Kit Tcl bootstrap + the physical package index for static/mixed
+    # packages (child interps discover it via //zipfs:/app on auto_path)
     Copy-Item "$Root\src\kit\vfs\lib\kit_init.tcl" "$Stage\kit.vfs\lib\"
+    Copy-Item "$Root\src\kit\vfs\lib\pkgIndex.tcl" "$Stage\kit.vfs\lib\"
 
     # Tcl sides of mixed packages (C parts are linked into the exe)
     New-Item -ItemType Directory -Force "$Stage\kit.vfs\lib\tdbc" | Out-Null
