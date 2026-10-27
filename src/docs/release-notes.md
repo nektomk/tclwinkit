@@ -53,19 +53,21 @@ type cmds.tcl | {{CONSOLE_EXE}}        ;# stdin-режим, как tclsh
 ## Документация, маны и демо
 
 В kit-exe сознательно не кладётся ничего, кроме рантайма: справочные страницы,
-HTML-документация, демо-программы, тестовые наборы пакетов и лицензии вырезаны
-из staging-образа (`scripts\kit-prune.ps1`, −32,4 МБ и −4276 файлов на
-GUI-кит) и публикуются отдельным архивом `{{DOCS_ZIP}}` — 2646 файлов,
-41,32 МБ в распакованном виде:
+HTML-документация, демо-программы и тестовые наборы пакетов вырезаны из
+staging-образа (`scripts\kit-prune.ps1`, −32,40 МБ и −4269 файлов на GUI-кит) и
+публикуются отдельным архивом `{{DOCS_ZIP}}` — 2684 файла, 41,50 МБ в
+распакованном виде. Обязательные лицензионные тексты при этом остаются в exe:
+prune режет документацию, но не условия лицензий (см. «Лицензии» ниже).
 
 | Раздел | Файлов | Что внутри |
 |---|---:|---|
 | `man/` | 584 | nroff-страницы по 14 пакетам (tcl, tk, itcl, itk, iwidgets, img, tdbc×3, sqlite3, thread, rl_json, tkdnd, treectrl) |
 | `html/` | 1473 | tcllib/tklib idoc, справочник twapi, cawt, thread, mpexpr, tkdnd, treectrl |
 | `demos/` | 519 | Tk, iwidgets, itk (+itkedit), treectrl, tkdnd, cawt |
-| `docs/`, `licenses/` | 65 | README/CHANGES по 20 пакетам, тексты лицензий |
+| `docs/` | 47 | README/CHANGES/ChangeLog по 20 пакетам |
+| `LICENSES/` | 54 | тексты лицензий всех бандловых компонентов + своп шапок исходников |
 | `tools/` | 2 | `man.tcl`, `iwidgets-demo.tcl` |
-| — | 3 | `README.md`, `VERSIONS.txt`, `MANIFEST.txt` |
+| — | 5 | `README.md`, `VERSIONS.txt`, `MANIFEST.txt`, `LICENSE`, `THIRD-PARTY-NOTICES.md` |
 
 Распаковав архив, демо запускаются теми же exe:
 
@@ -78,6 +80,29 @@ GUI-кит) и публикуются отдельным архивом `{{DOCS_
 
 `tools\man.tcl` рендерит nroff в текст на самом ките — groff не нужен.
 
+## Лицензии
+
+Собственная обвязка кита (`src/kit`, `scripts`, `docs`, `tests`) — MIT, см.
+`LICENSE` репозитория. Всё остальное остаётся при своих лицензиях: бандл
+состоит из Tcl 9.0.4 / Tk 9.0.4 и их расширений (лицензия Tcl), tcllib/tklib
+(лицензия Tcl с модульными исключениями), iwidgets (DSC/BSD), TWAPI и CAWT
+(BSD-3), SQLite (public-domain «благословение»), libpng/libtiff/libjpeg/zlib,
+Info-ZIP-шифра в zipfs и нескольких нотисов, существующих только в шапках
+исходников.
+
+Что это не декларация, а факт поставки:
+
+- обязательные тексты лежат **внутри каждого exe** (`//zipfs:/app/...`), а не
+  только в репозитории;
+- `THIRD-PARTY-NOTICES.md` (в корне репозитория и в docs-архиве) называет
+  каждый компонент, его лицензию, держателей и цитирует дословно то, что
+  лицензия требует воспроизвести в дистрибутиве;
+- каталог `LICENSES/` (54 текста) целиком генерируется
+  `scripts/make-licenses.ps1` из вендорских деревьев — ничего набрано руками,
+  флаг `-Check` верифицирует дерево обратно и годится в CI;
+- `tests/kit-license-check.tcl` читает тексты из образа готового exe и проверяет
+  в них фразы, которые требует каждая конкретная лицензия.
+
 ## Проверено на этой сборке
 
 - `tests\smoke.tcl` — SMOKE OK на всех четырёх exe, включая статику в дочерних
@@ -85,6 +110,12 @@ GUI-кит) и публикуются отдельным архивом `{{DOCS_
 - `tests\tcllib-probe.tcl` — PROBE OK ×4: консоль 439 offered / 384 loaded,
   GUI 571 / 508 loaded, 0 новых поломок против неприбранного дерева
   (апстримовые отказы сверяются со снимком `tests\tcllib-probe.baseline.txt`).
+- `tests\kit-license-check.tcl` — KIT LICENSE CHECK OK ×4 (консоль: 8 путей + 6
+  фраз, GUI: 17 + 11; слои отсутствуют только целиком, поэтому консольный кит
+  без Tk не считается пропуском лицензии). Гард проверен негативными контролями:
+  удаление 6 обязательных текстов из копии образа → 6 провалов и exit 1;
+  обрезка одного до 43 байт → 2 провала (слишком короткий + требуемая фраза
+  отсутствует).
 - Пакетные наборы, оба кита (цифры msvc ↔ mingw совпадают): iwidgets
   3308/3308/0F, itk 100/100/0F, Img 290/272/18skip/0F, treectrl
   1236/1216/19skip/1F (upstream `itemdesc-1.15`), tkdnd 6/6 load-OK;
@@ -116,9 +147,10 @@ GUI-кит) и публикуются отдельным архивом `{{DOCS_
 
 Порядок — в README репозитория (`scripts\build-msvc-*.bat` /
 `scripts\build-mingw-*.sh` + `scripts\assemble-*-kit.ps1` +
-`scripts\build-docs-artifact.ps1`); техрешения и найденные грабли —
-`docs\PLAN.md`, сравнение цепочек — `docs\COMPARISON.md`, окружение —
-`docs\ENVIRONMENT.md`, правки вендора — `patches\README.md`.
+`scripts\build-docs-artifact.ps1`, тексты лицензий — `scripts\make-licenses.ps1`);
+техрешения и найденные грабли — `docs\PLAN.md`, сравнение цепочек —
+`docs\COMPARISON.md`, окружение — `docs\ENVIRONMENT.md`, правки вендора —
+`patches\README.md`.
 
 Релиз подготовлен `scripts\publish-release.ps1`; тег `{{TAG}}` указывает на commit
 `{{HEAD}}`.
