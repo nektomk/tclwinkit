@@ -156,18 +156,44 @@ if ($ahead -ne '0') {
     else { Say 'push' ("pushing $ahead commit(s) to origin/$Branch"); git push origin ("HEAD:" + $Branch) }
 } else { Say 'push' 'origin already up to date' }
 
-if (@(git tag --list $Tag).Count) {
-    Say 'tag' ("$Tag already exists -> " + ((git rev-parse -q --verify ('refs/tags/' + $Tag + '^{commit}')) -join ''))
-} else {
+# Tag handling. Rules:
+#  - the tag must point at the commit whose binaries we are publishing;
+#  - a dry run changes NOTHING, local state included;
+#  - for an annotated tag `git ls-remote --tags` prints the TAG OBJECT sha, so
+#    the remote comparison uses the peeled ref  v1^{}  (GitHub advertises peels).
+$localTagCommit = ((git rev-parse -q --verify ('refs/tags/' + $Tag + '^{commit}')) -join '')
+$peeled = ((git ls-remote origin ('refs/tags/' + $Tag + '^{}')) -join '')
+$rawRemote = ((git ls-remote --tags origin ('refs/tags/' + $Tag)) -join '')
+$remoteSha = if ($peeled) { ($peeled -split "`t")[0] } elseif ($rawRemote) { ($rawRemote -split "`t")[0] } else { '' }
+if ($remoteSha -and $remoteSha -ne $head) {
+    throw ("remote tag $Tag exists at commit $remoteSha but HEAD is $head; " +
+           'a tag of a published release must not be moved -- bump the version instead')
+}
+if ($localTagCommit) {
+    Say 'tag' ("local $Tag -> $localTagCommit")
+    if ($localTagCommit -ne $head) {
+        # a stale LOCAL tag carries no published artifacts, recreating is safe
+        Say 'tag' "$Tag is not on HEAD -> the local tag will be recreated at $head"
+        if (-not $DryRun) {
+            git tag -d $Tag | Out-Null
+            $localTagCommit = ''
+        }
+    }
+}
+if (-not $localTagCommit) {
     $tagMsgPath = Join-Path $Stage 'tag-message.txt'
     [System.IO.File]::WriteAllLines($tagMsgPath, @(
         ('tclwinkit ' + $Version), '',
         'Portable single-file Tcl 9.0.4 / Tk 9.0.4 distribution for Windows x64.',
         'Four kit executables plus the documentation archive.'), $Utf8)
-    git tag -a $Tag -F $tagMsgPath
-    Say 'tag' ("created $Tag -> $head")
-    if ($DryRun) { Skip 'tag push' $Tag }
-    else { git push origin $Tag; Say 'tag push' 'ok' }
+    if ($DryRun) {
+        Skip 'tag' ("would create annotated $Tag -> $head and push it")
+    } else {
+        git tag -a $Tag -F $tagMsgPath
+        Say 'tag' ("created $Tag -> $head")
+        git push origin $Tag
+        Say 'tag push' 'ok'
+    }
 }
 
 # ---------------------------------------------------------- 5. API session ---
