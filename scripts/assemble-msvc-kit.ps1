@@ -106,6 +106,10 @@ function New-VfsTree {
         $iw = $iw.Replace('lappend auto_path', 'lappend ::auto_path')
         [System.IO.File]::WriteAllText("$Stage\kit.vfs\lib\iwidgets4.1.1\iwidgets.tcl", $iw)
         Get-ChildItem "$Common\iwidgets-4.1.1\generic" -File | Copy-Item -Destination "$Stage\kit.vfs\lib\iwidgets4.1.1\generic\"
+        # Its license.terms must travel with the code: the file says the
+        # copyright holder is listed per source file and requires the notice in
+        # all copies, and 58 .itk/.itcl files ship without any text otherwise.
+        Copy-Item "$Common\iwidgets-4.1.1\license.terms" "$Stage\kit.vfs\lib\iwidgets4.1.1\license.terms"
 
         # tkdnd 2.9.5: Tcl side (kit_init.tcl wires the static C part)
         New-Item -ItemType Directory -Force "$Stage\kit.vfs\lib\tkdnd2.9.5" | Out-Null

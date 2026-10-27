@@ -9,7 +9,7 @@
 | Исполняемые файлы | на каждую цепочку: консольный `tclwinkit.exe` + GUI `winkitwish.exe` |
 | Pure-Tcl пакеты | tcllib 2.0, tklib 0.9, CAWT 3.1.1, TclReadLine (в zipfs) |
 | Бинарные пакеты (статически) | Itcl 4.3.8, Thread 3.0.6, tdbc 1.1.13 + tdbc::sqlite3 (sqlite 3.53.0), tdbc::odbc, TWAPI 5.2.0 (+dyncall 0.9), Img 2.1.2 (img::base + zlibtcl/pngtcl/jpegtcl/tifftcl + 19 форматов) |
-| REPL-надстройка | **TclReadLine** (pure Tcl, BSD) вместо C-tclreadline: GNU readline — GPL-3, под MSVC не поддерживается. Требуется Windows-shim (низкоуровневые proc через TWAPI console API + трансляция клавиш) |
+| REPL-надстройка | **TclReadLine** (pure Tcl, public domain по политике Tcler's Wiki) вместо C-tclreadline: GNU readline — GPL-3, под MSVC не поддерживается. Требуется Windows-shim (низкоуровневые proc через TWAPI console API + трансляция клавиш) |
 | Формат | один файл: статический exe + прицепленный ZIP (zipfs), без внешних зависимостей |
 
 Bundled pkgs уже лежат в `pkgs/` тарбола Tcl 9.0.4: itcl4.3.8, thread3.0.6,
@@ -191,7 +191,9 @@ winkitwish-mingw.exe + `tclwinkit-docs-<вер>.zip` (волна 5) + README +
 ## Риски и статус — ВСЁ РЕШЕНО
 
 - ~~CAWT бинарный~~ → **решено**: pure Tcl 3.1.1, только zipfs.
-- ~~tclreadline/GPL~~ → **решено**: TclReadLine (BSD) + Windows-shim
+- ~~tclreadline/GPL~~ → **решено**: TclReadLine (pure Tcl, public domain по
+  политике Tcler's Wiki — код опубликован там же, см. `THIRD-PARTY-NOTICES.md`
+  §2.5; своего файла лицензии у апстрима нет) + Windows-shim
   `tclreadline-win.tcl` (twapi console API; см. п.9 выше). Ключевая грабля:
   `source` shim-файла из proc в namespace ::winkit определял proc'и
   ОТНОСИТЕЛЬНО текущего namespace — все имена в shim'е теперь с `::`.

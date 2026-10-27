@@ -49,6 +49,25 @@ $KitRuntimeAssets = @(
     'tile\icons'          # (present in some tklib snapshots)
 )
 
+# Licence texts that must ship next to the code they cover. Several of them use
+# an extension the rules above cut (.txt), and the packages whose licence says
+# "this notice is included verbatim in any distributions" do not care that the
+# file also happens to be documentation-shaped: dropping them while keeping the
+# code breaches the bundle terms. Matched on the whole file name, any depth.
+$KitLicenseNames = @(
+    '^license\.terms$', '^LICENSE\.TERMS$', '^licen[cs]e\.txt$', '^LICEN[CS]E\.txt$',
+    '^LICEN[CS]E$', '^COPYRIGHT\.txt$', '^COPYING(\.txt)?$', '^NOTICE(\.txt)?$',
+    '^[^/\\]*\.LICENSE$', '^[^/\\]*\.license\.terms$', '^[^/\\]*_license\.txt$',
+    '^widgetl-icons\.readme\.txt$'
+)
+
+function Test-KitLicenseName([string]$name) {
+    foreach ($re in $script:KitLicenseNames) {
+        if ($name -match $re) { return $true }
+    }
+    return $false
+}
+
 function Remove-KitBloat {
     param(
         [Parameter(Mandatory)][string]$Path,
@@ -84,6 +103,7 @@ function Remove-KitBloat {
         Where-Object {
             $extArr -contains $_.Extension.ToLowerInvariant() -and
             -not (Test-Kept $_.FullName) -and
+            -not (Test-KitLicenseName $_.Name) -and
             $_.Name -notin @('pkgIndex.tcl', 'tclIndex', 'tmIndex.tcl') -and
             $_.Extension -ne '.tcl'
         } |
