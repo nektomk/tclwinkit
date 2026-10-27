@@ -120,5 +120,5 @@ GUI-кит) и публикуются отдельным архивом `{{DOCS_
 `docs\PLAN.md`, сравнение цепочек — `docs\COMPARISON.md`, окружение —
 `docs\ENVIRONMENT.md`, правки вендора — `patches\README.md`.
 
-Релиз подготовлен `scripts\publish-release.ps1`; тег {{TAG}} указывает на commit
-{{HEAD}}.
+Релиз подготовлен `scripts\publish-release.ps1`; тег `{{TAG}}` указывает на commit
+`{{HEAD}}`.

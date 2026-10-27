@@ -60,6 +60,7 @@ if (-not $Version) {
     $Version = $m.Matches[0].Groups[1].Value
 }
 $Tag = 'v' + $Version
+$head = ((git rev-parse HEAD) -join '')      # also referenced by the notes template
 Say '=== PUBLISH' ($Repo + ' ' + $Tag + ' (from ' + $Branch + ')')
 Say 'version' $Version
 
@@ -127,14 +128,15 @@ $subst = [ordered]@{
     '{{ASSET_TABLE}}' = ($tbl -join "`n")
     '{{TOTAL_MB}}' = ('{0:N2}' -f ($total / 1MB))
     '{{VERSION}}' = $Version
-    '{{TAG}}' = ($Tick + $Tag + $Tick)
-    '{{CONSOLE_EXE}}' = ($Tick + $Plan['tclwinkit-msvc.exe'].name + $Tick)
-    '{{GUI_EXE}}' = ($Tick + $Plan['winkitwish-msvc.exe'].name + $Tick)
-    '{{DOCS_ZIP}}' = ($Tick + ('tclwinkit-docs-{0}.zip' -f $Version) + $Tick)
+    '{{HEAD}}' = $head
+    # These are substituted BARE: the template owns any markdown code spans, so
+    # the same placeholder stays correct inside a ``` fence (where a `code span`
+    # would render as literal backticks) and in prose.
+    '{{TAG}}' = $Tag
+    '{{CONSOLE_EXE}}' = $Plan['tclwinkit-msvc.exe'].name
+    '{{GUI_EXE}}' = $Plan['winkitwish-msvc.exe'].name
+    '{{DOCS_ZIP}}' = ('tclwinkit-docs-{0}.zip' -f $Version)
 }
-# {{HEAD}} is filled after the git step below, so keep the key here and resolve
-# the value in one place: an unresolved placeholder aborts the run (see $left).
-$subst['{{HEAD}}'] = ('`' + ((git rev-parse HEAD) -join '') + '`')
 foreach ($k in $subst.Keys) { $notes = $notes.Replace($k, $subst[$k]) }
 $left = [regex]::Matches($notes, '\{\{[A-Z_]+\}\}') | ForEach-Object { $_.Value } | Select-Object -Unique
 if ($left) { throw ("unsubstituted placeholder(s) in release-notes.md: " + ($left -join ', ')) }
@@ -143,7 +145,6 @@ $notesPath = Join-Path $Stage 'release-body.md'
 Say 'notes' ('{0} ({1} B, from src\docs\release-notes.md)' -f $notesPath, (Get-Item -LiteralPath $notesPath).Length)
 
 # --------------------------------------------------- 4. git prerequisites ---
-$head = ((git rev-parse HEAD) -join '')
 Say 'HEAD' $head
 if (@(git status --porcelain).Count) { throw 'working tree is not clean; commit first' }
 git fetch origin $Branch --quiet | Out-Null
