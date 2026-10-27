@@ -1,4 +1,4 @@
-﻿# tclreadline-win.tcl --
+# tclreadline-win.tcl --
 #
 #	Windows console shim for TclReadLine (tclwinkit project).
 #	Source this AFTER `package require TclReadLine` on Windows.

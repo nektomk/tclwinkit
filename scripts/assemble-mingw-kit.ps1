@@ -1,4 +1,4 @@
-# assemble-mingw-kit.ps1 — stage VFS, zip it with zipfs, attach to MinGW kit exes.
+# assemble-mingw-kit.ps1 -- stage VFS, zip it with zipfs, attach to MinGW kit exes.
 # Usage: pwsh -File scripts\assemble-mingw-kit.ps1
 param(
     [string]$Root = 'C:\src\winkit'
@@ -52,7 +52,7 @@ function New-VfsTree {
     Copy-Item "$Pkgs\thread3.0.6\lib\ttrace.tcl" "$Stage\kit.vfs\thread_library\"
 
     # TWAPI: library scripts + static-aware pkgIndex
-    # (TEA make may not generate it; fall back to the nmake-generated one —
+    # (TEA make may not generate it; fall back to the nmake-generated one --
     #  identical content after @PACKAGE_VERSION@ substitution)
     New-Item -ItemType Directory -Force "$Stage\kit.vfs\lib\twapi" | Out-Null
     Copy-Item "$Ext\twapi-5.2.0\library\*.tcl" "$Stage\kit.vfs\lib\twapi\"

@@ -126,6 +126,15 @@ function Read-Lines([string]$path) {
     return ,($text -split "\r?\n")
 }
 
+# Vendor texts are copied byte-verbatim, so anything unusual in a source file
+# (a UTF-8 BOM, say) is preserved on purpose: we do not edit another project's
+# release material. The generator reports it instead, so the exception stays
+# visible in the log and in CI rather than turning into a silent surprise.
+function Test-Utf8Bom([string]$path) {
+    $b = [System.IO.File]::ReadAllBytes($path)
+    return ($b.Length -ge 3 -and $b[0] -eq 0xEF -and $b[1] -eq 0xBB -and $b[2] -eq 0xBF)
+}
+
 $Cmt = '^\s*(#|//|/\*|\*|\+|\||;|--|!\[)'
 $Grant = '(?i)permission is hereby granted|subject to the following (restrictions|conditions)|redistribution and use in source and binary|GNU GENERAL PUBLIC LICENSE|general public license|public domain|disclaims copyright|bsd licen|mit licen|isc licen|free software; you can use|as freely available as possible|the following terms apply|redistributions in (source|binary) form|this notice is included verbatim|prominently acknowledged|in supporting documentation|without fee'
 $Pointer = '(?i)licen[cs]e\.terms|licen[cs]e file|see the file'
@@ -222,11 +231,13 @@ foreach ($rel in $Copy.Keys) {
         $a = $Utf8NoBom.GetString([System.IO.File]::ReadAllBytes($src)) -replace "`r`n", "`n"
         $b = $Utf8NoBom.GetString([System.IO.File]::ReadAllBytes($dest)) -replace "`r`n", "`n"
         if ($a -ne $b) { $script:mismatch++; $report.Add("CONTENT DIFFERS  $rel") }
+        elseif (Test-Utf8Bom $src) { $report.Add("vendor BOM preserved  $rel") }
         continue
     }
     $dir = Split-Path -Parent $dest
     if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
     Copy-Item -LiteralPath $src -Destination $dest -Force
+    if (Test-Utf8Bom $src) { $report.Add(('  note: source carries a UTF-8 BOM, preserved verbatim: {0}' -f $rel)) }
     $report.Add(('copied {0,-38} {1,7} B  <- {2}' -f $rel, (Get-Item $dest).Length, (Rel $src)))
 }
 

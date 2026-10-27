@@ -1,15 +1,48 @@
-* text=auto
-.gitattributes text eol=lf
-*.sh text eol=lf
+# Line-ending policy, stated once and enforced here.
+#
+# The rule has three levels and they are NOT the same thing:
+#
+#   1. In the index (the blob) -- LF, always. `text=auto` normalizes whatever
+#      lands in the working copy, so a Linux CI checkout and a Windows one
+#      produce identical blobs and identical diffs.
+#   2. In the working copy -- LF, except the two Windows-shell surfaces below.
+#   3. In what we ship (dist artifacts, the zipfs image, the docs archive, the
+#      release body and SHA256SUMS.txt) -- LF, no BOM, for everything we
+#      generate ourselves. Vendor material keeps whatever upstream published
+#      (see THIRD-PARTY-NOTICES.md and scripts/make-licenses.ps1, which copies
+#      byte-verbatim and reports a vendor BOM instead of removing it).
+#
+# Nothing in this repository is binary today (123 tracked files: text,
+# sources, license texts). If a binary ever arrives, it needs an explicit
+# `-text` rule here, because `text=auto` guesses from content and a
+# misdetected binary gets its byte pairs rewritten.
+* text=auto eol=lf
+
+# The single exception: cmd.exe reads .bat at its final resting place and
+# Windows PowerShell 5.1 reads .ps1 the same way, so these check out CRLF.
+# The blob stays LF, so cross-platform diffs of scripts are still clean.
 *.bat text eol=crlf
 *.ps1 text eol=crlf
-*.c text
-*.h text
-*.tcl text eol=lf
 
-# Verbatim third-party license texts and the notices document: pinned to LF so
-# a checkout stays byte-identical to upstream and to what
-# scripts/make-licenses.ps1 -Check verifies (EOL-insensitive by design).
+# Sources we author: pinned explicitly, so a future change to the default
+# above cannot silently start rewriting them, and so `git check-attr` answers
+# "why is this LF" without reading the default rule.
+*.c text eol=lf
+*.h text eol=lf
+*.rc text eol=lf
+*.tcl text eol=lf
+*.sh text eol=lf
+*.md text eol=lf
+.gitattributes text eol=lf
+.editorconfig text eol=lf
+.gitignore text eol=lf
+
+# Verbatim third-party license texts and the notices document: pinned to LF
+# explicitly (redundant with the default today, kept so that a future change
+# to the default cannot silently rewrite a vendor text). A checkout is
+# therefore content-identical to upstream apart from line endings, which is
+# exactly what scripts/make-licenses.ps1 -Check asserts -- EOL-insensitively,
+# by design.
 LICENSE text eol=lf
 THIRD-PARTY-NOTICES.md text eol=lf
 LICENSES/** text eol=lf

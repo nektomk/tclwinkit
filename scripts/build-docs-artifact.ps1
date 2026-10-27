@@ -33,6 +33,15 @@ $Stage = "$Root\build\docs-stage\$Name"
 $Dist  = "$Root\dist"
 $Zip   = "$Dist\$Name.zip"
 
+# Files this script generates itself (VERSIONS.txt, MANIFEST.txt) end up inside
+# the published archive, so they are UTF-8 without BOM with LF endings.
+# Set-Content -Encoding UTF8 must not be used here: on Windows PowerShell 5.1
+# it emits a BOM *and* CRLF (verified: first bytes EF BB BF ... 0D 0A).
+$Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+function Put-LfText([string]$Path, [string[]]$Lines) {
+    [System.IO.File]::WriteAllText($Path, (($Lines -join "`n") + "`n"), $script:Utf8NoBom)
+}
+
 foreach ($d in @($M, $C, $Src)) {
     if (-not (Test-Path $d)) { throw "missing build tree: $d (run the build scripts first)" }
 }
@@ -107,16 +116,26 @@ function Fix-IwidgetsDemoPaths {
     param([string]$Dir)
     $n = 0
     foreach ($f in (Get-ChildItem $Dir -File | Where-Object { -not $_.Extension -or $_.Extension -eq '.tcl' })) {
-        $txt = [IO.File]::ReadAllText($f.FullName)
+        $bytes = [IO.File]::ReadAllBytes($f.FullName)
+        # Preserve the vendor file's own BOM state: these demos are upstream
+        # material we only re-point, so nothing invisible about them changes.
+        $hasBom = ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF)
+        $txt = $Utf8NoBom.GetString($bytes)
+        if ($hasBom) { $txt = $txt.Substring(1) }
         $orig = $txt
         foreach ($k in $IwRepoint.Keys) { $txt = $txt.Replace($k, $IwRepoint[$k]) }
         if ($txt -ne $orig) {
             if ($txt -notmatch 'set ::iwdemo_dir') {
+                # Match whatever ending this vendor file already uses: inserting
+                # the opposite one would leave a mixed-EOL file in the published
+                # archive, which is our doing, not upstream's.
+                $eol = if ($txt.Contains("`r`n")) { "`r`n" } else { "`n" }
                 # define the anchor right after the package requirement
-                $txt = [regex]::Replace($txt, '(?m)^(package require Iwidgets[^\n]*)$',
-                    "`$1`r`nset ::iwdemo_dir [file dirname [info script]]")
+                $anchor = 'set ::iwdemo_dir [file dirname [info script]]'
+                $txt = [regex]::Replace($txt, '(?m)^(package require Iwidgets[^\n]*)$', ('$1' + $eol + $anchor))
             }
-            [IO.File]::WriteAllText($f.FullName, $txt)
+            $outEnc = if ($hasBom) { New-Object System.Text.UTF8Encoding($true) } else { $Utf8NoBom }
+            [IO.File]::WriteAllText($f.FullName, $txt, $outEnc)
             $n++
         }
     }
@@ -258,7 +277,7 @@ foreach ($k in 'man', 'html', 'demos', 'docs') {
                   ((($f | Measure-Object Length -Sum).Sum) / 1KB))
     }
 }
-Set-Content -Path "$D\VERSIONS.txt" -Value $vers -Encoding UTF8
+Put-LfText "$D\VERSIONS.txt" $vers
 
 # --------------------------------------------------------------- MANIFEST ---
 $all = @(Get-ChildItem $D -Recurse -File | Sort-Object FullName)
@@ -266,7 +285,7 @@ $mf = @("# $Name file manifest ($($all.Count) files)", "")
 $mf += $all | ForEach-Object {
     "{0,9}  {1}" -f $_.Length, $_.FullName.Substring($D.Length + 1).Replace('\', '/')
 }
-Set-Content -Path "$D\MANIFEST.txt" -Value $mf -Encoding UTF8
+Put-LfText "$D\MANIFEST.txt" $mf
 
 # ------------------------------------------------------------------- zip ---
 # Entry names are built by hand with forward slashes: .NET Framework's

@@ -1,4 +1,4 @@
-# assemble-msvc-kit.ps1 — stage VFS, zip it with zipfs, attach to kit exes.
+# assemble-msvc-kit.ps1 -- stage VFS, zip it with zipfs, attach to kit exes.
 # Usage: pwsh -File scripts\assemble-msvc-kit.ps1
 param(
     [string]$Root = 'C:\src\winkit'
@@ -52,7 +52,7 @@ function New-VfsTree {
     Copy-Item "$Pkgs\thread3.0.6\lib\ttrace.tcl" "$Stage\kit.vfs\thread_library\"
 
     # TWAPI: vendor library scripts + static-aware generated pkgIndex.tcl
-    # (falls back to `load {} Twapi` — matches the static registration)
+    # (falls back to `load {} Twapi` -- matches the static registration)
     New-Item -ItemType Directory -Force "$Stage\kit.vfs\lib\twapi" | Out-Null
     Copy-Item "$Ext\twapi-5.2.0\library\*.tcl" "$Stage\kit.vfs\lib\twapi\"
     Copy-Item "$Ext\twapi-5.2.0\win\Release_AMD64_VC1951\pkgIndex.tcl" "$Stage\kit.vfs\lib\twapi\"

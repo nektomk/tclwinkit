@@ -47,6 +47,16 @@ $Root = Split-Path -Parent $PSScriptRoot
 if (-not $Dist) { $Dist = Join-Path $Root 'dist' }
 $Stage = Join-Path $Root 'build\release-stage'
 $Utf8 = [System.Text.UTF8Encoding]::new($false)
+
+# Everything this script writes leaves the machine as a release asset, so it is
+# UTF-8 without BOM with LF endings. Do NOT use [IO.File]::WriteAllLines here:
+# it joins with Environment.NewLine, which is CRLF on Windows, and a CRLF
+# SHA256SUMS.txt makes the documented `sha256sum -c SHA256SUMS.txt` fail on
+# every non-Windows box ("'a.txt'$'\r': No such file or directory", exit 1).
+function Put-LfText([string]$Path, [string[]]$Lines) {
+    [System.IO.File]::WriteAllText($Path, (($Lines -join "`n") + "`n"), $script:Utf8)
+}
+
 $Tick = [string][char]96                       # markdown code span delimiter
 
 function Say { param([string]$Label, [string]$Text) '{0,-14}{1}' -f ($Label + ':'), $Text }
@@ -104,14 +114,17 @@ $total = ($rows | Measure-Object bytes -Sum).Sum
 Say 'total' ('{0:N2} MB over {1} files' -f ($total / 1MB), $rows.Count)
 
 # SHA256SUMS.txt lists the asset names, so `sha256sum -c` works in whatever
-# directory the user downloaded into.
+# directory the user downloaded into. Leading '#' comment lines are accepted by
+# GNU coreutils; a BLANK line is not -- it counts as an improperly formatted
+# line, which is a warning under plain -c and a hard exit 1 under --strict
+# (both measured). So the header runs straight into the checksums.
 New-Item -ItemType Directory -Force $Stage | Out-Null
-$sums = @(('# tclwinkit {0} -- SHA-256 of the release assets' -f $Version),
+$sums = @('# tclwinkit {0} -- SHA-256 of the release assets' -f $Version,
           '# verify:  sha256sum -c SHA256SUMS.txt',
-          '#      or:  certutil -hashfile <file> SHA256', '')
+          '#      or:  certutil -hashfile <file> SHA256')
 $sums += $rows | ForEach-Object { '{0} *{1}' -f $_.sha256, $_.asset }
 $sumsPath = Join-Path $Stage 'SHA256SUMS.txt'
-[System.IO.File]::WriteAllLines($sumsPath, $sums, $Utf8)
+Put-LfText $sumsPath $sums
 $sumBytes = (Get-Item -LiteralPath $sumsPath).Length
 Say 'sums' ('{0} ({1} B)' -f $sumsPath, $sumBytes)
 
@@ -182,10 +195,10 @@ if ($localTagCommit) {
 }
 if (-not $localTagCommit) {
     $tagMsgPath = Join-Path $Stage 'tag-message.txt'
-    [System.IO.File]::WriteAllLines($tagMsgPath, @(
+    Put-LfText $tagMsgPath @(
         ('tclwinkit ' + $Version), '',
         'Portable single-file Tcl 9.0.4 / Tk 9.0.4 distribution for Windows x64.',
-        'Four kit executables plus the documentation archive.'), $Utf8)
+        'Four kit executables plus the documentation archive.')
     if ($DryRun) {
         Skip 'tag' ("would create annotated $Tag -> $head and push it")
     } else {
