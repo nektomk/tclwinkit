@@ -1,0 +1,40 @@
+MIT License
+
+Copyright (c) 2026 tclwinkit contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+Scope note (tclwinkit-specific, not part of the MIT grant text above)
+
+This license covers only the code written for the tclwinkit project:
+
+  src/kit/*.c              embeddable launcher / VFS glue / staticinit fix
+  src/kit/vfs/**           our own Tcl runtime assets (kit_init.tcl,
+                           tclreadline-win.tcl shim, pkgIndex stubs,
+                           init/tclsh/wish entrypoints)
+  scripts/**               build, assemble, prune, test, publish scripts
+  src/docs/**, docs/**     documentation and release notes
+  tests/**                 probes, baselines, smoke harness
+
+Everything bundled inside the produced executables (Tcl/Tk core, extensions,
+pure-Tcl packages, statically linked C libraries) remains under its own
+license. See THIRD-PARTY-NOTICES.md for the full inventory and the exact
+attribution obligations, and LICENSES/ for the verbatim license texts.

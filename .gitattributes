@@ -1,7 +1,15 @@
 * text=auto
+.gitattributes text eol=lf
 *.sh text eol=lf
 *.bat text eol=crlf
 *.ps1 text eol=crlf
 *.c text
 *.h text
 *.tcl text eol=lf
+
+# Verbatim third-party license texts and the notices document: pinned to LF so
+# a checkout stays byte-identical to upstream and to what
+# scripts/make-licenses.ps1 -Check verifies (EOL-insensitive by design).
+LICENSE text eol=lf
+THIRD-PARTY-NOTICES.md text eol=lf
+LICENSES/** text eol=lf
