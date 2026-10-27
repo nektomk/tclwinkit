@@ -106,7 +106,7 @@ Arthur David Olson").
 | thread | 3.0.6 | [`TCL`](LICENSES/thread/license.terms) + TclX keylist notice, [§4.7](#47-thread-tclxkeylist) | Tcl holders; Zoran Vasiljević; Karl Lehenbauer and Mark Diekhans (1991–1999) |
 | SQLite | 3.53.0 | [`blessing`](LICENSES/sqlite/license.terms) — copyright disclaimed; public-domain dedication confirmed against <https://www.sqlite.org/copyright.html> | the SQLite authors (Hwaci) |
 | tdbc, tdbc::odbc | 1.1.13 | [`TCL`](LICENSES/tdbc/license.terms) | Kevin B. Kenny, and by other parties |
-| tdbc::sqlite3 (Tcl glue only; no C part is built) | 1.1.13 | [`TCL`](LICENSES/tdbc/license.terms) | the Scriptics Corporation, and other parties |
+| tdbc::sqlite3 (Tcl glue only; no C part is built) | 1.1.13 | [`TCL`](LICENSES/tdbc/tdbcsqlite3-license.terms) | the Scriptics Corporation, and other parties |
 | Img (BMP/GIF/PEG/PPM/XBM/XPM/SGI/TGA/ICO, SVG via nanosvg) | 2.1.2 | [`TCL`](LICENSES/img/license.terms) | the Img maintainers (names in the file) |
 | libpng (Img `compat/`, linked as `libtcl9pngtcl1658`) | 1.6.58 | [`Libpng`](LICENSES/libpng/LICENSE) | the libpng authors (see file) |
 | libtiff (Img `compat/`, linked as `libtcl9tifftcl472`) | 4.7.2 | [`libtiff`](LICENSES/libtiff/LICENSE.md) + BSD-4-UC for the LZW codec, [§3.2](#32-libtiff) | J. Bowler, A. Barr, G. V. Golub, S. L. Klemms, J. T. Conklin, R. Vollenweber, F. Warmerdam, the Libtiff contributors, Silicon Graphics Inc. and others |
@@ -721,6 +721,7 @@ LICENSES/
   itcl/       license.terms  doc-license.terms
   thread/     license.terms  tclXkeylist.NOTICE
   sqlite/     license.terms            tdbc/     license.terms
+                                                   tdbcsqlite3-license.terms
   img/        license.terms            itk/      license.terms
   libpng/     LICENSE                  libtiff/  LICENSE.md  lzw.NOTICE
   libjpeg/    README                   mpexpr/   LICENSE.TERMS

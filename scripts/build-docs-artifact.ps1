@@ -40,7 +40,7 @@ if (Test-Path $Stage) { Remove-Item -Recurse -Force $Stage }
 New-Item -ItemType Directory -Force "$Stage\$Name" | Out-Null
 New-Item -ItemType Directory -Force $Dist | Out-Null
 $D = "$Stage\$Name"
-foreach ($k in 'man', 'html', 'demos', 'docs', 'licenses', 'tools') {
+foreach ($k in 'man', 'html', 'demos', 'docs', 'LICENSES', 'tools') {
     New-Item -ItemType Directory -Force "$D\$k" | Out-Null
 }
 
@@ -84,21 +84,13 @@ function Copy-Docs {
     }
     $n
 }
-function Copy-License {
-    param([string]$Src_, [string]$Dst_, [string]$Pkg)
-    if (-not (Test-Path $Src_)) { return 0 }
-    $found = @()
-    foreach ($pat in 'license.terms', 'LICENSE*', 'licence*', 'copyright*', 'COPYING*') {
-        $found += @(Get-ChildItem $Src_ -Filter $pat -File -EA SilentlyContinue)
-    }
-    $i = 0
-    foreach ($f in ($found | Sort-Object Name -Unique)) {
-        $i++
-        $suffix = if ($i -eq 1) { '' } else { "-$i" }
-        Copy-Item $f.FullName "$Dst_$Pkg-$($f.Name)$suffix" -Force
-    }
-    $i
-}
+# Vendor licence texts are NOT collected here any more. They used to be gathered
+# by a per-root glob (license.terms / LICENSE* / copyright*) into a flat
+# licenses/ directory; scripts/make-licenses.ps1 now generates the audited,
+# supersetting LICENSES/ tree in the repository (54 texts plus the in-file
+# sweep), and the archive ships that verbatim so THIRD-PARTY-NOTICES.md links
+# resolve inside the artifact. Keeping both would have meant two directories
+# differing only by case, which merge into one on NTFS extractions.
 
 # Iwidgets demos load their pictures/help from "$iwidgets::library/demos/...".
 # In a kit that variable points inside the zipfs image, which has no demos, so
@@ -189,7 +181,7 @@ $Roots = [ordered]@{
     cawt = "$C\cawt-3.1.1";         tclreadline = "$C\TclReadLine"
 }
 
-$stats = [ordered]@{ man = 0; html = 0; demos = 0; docs = 0; licenses = 0; tools = 0 }
+$stats = [ordered]@{ man = 0; html = 0; demos = 0; docs = 0; LICENSES = 0; tools = 0 }
 
 foreach ($e in $Man) {
     $stats.man += Copy-Set -Src_ $e.s -Dst_ "$D\man\$($e.p)" -Exclude $e.x -OnlyFiles $e.f
@@ -204,13 +196,28 @@ $stats.demos += Copy-Set -Src_ $ExtraDemos.s -Dst_ "$D\demos\$($ExtraDemos.p)\$(
 $fixed = Fix-IwidgetsDemoPaths "$D\demos\iwidgets"
 foreach ($k in $Roots.Keys) {
     $stats.docs     += Copy-Docs   -Src_ $Roots[$k] -Dst_ "$D\docs\$k"
-    $stats.licenses += Copy-License -Src_ $Roots[$k] -Dst_ "$D\licenses\" -Pkg $k
 }
 
 Copy-Item "$Src\man.tcl"            "$D\tools\" -Force
 Copy-Item "$Src\iwidgets-demo.tcl"  "$D\tools\" -Force
 $stats.tools = (Get-ChildItem "$D\tools" -File).Count
 Copy-Item "$Src\README.md"          "$D\README.md" -Force
+
+# ------------------------------------------------------- our own licences ---
+# The docs artifact is the only thing a downloader of the executables gets
+# besides the exes themselves, so the attribution document has to travel with
+# it -- otherwise the notices required by Tcl/Info-ZIP/IJG/libtiff exist only
+# in the repository. LICENSES/ is the generated tree (scripts/make-licenses.ps1);
+# a missing or stale copy is a release blocker, not a warning.
+foreach ($f in 'LICENSE', 'THIRD-PARTY-NOTICES.md') {
+    if (-not (Test-Path "$Root\$f")) { throw "release artifact missing: $Root\$f" }
+    Copy-Item "$Root\$f" "$D\$f" -Force
+}
+if (-not (Test-Path "$Root\LICENSES")) { throw "LICENSES/ is not generated; run scripts/make-licenses.ps1 first" }
+# copy the CONTENTS: $D\LICENSES already exists (created above), and Copy-Item
+# with a directory source would nest LICENSES/LICENSES into it
+Copy-Item "$Root\LICENSES\*" "$D\LICENSES" -Recurse -Force
+$stats.LICENSES = @(Get-ChildItem "$D\LICENSES" -Recurse -File).Count
 
 # drop empty directory leaves (an OnlyFiles set may have matched nothing)
 $pass = $true
@@ -301,7 +308,7 @@ $zb = ($zf | Measure-Object Length -Sum).Sum
 $zsize = (Get-Item $Zip).Length
 "=== DOCS ARTIFACT ==="
 "iwidgets demos repointed to their own dir: $fixed"
-foreach ($k in 'man', 'html', 'demos', 'docs', 'licenses', 'tools') {
+foreach ($k in 'man', 'html', 'demos', 'docs', 'LICENSES', 'tools') {
     $f = @(Get-ChildItem "$D\$k" -Recurse -File -EA SilentlyContinue)
     "{0,-10} {1,6} files {2,9:N2} MB" -f $k, $f.Count, (($f | Measure-Object Length -Sum).Sum / 1MB)
 }

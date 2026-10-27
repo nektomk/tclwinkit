@@ -58,6 +58,8 @@ $Copy = [ordered]@{
     'thread/license.terms'           = (Join-Path $tcl 'pkgs\thread3.0.6\license.terms')
     'sqlite/license.terms'           = (Join-Path $tcl 'pkgs\sqlite3.53.0\license.terms')
     'tdbc/license.terms'             = (Join-Path $tcl 'pkgs\tdbc1.1.13\license.terms')
+    # tdbc::sqlite3 ships its own text (Scriptics holders), not a copy of tdbc's
+    'tdbc/tdbcsqlite3-license.terms' = (Join-Path $tcl 'pkgs\tdbcsqlite3-1.1.13\license.terms')
     'img/license.terms'              = (Join-Path $img 'license.terms')
     'libpng/LICENSE'                 = (Join-Path $img 'compat\libpng\LICENSE')
     'libtiff/LICENSE.md'             = (Join-Path $img 'compat\libtiff\LICENSE.md')
