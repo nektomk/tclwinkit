@@ -115,8 +115,12 @@ kit.vfs/
     twapi/*.tcl + pkgIndex.tcl   <- вендорный, с load {} Twapi fallback
     cawt/{pkgIndex.tcl,cawtapp.tcl,Cawt*/…}
     TclReadLine/{tclreadline.tcl,pkgIndex.tcl,tclreadline-win.tcl}
-    tcllib2.0/902 файла <- modules/ минус doc/html/tests/demos (kit-prune.ps1)
-    tklib0.9/303 файла  <- только GUI, то же; widgetl/{icons,msgs} сохранены
+    tcllib2.0/905 файла <- modules/ минус doc/html/tests/demos (kit-prune.ps1);
+                            из них 7 лицензионных текстов, причём ровно 3
+                            обязаны своим выживанием исключению по имени
+                            (.txt режется общим правилом)
+    tklib0.9/307 файла  <- только GUI, то же; widgetl/{icons,msgs} сохранены,
+                            6 лицензионных текстов, из них 4 спасены именем
     iwidgets4.1.1/, tkdnd2.9.5/, treectrl2.5.2/   <- только GUI
 ```
 

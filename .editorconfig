@@ -1,0 +1,41 @@
+# EditorConfig for tclwinkit. Mirrors .gitattributes; the authoritative
+# statement of the policy (including what it does NOT cover) is
+# docs/CONVENTIONS.md.
+#
+# EditorConfig cannot express two of our rules, so read them here anyway:
+#   * scripts/*.ps1 and scripts/*.bat must be ASCII-only, without exception
+#     for comments -- Windows PowerShell 5.1 decodes a BOM-less .ps1 using the
+#     machine code page, so non-ASCII bytes become mojibake and a parse error;
+#   * no UTF-8 BOM anywhere, and vendor texts keep whatever BOM upstream
+#     published (do not "fix" a vendor file's BOM).
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+[*.{md,yml,yaml,json}]
+indent_size = 2
+
+[*.{c,h,rc}]
+indent_style = tab
+tab_width = 4
+
+# The single exception to end_of_line = lf: cmd.exe and Windows PowerShell 5.1
+# read these in their final resting place. The git blob stays LF either way.
+[*.bat]
+end_of_line = crlf
+
+[*.ps1]
+end_of_line = crlf
+
+# Verbatim vendor license texts: never reflow, never trim, never re-wrap.
+# trim_trailing_whitespace is off here because a vendor text is copied
+# byte-verbatim and an editor silently stripping a space would break that.
+[LICENSES/**]
+trim_trailing_whitespace = false
+insert_final_newline = false

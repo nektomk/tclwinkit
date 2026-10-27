@@ -1,4 +1,66 @@
-# tclwinkit — документация, справочные страницы и демо
+# tclwinkit docs, manual pages and demos
+
+## In English
+
+This zip is the **fifth artifact** of the tclwinkit build: the four
+executables carry runtime only, and everything pruned out of them —
+manual pages, HTML documentation, demos, changelogs, license texts — is
+published here instead. Unpack it anywhere; all paths inside are relative.
+
+**Reading the manuals.** `man/` holds nroff sources (`*.n`, `*.3`, `*.1`,
+`*.man`) plus `man.macros`. The quickest viewer is the one that ships with
+the kit — no groff required:
+
+```
+tclwinkit-msvc.exe  tools\man.tcl man\tcl\subst.n
+tclwinkit-msvc.exe  tools\man.tcl man\itcl\Class.3
+```
+
+With groff installed: `groff -mandoc -Tutf8 man\tcl\subst.n | less -R`.
+`type man\tcl\subst.n` is readable too, just noisy. Where a package has
+`html/`, open `html\<package>\index.html` in a browser instead — that is the
+preferred form for tcllib, tklib, TWAPI and CAWT. Section convention:
+`*.n` for language and Tk commands, `*.3` for the C API, `*.1` for
+executables.
+
+**Running the demos.** Console packages take `tclwinkit-msvc.exe`, anything
+that draws a window takes `winkitwish-msvc.exe` (the console kit has no Tk):
+
+```
+winkitwish-msvc.exe demos\tk\widget           # Tk widget browser
+winkitwish-msvc.exe demos\iwidgets\catalog    # iwidgets catalog
+winkitwish-msvc.exe demos\treectrl\demo.tcl   # treectrl browser
+winkitwish-msvc.exe tools\iwidgets-demo.tcl combobox
+```
+
+**Sub-demos that refuse to start.** Most Tk demos are pages of a browser, not
+standalone programs: 63 of the 66 scripts in `demos\tk\` begin with an
+explicit guard and, when launched directly, open a Tk dialog titled
+**"Error in startup script"** saying `This script should be run from the
+"widget" demo.` Nothing is printed to stderr — the process stays alive with
+the dialog. That is upstream behaviour, not a defect of this archive: enter
+through `demos\tk\widget`, `demos\iwidgets\catalog` or
+`demos\treectrl\demo.tcl`. The iwidgets demos are the exception: they were
+re-pointed at their own directory during packaging and all of them start
+directly (verified on the shipped `0.1` archive).
+
+**CAWT demos** (`demos/cawt/`) are the package author's test programs. Most
+run out of the box; the `Excel-*`, `Word-*`, `Ppt-*`, `Outlook-*`,
+`OneNote-*`, `Sapi-*`, `Ocr-*`, `Matlab-*`, `Reader-*` and `Explorer-*`
+groups drive **real** Office applications over COM and need them installed.
+
+**Licenses.** `LICENSE` (MIT, our glue only), `THIRD-PARTY-NOTICES.md`
+(mandatory attribution — read this first) and `LICENSES/` (54 texts,
+generated from the vendor trees) are in this archive's root. The kit images
+keep the mandatory texts as well; `tests\kit-license-check.tcl` in the
+repository proves it from inside each shipped executable.
+
+Paths of the form `scripts/...`, `tests/...`, `docs/...` name files in the
+[source repository](https://github.com/nektomk/tclwinkit), not in this
+archive; `man/`, `html/`, `demos/`, `docs/`, `tools/`, `LICENSES/` are here.
+The rest of this file is the detailed version, in Russian.
+
+## По-русски
 
 Этот архив — **пятый артефакт** сборки tclwinkit (четыре первых:
 `tclwinkit-msvc.exe`, `winkitwish-msvc.exe`, `tclwinkit-mingw.exe`,
@@ -7,8 +69,10 @@
 В сами киты документация не кладётся намеренно: zipfs-образ кита содержит
 только то, что нужно для исполнения скриптов. Отсюда следствие — каталоги
 `tests/`, `doc/`, `demos/`, `html/` вырезаны из tcllib/tklib при сборке образа
-(экономия ~6,4 МБ и ~2340 файлов на каждый exe). Всё, что может понадобиться
-читателю, лежит здесь.
+(−32,40 МБ и −4269 файлов на GUI-кит; обязательные лицензионные тексты при
+этом не трогаются — см. `$KitLicenseNames` в `scripts/kit-prune.ps1`). Всё,
+что может понадобиться читателю, лежит здесь — 2684 файла, 41,50 МБ
+распакованных, 3129 записей в архиве.
 
 Распакуйте архив куда угодно, например `C:\tclwinkit-docs`. Пути внутри
 относительные, привязки к месту распаковки нет.
@@ -37,7 +101,7 @@
 * **HTML** — если он есть для пакета (см. таблицу), просто откройте
   `html\<пакет>\index.html` в браузере;
 * **groff** — если в системе есть `groff`: `groff -mandoc -Tutf8 man\tcl\subst.n | less -R`
-  (для раздела 3: `groff -man -Tutf8 man\itcl\Itcl.3`);
+  (для раздела 3: `groff -man -Tutf8 man\itcl\Class.3`);
 * **как текст** — `type man\tcl\subst.n` читается сносно: макросы `.SH`, `.IP`
   мешают, но содержимое понятно;
 * **tclsh-способ** — tcllib умеет разбирать свой формат doctools, но не nroff,
@@ -61,10 +125,13 @@ winkitwish-msvc.exe demos\tk\widget
 в свой каталог, поэтому картинки (`demos/tk/images/`) находятся автоматически,
 и из него запускаются все остальные демо Tk (`image1`, `items`, `ttk*`, ...).
 
-Замечание: демо, рассчитанные на запуск из общего браузера, при непосредственном
-старте могут показать ошибку вроде «этот скрипт следует запускать из widget
-demo» — это штатное поведение вендора (им нужны переменные/процедуры браузера и
-выставленный `tk_demoDirectory`), а не дефект архива или кита. Правильный вход —
+Замечание: демо, рассчитанные на запуск из общего браузера, при
+непосредственном старте показывают ошибку — в Tk-диалоге с заголовком
+«Error in startup script» и текстом `This script should be run from the
+"widget" demo.` (в stderr при этом ничего не попадает, процесс живёт с
+диалогом). Таковы 63 скрипта из 66 в `demos\tk\`. Это штатное поведение
+вендора (им нужны переменные/процедуры браузера и выставленный
+`tk_demoDirectory`), а не дефект архива или кита. Правильный вход —
 браузер: `demos\tk\widget` для Tk, `demos\iwidgets\catalog` для Iwidgets,
 `demos\treectrl\demo.tcl` для Treectrl. Содержимое архива специально не
 «вылизывается» под прямой запуск каждого файла — архив публикует вендорские
@@ -99,7 +166,8 @@ winkitwish-msvc.exe tools\iwidgets-demo.tcl combobox
 часть скриптов (`Excel-*`, `Word-*`, `Ppt-*`, `Outlook-*`, `OneNote-*`,
 `Sapi-*`, `Ocr-*`, `Matlab-*`, `Reader-*`, `Explorer-*`) управляет **реальными**
 приложениями Office через COM, то есть требует установленный Office; сами
-тесты написаны под `tablelist`, который в ките есть (tklib 7.4.1), так что
+тесты написаны под `tablelist`, который в ките есть (модуль `tablelist`
+7.4.1 из tklib 0.9), так что
 это не проблема кита. Запускаются они через `RunTest.tcl <неймспейс>` или
 каждый скрипт отдельно; перед запуском `Cawt-*.tcl` делают
 `source SetTestPathes.tcl`, который кладёт `[pwd]/..` в `auto_path` — в ките
@@ -115,8 +183,11 @@ winkitwish-msvc.exe tools\iwidgets-demo.tcl combobox
 * Документация `tdbc::mysql` и `tdbc::postgres` не включена: эти драйверы в
   кит не собираются (нет клиентских библиотек MySQL/libpq).
 * Тестовые наборы пакетов (2176 файлов tcllib/tklib) в архив не входят — это
-  материал разработчика. Они остаются в дереве сборки `build\common\...` и в
-  исходных tarball в `vendor\`.
+  материал разработчика. Они остаются в дереве сборки `build\common\...`,
+  которое не публикуется: `build/` и `vendor/` в этом репозитории
+  игнорируются git, а версии исходников каждого пакета названы в
+  `THIRD-PARTY-NOTICES.md` (лежит в корне этого архива) и в `docs/PLAN.md`
+  репозитория.
 
 ## Что и в каком виде есть по пакетам
 
