@@ -87,3 +87,24 @@ command, or variable`).
 | `scrolledtext.test`, `scrolledhtml.test` | жёстко зашитый Unix-путь `/tmp/…` в `export` → `$::iwtmp` = `[string map {\\ /} $env(TEMP)]` (2 F) |
 
 Все правки помечены комментарием `WINKIT:` там, где меняется логика теста.
+
+## Демо iwidgets в docs-архиве — правило упаковки, не патч
+
+Демо-скрипты (`demos/extbutton`, `hyperhelp`, `mainwindow`, `scrolledhtml`,
+`scrolledtext`, `toolbar`) берут картинки/справку из
+`$iwidgets::library/demos/...`. В ките эта переменная указывает внутрь zipfs
+(`//zipfs:/app/lib/iwidgets4.1.1`), где демо намеренно нет, поэтому в
+распакованном виде они нерабочие.
+
+`scripts/build-docs-artifact.ps1` при сборке архива подменяет эти пути на
+`$::iwdemo_dir` (каталог самого демо) и вставляет
+`set ::iwdemo_dir [file dirname [info script]]` после `package require
+Iwidgets`. Операция над **копией** в staging-дереве архива:
+`build/common/iwidgets-4.1.1/demos/` не меняется, контрольные копии не нужны.
+Правило и покрытые им шаблоны перечислены в `$IwRepoint`; функция
+`Fix-IwidgetsDemoPaths` сверяет результат и предупреждает, если осталось
+неперевязанное упоминание `iwidgets::library`.
+
+Зачем это вообще: kit содержит только рантайм (см. `scripts/kit-prune.ps1`),
+а демо публикуются пятым артефактом — значит, именно архив обязан делать их
+запускаемыми.

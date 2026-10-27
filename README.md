@@ -12,14 +12,31 @@ Portable single-file Tcl 9 distribution for Windows x64.
 
 | Файл | Тулчейн | Подсистема | Размер |
 |---|---|---|---|
-| `tclwinkit-msvc.exe` | MSVC 19.51 (static CRT) | console | ~24.0 МБ |
-| `winkitwish-msvc.exe` | MSVC 19.51 (static CRT) | GUI | ~30.6 МБ |
-| `tclwinkit-mingw.exe` | MinGW-w64 GCC 16.1 (UCRT) | console | ~24.8 МБ |
-| `winkitwish-mingw.exe` | MinGW-w64 GCC 16.1 (UCRT) | GUI | ~32.6 МБ |
+| `tclwinkit-msvc.exe` | MSVC 19.51 (static CRT) | console | ~10.8 МБ |
+| `winkitwish-msvc.exe` | MSVC 19.51 (static CRT) | GUI | ~15.9 МБ |
+| `tclwinkit-mingw.exe` | MinGW-w64 GCC 16.1 (UCRT) | console | ~11.6 МБ |
+| `winkitwish-mingw.exe` | MinGW-w64 GCC 16.1 (UCRT) | GUI | ~17.9 МБ |
+| `tclwinkit-docs-<вер>.zip` | — | документация, маны, демо | ~13.4 МБ |
 
 Консольный exe = drop-in замена `tclsh` (те же семантики аргументов, pipe-режима
 и кодов возврата) + интерактивный REPL с редактированием строки, историей и
 дополнением. GUI exe = drop-in замена `wish` (сток-поведение, Tk console widget).
+
+В киты сознательно не кладётся ничего, кроме рантайма: справочные страницы,
+HTML-документация, демонстрационные программы и тестовые наборы пакетов вырезаны
+из staging-образа (`scripts\kit-prune.ps1`) и публикуются пятым артефактом —
+`dist\tclwinkit-docs-<вер>.zip` (`scripts\build-docs-artifact.ps1`). Внутри —
+`man/` (nroff-страницы по пакетам), `html/` (tcllib/tklib/twapi/cawt/…),
+`demos/` (Tk, iwidgets, itk, treectrl, tkdnd, cawt), `docs/`, `licenses/`,
+`tools/` (рендер ман без groff и обёртка для iwidgets-дем) плюс `VERSIONS.txt`
+и `MANIFEST.txt`. Распаковав архив, демо запускаются теми же exe:
+
+```
+winkitwish-msvc.exe demos\tk\widget           # браузер демо Tk
+winkitwish-msvc.exe demos\iwidgets\catalog    # браузер демо iwidgets
+tclwinkit-msvc.exe  tools\man.tcl man\tcl\subst.n
+```
+
 
 ## Состав
 
@@ -126,20 +143,36 @@ C:\msys64\usr\bin\bash.exe -lc /c/src/winkit/scripts/build-mingw-ext.sh   # + re
 C:\msys64\usr\bin\bash.exe -lc /c/src/winkit/scripts/build-mingw-ext2.sh  # rl_json, mpexpr, itk, tkdnd, treectrl
 C:\msys64\usr\bin\bash.exe -lc /c/src/winkit/scripts/build-mingw-kit.sh
 scripts\assemble-mingw-kit.ps1
+
+scripts\build-docs-artifact.ps1 # 5-й артефакт: docs/man/demos -> dist\tclwinkit-docs-<вер>.zip
 ```
+
+`assemble-*.ps1` staging-образ чистит через `scripts\kit-prune.ps1` (см. выше):
+в kit.vfs попадают только рантайм-файлы. Пятый артефакт собирается из деревьев
+`build\msvc|mingw|common`, поэтому запускать его нужно после обеих сборок.
 
 Тесты:
 
 ```
 dist\tclwinkit-msvc.exe tests\smoke.tcl    # и для остальных трёх exe
-scripts\test-repl.ps1                      # интерактивный REPL (инъекция клавиш)
+dist\tclwinkit-msvc.exe tests\tcllib-probe.tcl   # и для остальных трёх exe
+scripts\test-repl.ps1                    # интерактивный REPL (инъекция клавиш)
 ```
 
 `tests\smoke.tcl` покрывает: версии/zipfs, registry, dde, itcl, Thread, tdbc,
 sqlite3 (+round-trip), tdbc::sqlite3 (+round-trip), tdbc::odbc, http, zlib,
 twapi (+COM, +иконка в трее), rl_json (+round-trip), mpexpr (2**100), tcllib,
 CAWT, TclReadLine; в GUI — Img (PNG round-trip), tklib, виджеты Tk, Itk,
-Iwidgets (entryfield), tkdnd (drop/drag target), Treectrl (виджет+колонки).
+Iwidgets (entryfield), tkdnd (drop/drag target), Treectrl (виджет+колонки),
+плюс 6 проверок статики в дочерних интерпретаторах (`thread create
+{package require sqlite3}`, slave/safe interp).
+
+`tests\tcllib-probe.tcl` — регрессионный страж рантайм-только staging:
+грузит каждый пакет tcllib/tklib, который образ предлагает, и сверяет отказы
+со снимком неприбранного дерева (`tests\tcllib-probe.baseline.txt`,
+пересобирается стоковым tclsh: `tclsh90s.exe tests\tcllib-probe.tcl -baseline`).
+Так апстримовый шум (tdom/tls/critcl/Trf/xml/nx, битый `nettool/nextool.tcl`,
+дубли версий) не может ни замаскировать, ни имитировать регрессию.
 
 ## Структура zipfs-образа
 
@@ -152,14 +185,17 @@ Iwidgets (entryfield), tkdnd (drop/drag target), Treectrl (виджет+коло
   itk4.2.7/             только GUI: itk.tcl + Archetype/Widget/Toplevel.itk
   thread_library/ttrace.tcl
   lib/
-    kit_init.tcl        бутстрап: auto_path, package ifneeded для load {},
-                        алиасы имён (tkimg/img::base, Itcl/itcl, Itk/itk, ...)
+    pkgIndex.tcl       физический индекс ВСЕХ static/mixed-пакетов: его находит
+                       tclPkgUnknown в любом (в т.ч. дочернем) interp, т.к.
+                       init.tcl кладёт //zipfs:/app на auto_path каждого interp
+    kit_init.tcl       бутстрап: source pkgIndex.tcl + tcl::tm::path,
+                       алиасы имён (tkimg/img::base, Itcl/itcl, Itk/itk, ...)
     tdbc/{tdbc.tcl,tdbcsqlite3.tcl,tdbcodbc.tcl}
     twapi/*.tcl + pkgIndex.tcl
     cawt/…
     TclReadLine/{tclreadline.tcl,pkgIndex.tcl,tclreadline-win.tcl}
-    tcllib2.0/<модули>
-    tklib0.9/<модули>        только GUI
+    tcllib2.0/<модули>      только рантайм-файлы (см. kit-prune.ps1)
+    tklib0.9/<модули>       только GUI, то же самое
     iwidgets4.1.1/           только GUI: iwidgets.tcl + generic/ (~50 классов)
     tkdnd2.9.5/              только GUI: 7 Tcl-скриптов tkdnd
     treectrl2.5.2/           только GUI: treectrl.tcl, filelist-bindings.tcl
@@ -167,8 +203,18 @@ Iwidgets (entryfield), tkdnd (drop/drag target), Treectrl (виджет+коло
 
 Бинарные пакеты регистрируются в `kit_register.c` через `Tcl_StaticLibrary`
 и активируются `package ifneeded <name> <ver> [list load {} <Prefix>]`
-из `kit_init.tcl`.
+из `pkgIndex.tcl`.
+
+Из tcllib2.0/tklib0.9 в образ попадают только файлы, которые интерпретатор
+действительно читает при `package require`/автозагрузке: каталоги `tests`,
+`doc`, `html`, `demos`, `examples`, `figures`, `perf`, `build`, `test-assets`
+и расширения `.test .man .n .3 .md .txt .html .png .csv .xz .c .h …` вырезаны
+`scripts\kit-prune.ps1` (−32,4 МБ и −4276 файлов на GUI-кит). Всё вырезанное
+публикуется пятым артефактом. Целостность образа проверяет
+`tests\tcllib-probe.tcl` (см. «Тесты»).
 
 Документация: [docs/PLAN.md](docs/PLAN.md) (техрешения и находки),
 [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md) (окружение),
-[docs/COMPARISON.md](docs/COMPARISON.md) (MSVC vs MinGW).
+[docs/COMPARISON.md](docs/COMPARISON.md) (MSVC vs MinGW),
+`src/docs/README.md` (состав и использование docs-архива),
+`patches/README.md` (правки вендора).

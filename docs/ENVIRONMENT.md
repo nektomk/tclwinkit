@@ -63,20 +63,48 @@
 3. Подсистема exe (console vs windows) — одна на файл; консольный вариант
    (tclsh-стиль) сохраняет отладочный вывод, Tk-окна при этом работают.
 
-## Итоговый статус (2026-10-26)
+## Итоговый статус (2026-10-27, волна 5)
 
 Проект собран и проверен полностью:
 
-- `dist/`: tclwinkit-msvc.exe (23.97 МБ), winkitwish-msvc.exe (30.59 МБ),
-  tclwinkit-mingw.exe (24.84 МБ), winkitwish-mingw.exe (32.61 МБ).
+- `dist/`: tclwinkit-msvc.exe (10.75 МБ), winkitwish-msvc.exe (15.85 МБ),
+  tclwinkit-mingw.exe (11.62 МБ), winkitwish-mingw.exe (17.88 МБ) — после
+  того как staging VFS стал рантайм-только (`scripts/kit-prune.ps1`: из
+  tcllib2.0/tklib0.9 вырезаны tests/doc/html/demos/examples/figures/perf,
+  *.test/*.man/*.n/*.3/*.png/*.csv/*.xz/*.c/*.h и т.п.; −32,4 МБ и −4276
+  файлов на GUI-кит). Всё вырезанное публикуется **пятым артефактом**:
+  `dist/tclwinkit-docs-0.1.zip` (13,49 МБ, 3065 записей) из
+  `scripts/build-docs-artifact.ps1` — man/ (584 nroff-страницы по 14 пакетам),
+  html/ (1473: tcllib-idoc, tklib-idoc, twapi, cawt, thread, mpexpr, tkdnd,
+  treectrl), demos/ (519: Tk, iwidgets, itk, treectrl, tkdnd, cawt), docs/,
+  licenses/, tools/ (man.tcl — рендер ман без groff, iwidgets-demo.tcl),
+  README.md, VERSIONS.txt, MANIFEST.txt.
 - `tests/smoke.tcl` — SMOKE OK на всех четырёх exe (~35 проверок: версии,
   zipfs, все package require, sqlite/tdbc round-trips, thread, itcl, registry,
   twapi+COM, http, zlib, rl_json (round-trip), mpexpr (2**100, mpformat),
   twapi system tray (addicon/removeicon), tcllib, CAWT, TclReadLine;
   GUI: Img PNG, tklib, виджеты Tk, Itk, Iwidgets (entryfield),
-  tkdnd (drop/drag target), Treectrl (виджет+колонки+item)).
+  tkdnd (drop/drag target), Treectrl (виджет+колонки+item), + 6 проверок
+  статики в дочерних interp).
+- `tests/tcllib-probe.tcl` — регрессионный страж prune: грузит каждый пакет,
+  который предлагает образ, и сверяет отказы со снимком неприбранного дерева
+  (`tests/tcllib-probe.baseline.txt`). PROBE OK ×4 (консоль 439 offered /
+  384 loaded / 55 known-upstream / 0 NEW; GUI 571 / 508 / 63 / 0 NEW).
+- Docs-артефакт отдельно не тестируется: он публикует файлы вендора как есть,
+  а часть демо — суб-скрипты, которые штатно запускаются из общего браузера
+  (`demos\tk\widget`, `demos\iwidgets\catalog`, `demos\treectrl\demo.tcl`) и при
+  прямом старте показывают «этот скрипт надо запускать из …» — это нормальное
+  поведение вендора, а не дефект архива. Для разовой проверки существовал
+  скретч-проверщик `build\research\demo-smoke.ps1` (в число тестов не входит).
 - `scripts/test-repl.ps1` — интерактивный REPL (TclReadLine + Win32-shim):
   история, стрелки, Shift-Tab-дополнение, exit 0 — OK на MSVC и MinGW.
+- Пакетные наборы после prune (оба кита, цифры совпадают): GUI iwidgets
+  3308/3308/0F, itk 100/100/0F, Img 290/272/18skip/0F, treectrl
+  1236/1216/19skip/1F (апстрим itemdesc-1.15), tkdnd 6/6 load-OK;
+  консоль itcl 793/727/66skip/0F, thread 143/117/26skip/0F, sqlite3 1/1/0/0,
+  tdbc 13/13/0/0, tdbc::sqlite3 161/158/3/0, rl_json 2565/2562/3/0,
+  mpexpr чисто; впервые tcllib-модули: doctools 599/599/0F, textutil
+  211/211/0F, struct 2708/2672/36skip/0F, json 527/527/0F.
 - Портируемость: зависимости — только системные DLL (MSVC без CRT-DLL;
   MinGW — UCRT api-ms-win-crt-*, Win10+); запуск из read-only каталога OK;
   GUI-exe без аргументов живут в event loop.

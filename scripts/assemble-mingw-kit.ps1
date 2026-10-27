@@ -17,6 +17,11 @@ $Stage  = "$Kit\stage"
 $Dist   = "$Root\dist"
 New-Item -ItemType Directory -Force $Dist | Out-Null
 
+# Runtime-only staging rules: strip test suites, manuals, benchmarks and sample
+# data out of the tcllib/tklib trees (they are published in the docs artifact).
+. "$Root\scripts\kit-prune.ps1"
+$PruneStats = @()
+
 function New-VfsTree {
     param([switch]$WithTk)
     if (Test-Path $Stage) { Remove-Item -Recurse -Force $Stage }
@@ -74,11 +79,13 @@ function New-VfsTree {
     # tcllib 2.0
     New-Item -ItemType Directory -Force "$Stage\kit.vfs\lib\tcllib2.0" | Out-Null
     Copy-Item -Recurse "$Common\tcllib-2.0\modules\*" "$Stage\kit.vfs\lib\tcllib2.0\"
+    $script:PruneStats += Remove-KitBloat "$Stage\kit.vfs\lib\tcllib2.0"
 
     if ($WithTk) {
         # tklib 0.9 (GUI only)
         New-Item -ItemType Directory -Force "$Stage\kit.vfs\lib\tklib0.9" | Out-Null
         Copy-Item -Recurse "$Common\tklib-0.9\modules\*" "$Stage\kit.vfs\lib\tklib0.9\"
+        $script:PruneStats += Remove-KitBloat "$Stage\kit.vfs\lib\tklib0.9"
 
         # Itk 4.2.7: Itk_Init finds itk.tcl at [file dirname $tcl_library]/itk4.2.7/
         New-Item -ItemType Directory -Force "$Stage\kit.vfs\itk4.2.7" | Out-Null
@@ -168,4 +175,15 @@ Join-Binaries @("$Kit\winkitwish-raw.exe", "$Stage\kit-gui.zip") "$Dist\winkitwi
 if (-not (Test-Path "$Dist\winkitwish-mingw.exe")) { throw 'attach failed (gui)' }
 
 Get-ChildItem $Dist\*-mingw.exe | Select-Object Name, @{n='MB';e={[math]::Round($_.Length/1MB,2)}}
+if ($PruneStats) {
+    '--- kit.vfs prune (runtime-only staging) ---'
+    $seen = @{}
+    foreach ($s in $PruneStats) {
+        $k = Split-Path $s.path -Leaf
+        if ($seen.ContainsKey($k)) { continue }   # console pass repeats tcllib
+        $seen[$k] = 1
+        "{0,-22} {1,5} -> {2,5} files  removed {3,5}  freed {4,6} MB" -f `
+            $k, $s.files, $s.kept, $s.removed, $s.freedMB
+    }
+}
 Write-Host '=== MINGW KIT ASSEMBLED ==='

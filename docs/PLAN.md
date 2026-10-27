@@ -76,6 +76,28 @@ tdbc1.1.13, tdbcsqlite3-1.1.13 (pure Tcl!), tdbcodbc1.1.13, sqlite3.53.0
     системные DLL + api-ms-win-crt-* (UCRT входит в Win10+). Kit-exe линкуем
     с `-static -municode` (полностью автономный).
 
+## Артефакты сборки (`dist/`, 5 файлов)
+
+| Артефакт | Что | Почему именно так |
+|---|---|---|
+| `tclwinkit-msvc.exe` / `tclwinkit-mingw.exe` | консольный kit (tclsh-замена + REPL) | рантайм, ничего лишнего |
+| `winkitwish-msvc.exe` / `winkitwish-mingw.exe` | GUI kit (wish-замена) | то же + Tk/Itk/Iwidgets/tklib/tkdnd/treectrl/Img |
+| `tclwinkit-docs-<вер>.zip` | **пятый артефакт**: man/, html/, demos/, docs/, licenses/, tools/, README.md, VERSIONS.txt, MANIFEST.txt | документация и демо конечному пользователю; в kit их нет, но терять их нельзя |
+
+Принцип волны 5: **kit содержит только то, что нужно для выполнения скриптов**;
+всё остальное, что может понадобиться пользователю, публикуется отдельно и
+nicего не теряется. Артефакт один на обе цепочки (staging tcllib/tklib
+идентичен), собирается `scripts\build-docs-artifact.ps1` из деревьев
+`build\common|msvc|mingw` **после** обеих сборок — VERSIONS.txt снимается пробой
+с реальных exe.
+
+Вырезанное из kit-образа (−32,4 МБ / −4276 файлов на GUI-кит) попадает именно
+туда: `scripts\kit-prune.ps1` чистит tcllib2.0/tklib0.9 **на стадии**
+(вендорские деревья `build\common\*` не трогаются, поэтому docs-скрипт видит
+полные комплекты). Целостность рантайм-только образа проверяет
+`tests\tcllib-probe.tcl` (грузит всё, что образ предлагает, сравнивая отказы со
+снимком неприбранного дерева) — PROBE OK ×4, 0 новых поломок.
+
 ## Структура VFS (staging `kit.vfs/`)
 
 ```
@@ -86,13 +108,16 @@ kit.vfs/
   itcl4.3.8/itcl.tcl    <- itcl ищет рядом с [file dirname $tcl_library]
   thread_library/ttrace.tcl
   lib/
-    kit_init.tcl        <- автопуть, алиасы, load {}-индексы Img
+    pkgIndex.tcl        <- физический индекс ВСЕХ static/mixed-пакетов: его
+                            находит tclPkgUnknown в любом (в т.ч. дочернем) interp
+    kit_init.tcl        <- source pkgIndex.tcl + tcl::tm::path, алиасы имён
     tdbc/{tdbc.tcl,tdbcsqlite3.tcl,tdbcodbc.tcl}
     twapi/*.tcl + pkgIndex.tcl   <- вендорный, с load {} Twapi fallback
     cawt/{pkgIndex.tcl,cawtapp.tcl,Cawt*/…}
     TclReadLine/{tclreadline.tcl,pkgIndex.tcl,tclreadline-win.tcl}
-    tcllib2.0/<134 модуля>       <- modules/ из тарбола
-    tklib0.9/<35 модулей>        <- только GUI
+    tcllib2.0/902 файла <- modules/ минус doc/html/tests/demos (kit-prune.ps1)
+    tklib0.9/303 файла  <- только GUI, то же; widgetl/{icons,msgs} сохранены
+    iwidgets4.1.1/, tkdnd2.9.5/, treectrl2.5.2/   <- только GUI
 ```
 
 Каталоги lib/<pkg>/ с pkgIndex.tcl находятся сами: Tcl сканирует auto_path
@@ -126,7 +151,24 @@ kit.vfs/
 - `tests/smoke.tcl`: SMOKE OK на всех 4 exe (patchlevel, zipfs, все package
   require, sqlite/tdbc round-trips c UTF-8, thread, itcl, registry, twapi + COM
   (WScript.Shell через dyncall), http, zlib, tcllib, cawtcore, TclReadLine;
-  GUI: Img PNG round-trip (image width/height!), tklib canvas::zoom, виджеты).
+  GUI: Img PNG round-trip (image width/height!), tklib canvas::zoom, виджеты,
+  + 6 проверок статики в дочерних interp: `thread create {package require
+  sqlite3 ; thread wait}`, slave/safe interp).
+- `tests/tcllib-probe.tcl` (волна 5): страж рантайм-только staging — собирает
+  `package ifneeded` из всех pkgIndex.tcl образа, грузит каждый пакет (по высшей
+  версии на имя) и сверяет отказы со СНИМКОМ неприбранного дерева
+  (`tests/tcllib-probe.baseline.txt`, пересобирается стоковым tclsh:
+  `tclsh90s.exe tests\tcllib-probe.tcl -baseline`). Так апстримовый шум
+  (tdom/tls/critcl/Trf/xml/nx, битый `nettool/nextool.tcl`, дубли версий) не
+  маскирует и не имитирует регрессию. Итог: консоль 439/384/55 (0 NEW),
+  GUI 571/508/63 (0 NEW) → PROBE OK ×4.
+- Docs-артефакт (волна 5) отдельно НЕ тестируется — решение заказчика: он
+  публикует вендорские файлы как есть. Часть демо — суб-скрипты общего
+  браузера (`demos\tk\widget`, `demos\iwidgets\catalog`,
+  `demos\treectrl\demo.tcl`), и их прямой запуск штатно ругается
+  «запускайте из …»; это поведение вендора, а не дефект архива. Разовая
+  проверка запускаемости осталась как скретч
+  `build\research\demo-smoke.ps1` (вне набора тестов).
 - `scripts/test-repl.ps1`: REPL-тест инъекцией клавиш (AttachConsole +
   WriteConsoleInput): история по Up, Shift-Tab-дополнение (info patc→patchlevel),
   Left+вставка символа, exit code 0 — OK на MSVC и MinGW. История сохраняется
@@ -136,9 +178,15 @@ kit.vfs/
   api-ms-win-crt-* UCRT-форвардеры); запуск из read-only каталога — SMOKE OK;
   GUI-exe без аргументов живут в event loop (двойной клик).
 
-### D. Артефакты
+### D. Артефакты (5)
 `dist/`: tclwinkit-msvc.exe, winkitwish-msvc.exe, tclwinkit-mingw.exe,
-winkitwish-mingw.exe + README + отчёт сравнения цепочек.
+winkitwish-mingw.exe + `tclwinkit-docs-<вер>.zip` (волна 5) + README +
+отчёт сравнения цепочек. Пятый артефакт — `scripts/build-docs-artifact.ps1`;
+упаковка написана вручную (не через `ZipFile::CreateFromDirectory`): .NET Framework под PS 5.1
+писал в архив имена записей с обратными слэшами, что ломает APPNOTE 4.4.17
+и разархивацию на Linux/macOS; скрипт строит записи с прямыми слэшами,
+добавляет записей каталогов и после упаковки проверяет себя (`throw` на
+любом `\` в имени).
 
 ## Риски и статус — ВСЁ РЕШЕНО
 
