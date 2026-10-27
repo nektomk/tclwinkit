@@ -35,9 +35,10 @@ HTML-документация, демонстрационные программ
 из staging-образа (`scripts\kit-prune.ps1`) и публикуются пятым артефактом —
 `dist\tclwinkit-docs-<вер>.zip` (`scripts\build-docs-artifact.ps1`). Внутри —
 `man/` (nroff-страницы по пакетам), `html/` (tcllib/tklib/twapi/cawt/…),
-`demos/` (Tk, iwidgets, itk, treectrl, tkdnd, cawt), `docs/`, `licenses/`,
-`tools/` (рендер ман без groff и обёртка для iwidgets-дем) плюс `VERSIONS.txt`
-и `MANIFEST.txt`. Распаковав архив, демо запускаются теми же exe:
+`demos/` (Tk, iwidgets, itk, treectrl, tkdnd, cawt), `docs/`, `LICENSES/`,
+`tools/` (рендер ман без groff и обёртка для iwidgets-дем), `LICENSE`,
+`THIRD-PARTY-NOTICES.md` плюс `VERSIONS.txt` и `MANIFEST.txt`. Распаковав архив,
+демо запускаются теми же exe:
 
 ```
 winkitwish-msvc.exe demos\tk\widget           # браузер демо Tk
@@ -217,9 +218,33 @@ Iwidgets (entryfield), tkdnd (drop/drag target), Treectrl (виджет+коло
 действительно читает при `package require`/автозагрузке: каталоги `tests`,
 `doc`, `html`, `demos`, `examples`, `figures`, `perf`, `build`, `test-assets`
 и расширения `.test .man .n .3 .md .txt .html .png .csv .xz .c .h …` вырезаны
-`scripts\kit-prune.ps1` (−32,4 МБ и −4276 файлов на GUI-кит). Всё вырезанное
-публикуется пятым артефактом. Целостность образа проверяет
+`scripts\kit-prune.ps1` (−32,40 МБ и −4269 файлов на GUI-кит). Вырезается
+документация, но не условия лицензий: обязательные лицензионные тексты
+остаются в образе — prune знает их по именам файлов (`$KitLicenseNames`),
+а `tests\kit-license-check.tcl` читает каждый текст из `//zipfs:/app` готового
+exe и проверяет фразы, которые требует каждая конкретная лицензия. Всё
+вырезанное публикуется пятым артефактом. Целостность образа проверяет
 `tests\tcllib-probe.tcl` (см. «Тесты»).
+
+## Лицензии
+
+Своя обвязка (`src/kit`, `scripts`, `docs`, `tests`) — MIT, см. [LICENSE](LICENSE).
+Бандл остаётся при своих лицензиях (Tcl, BSD-3, BSD-2, ISC, Zlib, libpng,
+libtiff, IJG, blessing, Info-ZIP, CC-BY-2.5, public domain; один copyleft-модуль
+— `tcllib/math/filtergen`, GPL-3 с section-7 разрешением): полная атрибуция в
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md), тексты — в
+[LICENSES/](LICENSES/) (54 файла, целиком генерируется
+[scripts/make-licenses.ps1](scripts/make-licenses.ps1); `-Check` верифицирует
+дерево обратно по вендорским источникам и годится в CI).
+
+Политика правок вендора — в [patches/README.md](patches/README.md): модифицированный
+файл распространяется под лицензией оригинала, отдельных прав мы не заявляем,
+шапки copyright не удаляем.
+
+GitHub покажет репозиторий как MIT — это верно только для нашей обвязки; на
+смешанные срабатывания детекторов по вендорным путям (`tclDate.c` → GPL,
+`contrib/gregbook` → GPL) отвечать нечем, они объяснены в THIRD-PARTY-NOTICES.md
+§5.
 
 Документация: [docs/PLAN.md](docs/PLAN.md) (техрешения и находки),
 [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md) (окружение),

@@ -13,6 +13,12 @@ sources. This file quotes only the passages the respective licenses require to
 be reproduced in documentation, plus components whose notice exists **only**
 inside source headers.
 
+Paths in this file are relative to the repository root. The same document ships
+inside `tclwinkit-docs-<version>.zip` at the archive root, next to `LICENSES/`
+and `LICENSE`; there, links into `src/`, `scripts/` and `patches/` point at
+repository content that the docs archive does not carry (it ships manuals,
+demos and license texts only).
+
 ## How the kit is put together
 
 Two build flavors, four executables:
@@ -38,11 +44,24 @@ Both flavors ship byte-identical license texts (verified by SHA256 across the
 
 ### Modifications and pruning
 
-We modify vendor sources. Every modification is listed in
-[`patches/README.md`](patches/README.md) with the file, the reason and the
-`WINKIT:` marker used in the code; copyright headers of modified files are
-never removed. For the Tcl-family licenses, which require that modified files
-indicate their new terms, those marker lines serve that purpose.
+We modify vendor sources. Every modification is recorded in
+[`patches/README.md`](patches/README.md), which lists the file, the change and
+the reason for each one (Tcl 9 / Tk 9 portability, MSVC compatibility, build
+scaffolding fixes). Copyright headers of modified files are never removed —
+where an upstream file carries no header, none was added or invented.
+
+The `WINKIT:` comment marker appears only in the three iwidgets test files whose
+test logic had to change; it is not present in the modified C or Tcl sources of
+the build, where the change is local and self-evident (an `#ifdef _MSC_VER`
+guard, a `case` → `switch` rewrite) and `patches/README.md` is the index.
+
+We do not claim separate copyright or terms on these modifications: they are
+distributed under the license of the file they change. That matters for the
+Tcl-family license, whose sentence "modifications to this software may be
+copyrighted by their authors and need not follow the licensing terms described
+here, provided that the new terms are clearly indicated on the first page of
+each file where they apply" is conditional on offering different terms — with
+none offered, no per-file relabelling is required.
 
 The staging step also **prunes** vendor trees: documentation, tests, headers,
 makefiles and build scaffolding do not ship. Pruning removes files, never
