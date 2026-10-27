@@ -18,6 +18,14 @@ Portable single-file Tcl 9 distribution for Windows x64.
 | `winkitwish-mingw.exe` | MinGW-w64 GCC 16.1 (UCRT) | GUI | ~17.9 МБ |
 | `tclwinkit-docs-<вер>.zip` | — | документация, маны, демо | ~13.4 МБ |
 
+Публикация: `scripts\publish-release.ps1` создаёт анnotated-тег `v<вер>` и
+GitHub Release с этими пятью файлами + `SHA256SUMS.txt` (в релизе ассеты
+именуются с версией и архитектурой: `tclwinkit-0.1-msvc-x64-console.exe`, …).
+Креденшелы брать негде — скрипт достаёт закэшированный OAuth-токен у
+Git Credential Manager (`git credential fill`, `GCM_INTERACTIVE=Never`) и
+проверяет scope `repo` до первой записи. Текст релиза — [src/docs/release-notes.md](src/docs/release-notes.md)
+с плейсхолдерами; `‑DryRun` прогоняет всё, не трогая ни GitHub, ни локальное состояние.
+
 Консольный exe = drop-in замена `tclsh` (те же семантики аргументов, pipe-режима
 и кодов возврата) + интерактивный REPL с редактированием строки, историей и
 дополнением. GUI exe = drop-in замена `wish` (сток-поведение, Tk console widget).
