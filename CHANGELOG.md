@@ -129,6 +129,21 @@ First release. [Tag `v0.1`](https://github.com/nektomk/tclwinkit/releases/tag/v0
   measured), [`docs/NOTES.md`](docs/NOTES.md) (vendor test-suite runs with
   root causes and accepted failures).
 
+### Changed
+
+- **0.1 was re-issued on 2026-10-29 and its artifacts are different bytes.**
+  The release first published on 2026-10-27 was withdrawn and re-created. All
+  five assets changed, not just the documentation archive: eight commits landed
+  between the old tag (`85f142b`) and the new one (`ddea773`), and one of them
+  edited `src/kit/vfs/lib/TclReadLine/tclreadline-win.tcl`, a file that lives
+  inside `kit.vfs` and therefore inside all four executables.
+- **The published `SHA256SUMS.txt` used to be unverifiable.** It was CRLF and
+  carried a blank line between its header and the digests, so the command both
+  READMEs print, `sha256sum -c SHA256SUMS.txt`, failed on it: 5 × `FAILED open
+  or read`, `WARNING: 5 listed files could not be read`, exit 1. It is now LF,
+  620 B, and verified 5 × OK with exit 0 under both `-c` and `-c --strict`
+  against copies downloaded from the release rather than from the local build.
+
 ### Known limitations
 
 - TWAPI is documented as **partial**: its own suite reports 380 failures of
