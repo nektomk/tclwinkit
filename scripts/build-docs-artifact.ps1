@@ -16,10 +16,19 @@
 
 [CmdletBinding()]
 param(
-    [string]$Root = 'C:\src\winkit',
+    [string]$Root = '',
     [switch]$Keep
 )
 $ErrorActionPreference = 'Stop'
+
+# $PSScriptRoot is not populated during parameter binding on Windows
+# PowerShell 5.1, so the default is resolved in the body, not in param().
+if (-not $Root) { $Root = Split-Path -Parent $PSScriptRoot }
+
+# Deterministic ZIP writers and the ordinal directory walk they need. Loaded
+# here, not next to the zip call, because VERSIONS.txt and MANIFEST.txt -- both
+# of which end up inside the archive -- have to be laid out in the same order.
+. "$Root\scripts\zip-entry.ps1"
 
 $M   = "$Root\build\msvc"
 $C   = "$Root\build\common"
@@ -248,9 +257,55 @@ while ($pass) {
 }
 
 # --------------------------------------------------------------- VERSIONS ---
+# Build stamp. A wall-clock "generated:" line makes the archive differ on
+# every run even when its content is byte-identical, which is exactly what
+# defeats the published digest (see scripts\zip-entry.ps1 for the same class
+# of defect in the ZIP headers). So the stamp is derived from the tree, not
+# from the clock. Priority:
+#   1. SOURCE_DATE_EPOCH -- the reproducible-builds.org convention, integer
+#      seconds since the Unix epoch, honored verbatim when present;
+#   2. the committer date of HEAD -- a property of the commit, so two people
+#      building the same commit produce the same stamp;
+#   3. neither -- refuse to build rather than ship an artifact whose published
+#      digest nobody can re-verify.
+$stamp = $null
+$stampSrc = $null
+if ($env:SOURCE_DATE_EPOCH -and $env:SOURCE_DATE_EPOCH -match '^[0-9]+$') {
+    $stamp = [System.DateTimeOffset]::FromUnixTimeSeconds([int64]$env:SOURCE_DATE_EPOCH).
+        ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss'Z'")
+    $stampSrc = 'SOURCE_DATE_EPOCH'
+} else {
+    $git = Get-Command git -ErrorAction SilentlyContinue
+    if ($git) {
+        $cd = @(& $git.Source -C $Root show -s --format=%cI HEAD 2>$null)
+        if ($LASTEXITCODE -eq 0 -and $cd.Count -ge 1 -and $cd[0].Trim()) {
+            $stamp = [System.DateTimeOffset]::Parse($cd[0].Trim()).ToUniversalTime().
+                ToString("yyyy-MM-dd'T'HH:mm:ss'Z'")
+            $sha = @(& $git.Source -C $Root rev-parse --short=7 HEAD 2>$null)
+            $stampSrc = 'commit ' + $sha[0].Trim()
+        }
+    }
+}
+if (-not $stamp) {
+    throw ('no deterministic build stamp: set SOURCE_DATE_EPOCH or build from ' +
+           'a git checkout (HEAD committer date)')
+}
+# Dirty-tree marker. Naming HEAD while the working copy carries uncommitted
+# changes would be a lie of the same class as the wall-clock stamp it replaces:
+# two people building "commit 4e0f1f1" -- one clean, one with local edits --
+# would produce different archives that both claim to be that commit. So the
+# stamp says which of the two it is. gitignored scratch (build/) does not
+# count: --porcelain omits it by default.
+$gitCmd = Get-Command git -ErrorAction SilentlyContinue
+if ($gitCmd) {
+    $porc = @(& $gitCmd.Source -C $Root status --porcelain 2>$null)
+    if ($LASTEXITCODE -eq 0 -and @($porc | Where-Object { $_.Trim() }).Count -gt 0) {
+        $stampSrc += ', dirty working tree'
+    }
+}
 $probe = "$Root\build\docs-stage\probe-versions.tcl"
 Copy-Item "$Src\versions.tcl" $probe -Force
-$vers = @("tclwinkit docs $Ver", ("generated: " + (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')))
+$vers = @("tclwinkit docs $Ver", ("generated: $stamp ($stampSrc)"))
 $vers += ""
 $vers += "# runtime package versions (probed from the built kits)"
 foreach ($kit in @(@('console', "$Dist\tclwinkit-msvc.exe"), @('gui', "$Dist\winkitwish-msvc.exe"))) {
@@ -280,7 +335,10 @@ foreach ($k in 'man', 'html', 'demos', 'docs') {
 Put-LfText "$D\VERSIONS.txt" $vers
 
 # --------------------------------------------------------------- MANIFEST ---
-$all = @(Get-ChildItem $D -Recurse -File | Sort-Object FullName)
+# Ordinal order, same reason as the archive walk below: Sort-Object -Property
+# FullName compares in the current culture, so the line order of this file --
+# which is inside the published archive -- would vary per machine.
+$all = @(Get-SortedFile -Path $D)
 $mf = @("# $Name file manifest ($($all.Count) files)", "")
 $mf += $all | ForEach-Object {
     "{0,9}  {1}" -f $_.Length, $_.FullName.Substring($D.Length + 1).Replace('\', '/')
@@ -292,23 +350,24 @@ Put-LfText "$D\MANIFEST.txt" $mf
 # ZipFile.CreateFromDirectory (what Windows PowerShell 5.1 runs on) writes
 # BACKslashes into the archive, which violates the ZIP spec (APPNOTE 4.4.17
 # requires '/') and makes Linux/macOS unzip treat the whole tree as one flat
-# file name. Same approach as New-KitZip in the assemble scripts.
+# file name. Same approach as New-KitZip in the assemble scripts. Entry
+# timestamps are pinned through scripts\zip-entry.ps1, so the archive is
+# byte-identical between runs and its published digest is checkable.
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 if (Test-Path $Zip) { Remove-Item $Zip -Force }
 $za = [System.IO.Compression.ZipFile]::Open($Zip, 'Create')
 try {
     $stageLen = $Stage.Length + 1
     $madeDirs = [System.Collections.Generic.HashSet[string]]::new()
-    foreach ($entry in (Get-ChildItem -LiteralPath $Stage -Recurse -File)) {
+    $entriesList = Get-SortedFile -Path $Stage
+    foreach ($entry in $entriesList) {
         $rel = $entry.FullName.Substring($stageLen) -replace '\\', '/'
         $parent = [System.IO.Path]::GetDirectoryName($rel) -replace '\\', '/'
         while ($parent -and $madeDirs.Add($parent)) {
-            $null = $za.CreateEntry($parent + '/')
+            Add-ZipDir -Zip $za -Name ($parent + '/')
             $parent = [System.IO.Path]::GetDirectoryName($parent) -replace '\\', '/'
         }
-        $null = [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
-            $za, $entry.FullName, $rel,
-            [System.IO.Compression.CompressionLevel]::Optimal)
+        Add-ZipFile -Zip $za -Source $entry.FullName -Name $rel -Level ([System.IO.Compression.CompressionLevel]::Optimal)
     }
 } finally { $za.Dispose() }
 

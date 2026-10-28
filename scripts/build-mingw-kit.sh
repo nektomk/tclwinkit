@@ -1,15 +1,16 @@
 #!/bin/bash
-# build-mingw-kit.sh — compile & link tclwinkit exes (MinGW UCRT64, static).
+# build-mingw-kit.sh - compile & link tclwinkit exes (MinGW UCRT64, static).
 # Run after build-mingw-core.sh and build-mingw-ext.sh.
-# MSYSTEM=UCRT64 bash -lc '/c/src/winkit/scripts/build-mingw-kit.sh'
+# MSYSTEM=UCRT64 bash -lc '<repo>/scripts/build-mingw-kit.sh'
 set -e
-ROOT=/c/src/winkit
-B=$ROOT/build/mingw
-TCL=$B/tcl9.0.4
-TK=$B/tk9.0.4
-EXT=$B/ext
+. "$(dirname "${BASH_SOURCE[0]}")/mingw-env.sh" || exit 1
+# windres is only needed here, for the Tk cursor resources
+if ! command -v windres >/dev/null 2>&1; then
+    echo "MINGW ENV ERROR: windres not found (MSYSTEM=${MSYSTEM:-unset}); needed for kit_wish.rc"
+    exit 1
+fi
 OUT=$B/kit
-SRC=$ROOT/src/kit
+SRC=$WINKIT_ROOT/src/kit
 mkdir -p "$OUT"
 cd "$OUT"
 
@@ -26,7 +27,11 @@ CFLAGS="-O2 -Wall $DEFS"
 CORELIBS="$TCL/win/libtcl90.a $TCL/win/libtclstub.a"
 TKCORELIBS="$TK/win/libtcl9tk90.a $TK/win/libtkstub.a"
 # bundled pkgs: static libs from the --disable-shared builds in pkgs/*
-PKGLIBS=$(ls $TCL/pkgs/*/libtcl9*.a $TCL/pkgs/*/lib*stub*.a 2>/dev/null | sort -u | tr '\n' ' ')
+# LC_ALL=C: `sort` collates by the locale, and the archive order on the gcc
+# line is not arbitrary -- it decides which definition wins for a duplicate
+# symbol. Pinning it keeps the link identical on a machine whose locale would
+# order '-' and '_' differently.
+PKGLIBS=$(ls $TCL/pkgs/*/libtcl9*.a $TCL/pkgs/*/lib*stub*.a 2>/dev/null | LC_ALL=C sort -u | tr '\n' ' ')
 # twapi + dyncall
 TWAPIOBJ=$(ls "$EXT"/twapi-5.2.0/bld/lib*twapi*.a 2>/dev/null | grep -v '\.dll\.a' | head -1)
 if [ -z "$TWAPIOBJ" ]; then echo "TWAPI STATIC LIB NOT FOUND"; exit 1; fi
@@ -35,7 +40,7 @@ DYLD=$(find "$EXT/dyncall-0.9" -name 'libdynload_s.a' | head -1)
 DCB=$(find "$EXT/dyncall-0.9" -name 'libdyncallback_s.a' | head -1)
 TWAPILIBS="$TWAPIOBJ $DCL $DYLD $DCB"
 # Img (static archives from the toplevel bld tree)
-IMGLIBS=$(find "$EXT/Img-2.1.2/bld" -name 'lib*.a' ! -name '*dll.a' 2>/dev/null | sort | tr '\n' ' ')
+IMGLIBS=$(find "$EXT/Img-2.1.2/bld" -name 'lib*.a' ! -name '*dll.a' 2>/dev/null | LC_ALL=C sort | tr '\n' ' ')
 # ext2: rl_json + mpexpr (console & GUI)
 EXT2LIBS="$EXT/rl_json-0.17.8/libtcl9rl_json0178.a $EXT/mpexpr/bld-mingw/libmpexpr.a"
 # ext2 GUI-only: itk + tkdnd + treectrl
@@ -48,6 +53,21 @@ TCSYS="-lnetapi32 -luserenv -lws2_32 -ladvapi32 -lkernel32 -luser32 -lodbc32 \
  -luuid -lversion -lwinmm -lwinspool -lwintrust -lwtsapi32"
 TKSYS="$TCSYS -limm32 -lcomdlg32 -lcomctl32 -loleacc -luuid"
 LDFLAGS="-static -municode -Wl,--stack,2300000"
+
+# ---- pin the PE TimeDateStamp ---------------------------------------------
+# ld writes the link wall clock into the image header, so two rebuilds of
+# identical sources differ in four bytes (measured on this box: two gcc links
+# one second apart produced different sha256 with nothing but the stamp
+# differing). binutils honours SOURCE_DATE_EPOCH for PE images, so exporting
+# it makes the link reproducible.
+#
+# 315532800 = 1980-01-01T00:00:00Z, the same constant the VFS zip entries use
+# ($ZipEpoch1980 in scripts/zip-entry.ps1), so everything time-stamped inside
+# a shipped kit reads the DOS epoch. The MSVC chain has no such knob that
+# works (link /TIMESTAMP is accepted and ignored) and uses -Brepro instead,
+# so the two toolchains disagree on the stamp value -- as they do on every
+# byte -- but each is reproducible on its own.
+export SOURCE_DATE_EPOCH=315532800
 
 # ---- compile -------------------------------------------------------------
 echo "=== compiling kit sources ==="

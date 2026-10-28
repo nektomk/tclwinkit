@@ -95,7 +95,9 @@ smoke-тест (25+ проверок) и интерактивный REPL-тес�
 - MSVC nmake static; MinGW configure из bld/.
 
 ### Iwidgets 4.1.1 — pure Tcl, цепочки не касаются
-- Debian-тарбол; `iwidgets.tcl` генерится на стадии сборки из `.in`;
+- Источник — Debian-тарбол исходников (решение A7, обоснование и дигест:
+  [SOURCES.md](SOURCES.md), замечание: [PLAN.md](PLAN.md));
+  `iwidgets.tcl` генерится на стадии сборки из `.in`;
   классы autoload из `generic/tclIndex`.
 
 ## Вывод

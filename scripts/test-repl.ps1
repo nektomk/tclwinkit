@@ -14,7 +14,7 @@
 #   Usage: scripts\test-repl.ps1 [-Exe path] [-Commands ...] [-Markers ...]
 
 param(
-    [string]$Exe = "C:\src\winkit\dist\tclwinkit-msvc.exe",
+    [string]$Exe = '',
     [string[]]$Commands = @(
         'set histkey test123',
         '@UP@',
@@ -26,6 +26,13 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+# $PSScriptRoot is not populated during parameter binding on Windows
+# PowerShell 5.1, so the default is resolved in the body, not in param().
+if (-not $Exe) {
+    $repo = Split-Path -Parent $PSScriptRoot
+    $Exe = Join-Path $repo 'dist\tclwinkit-msvc.exe'
+}
 
 Add-Type -TypeDefinition @'
 using System;

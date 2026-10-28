@@ -34,6 +34,9 @@ if (-not $Repo) {
     $Repo = Split-Path -Parent $here
 }
 $Repo = (Resolve-Path -LiteralPath $Repo).Path
+# Get-SortedFile: the ordinal enumeration helper shared with the packagers, so
+# every generated document lays its file lists out in the same order.
+. (Join-Path $Repo 'scripts\zip-entry.ps1')
 
 $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 $Lat1 = [System.Text.Encoding]::GetEncoding('iso-8859-1')
@@ -236,8 +239,30 @@ foreach ($rel in $Copy.Keys) {
     }
     $dir = Split-Path -Parent $dest
     if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
-    Copy-Item -LiteralPath $src -Destination $dest -Force
+    # NOT Copy-Item. The repo rule is three levels (docs/CONVENTIONS.md): the
+    # blob is always LF, and so is the working copy except for .bat/.ps1.
+    # Vendor licence texts arrive with CRLF (Img's license.terms has 41 of
+    # them, compat/libjpeg/README 374), so a byte-verbatim copy put CRLF in
+    # the working tree: git normalized it away in the blob, but every status
+    # reported these two files as modified forever, which in turn makes the
+    # "dirty working tree" build stamp and the release gate fire on a tree
+    # that is actually clean.
+    #
+    # Normalization is done on BYTES, not by decoding: some vendor texts are
+    # not valid UTF-8 at all, and a GetString/WriteAllText round-trip would
+    # replace those sequences with U+FFFD and publish a corrupted licence.
+    # Everything except the CR of a CRLF pair is left untouched, a UTF-8 BOM
+    # included -- that one is preserved and reported, per the same rule.
+    $in = [System.IO.File]::ReadAllBytes($src)
+    $outB = New-Object 'System.Collections.Generic.List[byte]'
+    $crlf = 0
+    for ($i = 0; $i -lt $in.Length; $i++) {
+        if ($in[$i] -eq 13 -and ($i + 1) -lt $in.Length -and $in[$i + 1] -eq 10) { $crlf++; continue }
+        $outB.Add($in[$i])
+    }
+    [System.IO.File]::WriteAllBytes($dest, $outB.ToArray())
     if (Test-Utf8Bom $src) { $report.Add(('  note: source carries a UTF-8 BOM, preserved verbatim: {0}' -f $rel)) }
+    if ($crlf) { $report.Add(('  note: source had {0} CRLF, normalized to LF for the working copy: {1}' -f $crlf, $rel)) }
     $report.Add(('copied {0,-38} {1,7} B  <- {2}' -f $rel, (Get-Item $dest).Length, (Rel $src)))
 }
 
@@ -282,7 +307,12 @@ else {
     foreach ($pkg in $sweepTargets) {
         $dir = Join-Path $kitlib $pkg
         if (-not (Test-Path $dir)) { continue }
-        $files = @(Get-ChildItem $dir -Recurse -File | Where-Object { $_.Extension -in @('.tcl', '.itcl', '.itk') })
+        # Ordinal walk order, not NTFS-index order: the first file of a grant
+        # shape is quoted in the output as "first: <path>", so an unsorted
+        # enumeration would make that line (and therefore this tracked
+        # document) depend on the order the filesystem happens to return.
+        $files = @(Get-SortedFile -Path $dir |
+                   Where-Object { $_.Extension -in @('.tcl', '.itcl', '.itk') })
 
         $cls = @{ pointer = 0; grant = 0; none = 0 }
         $grantBlocks = @{}
@@ -359,7 +389,24 @@ else {
         # The two most frequent shapes are the package default (the standard Tcl
         # licence block and the pointer to license.terms); they are named, not
         # reproduced -- their full text is already in ../<pkg>/license.terms.
-        $ordered = @($grantBlocks.Keys | Sort-Object { -$grantBlocks[$_].files.Count }, { $_ })
+        # Ordinal, culture-independent order. Sort-Object compares strings with
+        # the current culture, and this file is tracked: on a machine with
+        # another locale (CI on Ubuntu runs under C.UTF-8, this box under
+        # windows-1251) the blocks would come out in a different order, the
+        # regenerated file would differ from the committed one, and -Check
+        # would fail for a reason that has nothing to do with the licenses.
+        # Key = zero-padded inverted file count, then the block text, so one
+        # ordinal sort expresses "most files first, then by text". Sorted in
+        # place: @( ... ) is already an array, and .ToArray() on one is fanned
+        # out onto its elements by PowerShell, which reports
+        # "[System.String] does not contain a method named 'ToArray'".
+        $arr = @($grantBlocks.Keys | ForEach-Object {
+                     '{0:D6}|{1}' -f (999999 - $grantBlocks[$_].files.Count), $_
+                 })
+        if ($arr.Count -gt 1) { [System.Array]::Sort($arr, [System.StringComparer]::Ordinal) }
+        # the prefix is exactly 6 digits plus the separator, so slice it off by
+        # position rather than by searching: the keys themselves may contain '|'
+        $ordered = @($arr | ForEach-Object { $_.Substring(7) })
         $pkgLic = ($pkg -replace '\d+(\.\d+)*$', '')
         $quoted = 0
         for ($g = 0; $g -lt $ordered.Count; $g++) {
@@ -398,7 +445,14 @@ else {
         $buf.Add('# carry it. Retained unchanged in those files; listed here so that the')
         $buf.Add('# holder set of the package is enumerable without reading the sources.')
         $buf.Add('')
-        foreach ($h in @($holders.Keys | Sort-Object { -$holders[$_].Count }, { $_ })) {
+        # Ordinal for the same reason as the grant blocks above. Holder lines
+        # are free text, so the 6-digit count prefix is what orders them and is
+        # sliced off by position (7 = 6 digits plus the separator).
+        $harr = @($holders.Keys | ForEach-Object {
+                      '{0:D6}|{1}' -f (999999 - $holders[$_].Count), $_
+                  })
+        if ($harr.Count -gt 1) { [System.Array]::Sort($harr, [System.StringComparer]::Ordinal) }
+        foreach ($h in @($harr | ForEach-Object { $_.Substring(7) })) {
             $buf.Add('- ' + $h + '  --  ' + $holders[$h].Count + ' file(s)')
         }
         Put-Generated ("kit-headers/" + $pkg + ".NOTICE") $buf.ToArray() ("sweep " + (Rel $dir))

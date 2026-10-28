@@ -2,14 +2,11 @@
 rem =====================================================================
 rem build-msvc-img.bat - Img 2.1.2 static libs (MSVC, /MT)
 rem Order: base -> zlib -> libjpeg -> libpng -> libtiff -> formats
+rem Paths and the MSVC environment come from msvc-env.bat.
 rem =====================================================================
 setlocal
-call "C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\VC\Auxiliary\Build\vcvars64.bat" || exit /b 1
-set ROOT=C:\src\winkit
-set TCLROOT=%ROOT%\build\msvc\tcl9.0.4
-set TKROOT=%ROOT%\build\msvc\tk9.0.4
-set IMG=%ROOT%\build\msvc\ext\Img-2.1.2
-set LOGS=%ROOT%\build\msvc\logs
+call "%~dp0msvc-env.bat" || exit /b 1
+set IMG=%EXT%\Img-2.1.2
 set KOPTS=OPTS=static,nomsvcrt
 
 call :build base          || exit /b 1

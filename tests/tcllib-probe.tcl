@@ -24,10 +24,19 @@ set Snapshot [file join $here tcllib-probe.baseline.txt]
 
 set baseline [expr {"-baseline" in $argv}]
 
-set SrcTrees {
-    tcllib2.0 C:/src/winkit/build/common/tcllib-2.0/modules
-    tklib0.9  C:/src/winkit/build/common/tklib-0.9/modules
+# Unpruned source trees for -baseline. Derived from this file's location so
+# the guard runs on a machine that checked the repo out anywhere else; set
+# WINKIT_COMMON to point at a build\common tree living outside the repo.
+set Root [file dirname $here]
+if {[info exists ::env(WINKIT_COMMON)] && $::env(WINKIT_COMMON) ne {}} {
+    set Common [file normalize $::env(WINKIT_COMMON)]
+} else {
+    set Common [file join $Root build common]
 }
+
+set SrcTrees [list \
+    tcllib2.0 [file join $Common tcllib-2.0 modules] \
+    tklib0.9  [file join $Common tklib-0.9 modules]]
 
 if {$baseline} {
     set roots {}
@@ -100,12 +109,15 @@ if {$baseline} {
     lappend out "# packages: [llength [array names BEST]], loaded: $loaded"
     foreach f $fails {
 	lassign $f name ver err
-	# tab-separated: error texts contain quotes followed by colons, which
-	# Tcl list parsing would reject
-	lappend out "$name\t$ver\t$err"
+	# Tab-separated: error texts contain quotes followed by colons, which
+	# Tcl list parsing would reject. Absolute paths of whoever generated
+	# the snapshot are stripped: the comparison below keys on the package
+	# name only, so this is cosmetic here and keeps the tracked file from
+	# embedding one machine's layout.
+	lappend out "$name\t$ver\t[string map [list "$Common/" {} "$Common\\" {}] $err]"
     }
     set ch [open $Snapshot w]
-    fconfigure $ch -encoding utf-8
+    fconfigure $ch -encoding utf-8 -translation lf
     puts $ch [join $out "\n"]
     close $ch
     puts "tcllib/tklib baseline: [llength [array names BEST]] offered, $loaded loaded,\
@@ -123,8 +135,8 @@ if {![file exists $Snapshot]} {
 }
 set known [list]
 set ch [open $Snapshot r]
-fconfigure $ch -encoding utf-8
-foreach line [split [read $ch] "\n"] {
+fconfigure $ch -encoding utf-8 -translation lf
+foreach line [split [string map [list "\r" ""] [read $ch]] "\n"] {
     if {$line eq {} || [string match {#*} $line]} { continue }
     lappend known [lindex [split $line "\t"] 0]
 }

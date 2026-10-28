@@ -65,6 +65,21 @@ First release. [Tag `v0.1`](https://github.com/nektomk/tclwinkit/releases/tag/v0
   shipped executables rather than a build tree. On this release: SMOKE OK
   ×4, PROBE OK ×4 (console 439 offered / 384 loaded / 55 known-upstream
   failures / 0 new; GUI 571 / 508 / 63 / 0 new), KIT LICENSE CHECK OK ×4.
+- **Reproducible builds within a toolchain**: two full rebuilds on the same
+  host produce byte-identical assets — all five files in `dist/` matched
+  across a complete `ext2 → kit → assemble → docs` double pass (verified
+  2026-10-28). Three sources of nondeterminism were eliminated: ZIP entry
+  timestamps (pinned to the 1980-01-01 DOS epoch, directory entries
+  included), the `generated:` stamp in `VERSIONS.txt` (now the committer date
+  of `HEAD`, or `SOURCE_DATE_EPOCH`, with a `dirty working tree` marker), and
+  the PE `TimeDateStamp` the linker writes from the wall clock (MSVC
+  `-Brepro`, MinGW `SOURCE_DATE_EPOCH`). Vendor version UUIDs no longer
+  inherit the builder's git commit either: `rl_json` and `itk` derive theirs
+  from `git rev-parse HEAD` inside a tree that lives inside this checkout, so
+  the shipped executables used to carry — and expose through
+  `rl_json::build-info commit` and `itk::build-info commit` — a hash of this
+  repository; both now report `unknown`, which is what upstream's own
+  fallback writes when no VCS is present.
 - **Release automation** (`scripts/publish-release.ps1`): annotated tag,
   GitHub release with versioned and architecture-qualified asset names,
   rendered `SHA256SUMS.txt`, release body generated from
@@ -103,5 +118,10 @@ First release. [Tag `v0.1`](https://github.com/nektomk/tclwinkit/releases/tag/v0
 - `__FILE__` strings reachable from panic messages contain the build machine
   paths (no user name, no host name). Trimming them via `/d1trimfile` and
   `-ffile-prefix-map` is planned for the next release.
+- Reproducibility is measured **on the reference host and toolchain** (MSVC
+  14.51.36231 / MinGW gcc 16.1.0, see [`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md)).
+  A rebuild elsewhere is expected to differ — the two toolchains do not even
+  agree on the PE timestamp value, by design — and a clean-machine rebuild
+  has not been performed yet.
 
 [0.1]: https://github.com/nektomk/tclwinkit/releases/tag/v0.1

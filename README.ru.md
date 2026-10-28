@@ -20,13 +20,20 @@
 | `winkitwish-mingw.exe` | MinGW-w64 GCC 16.1 (UCRT) | GUI | 17,89 МБ |
 | `tclwinkit-docs-<вер>.zip` | — | документация, маны, демо | 13,57 МБ |
 
-Публикация: `scripts\publish-release.ps1` создаёт анnotated-тег `v<вер>` и
+Публикация: `scripts\publish-release.ps1` создаёт аннотированный тег `v<вер>` и
 GitHub Release с этими пятью файлами + `SHA256SUMS.txt` (в релизе ассеты
 именуются с версией и архитектурой: `tclwinkit-0.1-msvc-x64-console.exe`, …).
 Креденшелы брать негде — скрипт достаёт закэшированный OAuth-токен у
 Git Credential Manager (`git credential fill`, `GCM_INTERACTIVE=Never`) и
 проверяет scope `repo` до первой записи. Текст релиза — [src/docs/release-notes.md](src/docs/release-notes.md)
 с плейсхолдерами; `‑DryRun` прогоняет всё, не трогая ни GitHub, ни локальное состояние.
+
+Суммы проверяются и против вашей сборки: две полные пересборки подряд на
+эталонной машине дают все пять файлов байт-в-байт одинаково (закреплены время
+записей ZIP, штамп `VERSIONS.txt` и PE `TimeDateStamp`). Другая версия
+компилятора даст другие байты, и две цепочки отличаются друг от друга —
+воспроизводимость считается на одну цепочку. Механизмы — в
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 Консольный exe = drop-in замена `tclsh` (те же семантики аргументов, pipe-режима
 и кодов возврата) + интерактивный REPL с редактированием строки, историей и
@@ -141,7 +148,20 @@ tcllib/tklib подгружаются лениво через `tm`-индекс�
 
 ## Сборка с нуля
 
-Порядок (Windows x64; MSVC = VS Build Tools + Windows SDK, MinGW = MSYS2 UCRT64):
+Порядок (Windows x64; MSVC = VS Build Tools + Windows SDK, MinGW = MSYS2 UCRT64).
+
+Шаг нулевой: вендорные архивы в репозитории **нет** (67,65 МБ, в `.gitignore`).
+Сначала — загрузка и сверка: скрипт качает все 15 по
+[docs/SOURCES.md](docs/SOURCES.md) и проверяет каждый по размеру, SHA-256 и
+читаемости архива, отказываясь принимать чужой файл до того, как он попадёт
+в дерево сборки.
+
+```
+scripts\fetch-vendor.ps1          # 15 архивов -> vendor\
+```
+
+Дальше (пути репозитория в примерах нет: скрипты выводят корень из своего
+положения, `WINKIT_ROOT` переопределяет):
 
 ```
 scripts\build-msvc-core.bat     # Tcl+Tk+pkgs: nmake OPTS=static,nomsvcrt
@@ -152,14 +172,18 @@ scripts\build-msvc-kit.bat      # kit_register/kit_main/kit_wish_main + линк
 scripts\assemble-msvc-kit.ps1   # staging VFS -> zip -> прицеп к exe -> dist\
 
 $env:MSYSTEM='UCRT64'
-C:\msys64\usr\bin\bash.exe -lc /c/src/winkit/scripts/build-mingw-core.sh
-C:\msys64\usr\bin\bash.exe -lc /c/src/winkit/scripts/build-mingw-ext.sh   # + repack-dyncall.sh
-C:\msys64\usr\bin\bash.exe -lc /c/src/winkit/scripts/build-mingw-ext2.sh  # rl_json, mpexpr, itk, tkdnd, treectrl
-C:\msys64\usr\bin\bash.exe -lc /c/src/winkit/scripts/build-mingw-kit.sh
+& <MSYS2>\usr\bin\bash.exe -lc '<repo>/scripts/build-mingw-core.sh'
+& <MSYS2>\usr\bin\bash.exe -lc '<repo>/scripts/build-mingw-ext.sh'   # + repack-dyncall.sh
+& <MSYS2>\usr\bin\bash.exe -lc '<repo>/scripts/build-mingw-ext2.sh'  # rl_json, mpexpr, itk, tkdnd, treectrl
+& <MSYS2>\usr\bin\bash.exe -lc '<repo>/scripts/build-mingw-kit.sh'
 scripts\assemble-mingw-kit.ps1
 
 scripts\build-docs-artifact.ps1 # 5-й артефакт: docs/man/demos -> dist\tclwinkit-docs-<вер>.zip
 ```
+
+`MSYSTEM` обязателен: без него профиль MSYS2 откатывается на инструции
+MSYS, где нет `gcc`, и `scripts/mingw-env.sh` останавливается там же с
+`no gcc in PATH`, не давая первому `configure` погибнуть вдалеке от причины.
 
 `assemble-*.ps1` staging-образ чистит через `scripts\kit-prune.ps1` (см. выше):
 в kit.vfs попадают только рантайм-файлы. Пятый артефакт собирается из деревьев
@@ -253,6 +277,8 @@ GitHub покажет репозиторий как MIT — это верно т
 
 Документация: [docs/PLAN.md](docs/PLAN.md) (техрешения и находки),
 [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md) (окружение),
+[docs/SOURCES.md](docs/SOURCES.md) (откуда берётся каждый вендорный архив, с
+проверенными контрольными суммами),
 [docs/CONVENTIONS.md](docs/CONVENTIONS.md) (кодировки и переводы строк — что и
 почему именно так),
 [docs/COMPARISON.md](docs/COMPARISON.md) (MSVC vs MinGW),

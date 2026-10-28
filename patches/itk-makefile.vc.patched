@@ -135,12 +135,18 @@ $(OUT_DIR)\pkgIndex.tcl: $(ROOT)\pkgIndex.tcl.in
 @PKG_LIB_FILE9@       $(PRJLIBNAME9)
 <<
 
+# Upstream derives this from `git rev-parse HEAD` run inside $(ROOT), which
+# for us is a directory INSIDE our own checkout, so it would report our
+# commit -- a hash that exists in no itk repository, and a different value on
+# every rebuild. We are building from a tarball, which is exactly the case
+# upstream's own fallback handles: no git, no svn, value "unknown". Stated
+# literally so the two toolchains agree and the artifact stops carrying
+# builder state. See docs/SOURCES.md ("manifest.uuid: what it actually means").
 $(ROOT)\manifest.uuid:
-   copy $(WIN_DIR)\gitmanifest.in $(ROOT)\manifest.uuid
-   git rev-parse HEAD >>$(ROOT)\manifest.uuid
+   echo unknown>$(ROOT)\manifest.uuid
 
 $(TMP_DIR)\itkUuid.h:	$(ROOT)\manifest.uuid
-	copy $(WIN_DIR)\itkUuid.h.in+$(ROOT)\manifest.uuid $(TMP_DIR)\itkUuid.h
+	copy /b $(WIN_DIR)\itkUuid.h.in+$(ROOT)\manifest.uuid $(TMP_DIR)\itkUuid.h
 
 test: setup $(PROJECT)
 	@echo testing itk

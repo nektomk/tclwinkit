@@ -1,13 +1,8 @@
 #!/bin/bash
-# build-mingw-ext.sh — static dyncall + twapi + Img for MinGW UCRT64.
-# Run: MSYSTEM=UCRT64 bash -lc '/c/src/winkit/scripts/build-mingw-ext.sh'
+# build-mingw-ext.sh - static dyncall + twapi + Img for MinGW UCRT64.
+# Run: MSYSTEM=UCRT64 bash -lc '<repo>/scripts/build-mingw-ext.sh'
 set -e
-ROOT=/c/src/winkit
-EXT=$ROOT/build/mingw/ext
-TCL=$ROOT/build/mingw/tcl9.0.4
-TK=$ROOT/build/mingw/tk9.0.4
-LOGS=$ROOT/build/mingw/logs
-mkdir -p "$LOGS"
+. "$(dirname "${BASH_SOURCE[0]}")/mingw-env.sh" || exit 1
 
 echo "=== dyncall 0.9 (gcc, static) ==="
 cd "$EXT/dyncall-0.9"

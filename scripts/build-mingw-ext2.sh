@@ -1,13 +1,8 @@
 #!/bin/bash
-# build-mingw-ext2.sh — static rl_json, tkdnd, treectrl, itk, mpexpr (MinGW UCRT64)
-# Run: MSYSTEM=UCRT64 bash -lc '/c/src/winkit/scripts/build-mingw-ext2.sh'
+# build-mingw-ext2.sh - static rl_json, tkdnd, treectrl, itk, mpexpr (MinGW UCRT64)
+# Run: MSYSTEM=UCRT64 bash -lc '<repo>/scripts/build-mingw-ext2.sh'
 set -e
-ROOT=/c/src/winkit
-EXT=$ROOT/build/mingw/ext
-TCL=$ROOT/build/mingw/tcl9.0.4
-TK=$ROOT/build/mingw/tk9.0.4
-LOGS=$ROOT/build/mingw/logs
-mkdir -p "$LOGS"
+. "$(dirname "${BASH_SOURCE[0]}")/mingw-env.sh" || exit 1
 
 # --- itclConfig.sh location (built with core) ------------------------------
 ITCLCFG=$(find "$TCL/pkgs/itcl4.3.8" -name itclConfig.sh | head -1)
@@ -15,7 +10,25 @@ if [ -z "$ITCLCFG" ]; then echo "itclConfig.sh NOT FOUND"; exit 1; fi
 ITCLDIR=$(dirname "$ITCLCFG")
 echo "itcl config dir: $ITCLDIR"
 
-echo "=== rl_json 0.17.8 (static, in-tree — Makefile has -Iteabase relative to srcdir) ==="
+# --- vendor UUIDs: pin to upstream's own non-VCS value --------------------
+# rl_json and itk both derive their version UUID from `git rev-parse HEAD`
+# run inside the vendor tree ($(srcdir)). That tree lives inside our
+# checkout, so git reports OUR commit -- a hash absent from both upstreams,
+# and a different value on every rebuild, i.e. the shipped exe would carry
+# builder state. We build from tarballs, which is exactly what upstream's
+# fallback branch covers: no git, no svn -> "unknown". Seeding the target
+# file makes the prerequisiteless rule a no-op, so no vendor file is edited.
+# Measured: byte-stable across runs of the rule, and the stringification
+# still joins ("4.2.7+unknown"). Img is NOT seeded -- its manifest.uuid
+# (=988) arrives inside the tarball and the rule skips it, which is the
+# provenance we want to keep.
+for d in rl_json-0.17.8 itk-4.2.7; do
+  rm -f "$EXT/$d/manifest.uuid" "$EXT/$d/rl_jsonUuid.h" "$EXT/$d/itkUuid.h"
+  printf 'unknown\n' > "$EXT/$d/manifest.uuid"
+  echo "uuid seed: $d -> $(cat "$EXT/$d/manifest.uuid")"
+done
+
+echo "=== rl_json 0.17.8 (static, in-tree - Makefile has -Iteabase relative to srcdir) ==="
 cd "$EXT/rl_json-0.17.8"
 rm -f *.o teabase/*.o lib*.a 2>/dev/null || true
 # LIBS: teabase.m4 uses AC_LINK_IFELSE for Tcl_GetBytesFromObj/Tcl_GetNumberFromObj;
@@ -26,7 +39,7 @@ rm -f *.o teabase/*.o lib*.a 2>/dev/null || true
   CPPFLAGS="-I$TCL/generic -I$TCL/win" \
   LIBS="-L$TCL/win -ltcl90" \
   > "$LOGS/rl_json-mingw.log" 2>&1
-# default 'all' target also builds docs (needs pandoc) — tolerate doc failure,
+# default 'all' target also builds docs (needs pandoc) - tolerate doc failure,
 # the static libs are built before the doc target runs
 make >> "$LOGS/rl_json-mingw.log" 2>&1 || true
 if [ ! -f libtcl9rl_json0178.a ]; then

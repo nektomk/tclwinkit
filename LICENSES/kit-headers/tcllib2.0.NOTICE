@@ -25,9 +25,9 @@
 
     ## Copyright (c) 2013 Andreas Kupries, BSD licensed
 
-### 2 file(s): base32/base32hex_tcl.tcl, base32/base32_tcl.tcl
+### 2 file(s): base32/base32_tcl.tcl, base32/base32hex_tcl.tcl
 
-    (first occurrence at line 1 of base32/base32hex_tcl.tcl)
+    (first occurrence at line 1 of base32/base32_tcl.tcl)
 
     # -*- tcl -*-
     # This code is hereby put into the public domain.
@@ -103,6 +103,16 @@
     #' Sun Microsystems, Inc. The following terms apply to all files a ssociated
     #' with the software unless explicitly disclaimed in individual files. 
 
+### 1 file(s): namespacex/namespacex.tcl
+
+    (first occurrence at line 2 of namespacex/namespacex.tcl)
+
+    ## (C) 2010 Andreas Kupries <andreas_kupries@users.sourceforge.net>
+    ## 'unknown hook' code -- Derived from http://wiki.tcl.tk/12790 (Neil Madden).
+    ## 'var/state' code    -- Derived from http://wiki.tcl.tk/1489 (various).
+    ## BSD Licensed
+    # # ## ### ##### ######## ############# ######################
+
 ### 1 file(s): try/try.tcl
 
     (first occurrence at line 3 of try/try.tcl)
@@ -127,13 +137,6 @@
 
     ## (C) 2015 Miguel Martínez López, BSD licensed.
 
-### 1 file(s): mime/mime.tcl
-
-    (first occurrence at line 3878 of mime/mime.tcl)
-
-        # ::mime::field_decode is broken.  Here's a new version.
-        # This code is in the public domain.  Don Libes <don@libes.com>
-
 ### 1 file(s): zip/decode.tcl
 
     (first occurrence at line 3 of zip/decode.tcl)
@@ -155,6 +158,13 @@
     ##
     # Package to help the writing of file decoders. Provides generic
     # low-level support commands.
+
+### 1 file(s): mime/mime.tcl
+
+    (first occurrence at line 3878 of mime/mime.tcl)
+
+        # ::mime::field_decode is broken.  Here's a new version.
+        # This code is in the public domain.  Don Libes <don@libes.com>
 
 ### 1 file(s): imap4/imap4.tcl
 
@@ -807,16 +817,6 @@
     # TODO:
     #	customize key comparison to a user supplied routine
 
-### 1 file(s): namespacex/namespacex.tcl
-
-    (first occurrence at line 2 of namespacex/namespacex.tcl)
-
-    ## (C) 2010 Andreas Kupries <andreas_kupries@users.sourceforge.net>
-    ## 'unknown hook' code -- Derived from http://wiki.tcl.tk/12790 (Neil Madden).
-    ## 'var/state' code    -- Derived from http://wiki.tcl.tk/1489 (various).
-    ## BSD Licensed
-    # # ## ### ##### ######## ############# ######################
-
 ## 2. Distinct copyright holders (165)
 
 # One line per distinct header copyright line, with how many shipped files
@@ -835,8 +835,8 @@
 - Copyright (c) 2009-2019 Andreas Kupries <andreas_kupries@sourceforge.net>  --  7 file(s)
 - Copyright (c) 2003-2019 Andreas Kupries <andreas_kupries@sourceforge.net>  --  6 file(s)
 - Copyright (c) 2004-2021 Andreas Kupries <andreas_kupries@users.sourceforge.net>  --  6 file(s)
-- Copyright (c) 1998 Scriptics Corporation.  --  4 file(s)
 - Copyright (C) 2003-2006 by William H. Duquette  --  4 file(s)
+- Copyright (c) 1998 Scriptics Corporation.  --  4 file(s)
 - Copyright (c) 2001 by Jean-Luc Fontaine <jfontain@free.fr>.  --  3 file(s)
 - Copyright (c) 2004 Aaron Faupell <afaupell@users.sourceforge.net>  --  3 file(s)
 - Copyright (c) 2004 by Arjen Markus. All rights reserved.  --  3 file(s)
@@ -845,13 +845,13 @@
 - Copyright (c) 2007 by Arjen Markus <arjenmarkus@users.sourceforge.net>  --  3 file(s)
 - Copyright (c) 2009-2015 by Andreas Kupries <andreas_kupries@users.sourceforge.net>  --  3 file(s)
 - Copyright 2004 Colin McCormack.  --  3 file(s)
-- (c) 2003 Andreas Kupries <andreas_kupries@sourceforge.net>  --  2 file(s)
 - (C) 2005-2006 Andreas Kupries <andreas_kupries@users.sourceforge.net>  --  2 file(s)
 - (C) 2011 Andreas Kupries  --  2 file(s)
+- (c) 2003 Andreas Kupries <andreas_kupries@sourceforge.net>  --  2 file(s)
 - (c) base is: base = {}  --  2 file(s)
-- Copyright (c) 1998-1999 by Scriptics Corporation.  --  2 file(s)
 - Copyright (C) 1999-2004 Jochen C. Loewer (loewerj@web.de)  --  2 file(s)
 - Copyright (C) 2001 Don Libes <libes@nist.gov>  --  2 file(s)
+- Copyright (c) 1998-1999 by Scriptics Corporation.  --  2 file(s)
 - Copyright (c) 2002 by Andreas Kupries  --  2 file(s)
 - Copyright (c) 2002 by Jean-Luc Fontaine <jfontain@free.fr>.  --  2 file(s)
 - Copyright (c) 2003 Andreas Kupries <andreas_kupries@sourceforge.net>  --  2 file(s)
@@ -867,6 +867,8 @@
 - Copyright (c) 2016 Poor Yorick <tk.tcl.core.tcllib@pooryorick.com>  --  2 file(s)
 - copyright notices are retained in all copies and that this notice is  --  2 file(s)
 - (C) +cmd-sv  --  1 file(s)
+- (C) 2009, 2019 Andreas Kupries  --  1 file(s)
+- (C) 2011,2019 Andreas Kupries  --  1 file(s)
 - (c) 1999-2000 Marshall T. Rose  --  1 file(s)
 - (c) 2001 Andreas Kupries <andreas_kupries@sourceforge.net>  --  1 file(s)
 - (c) 2004-2013 Andreas Kupries  --  1 file(s)
@@ -875,24 +877,34 @@
 - (c) 2007-2008 Andreas Kupries.  --  1 file(s)
 - (c) 2008-2009 Andreas Kupries.  --  1 file(s)
 - (c) 2008-2010 Andreas Kupries.  --  1 file(s)
-- (C) 2009, 2019 Andreas Kupries  --  1 file(s)
 - (c) 2010, 2011, 2012, 2013 Roy Keene.  --  1 file(s)
-- (C) 2011,2019 Andreas Kupries  --  1 file(s)
 - (c) 2015 Miguel Martínez López  --  1 file(s)
 - (c) Merge adjacent 'Text' tokens.  --  1 file(s)
 - (c) Non-incremental, non-looping.  --  1 file(s)
 - (c) We know the size of CFH (-> cb(csize))  --  1 file(s)
-- copyright - copyright assignment\n\  --  1 file(s)
+- COPYRIGHT AND PERMISSION NOTICE  --  1 file(s)
 - Copyright (C) 1991-1993 RSA Laboratories, a division of RSA  --  1 file(s)
-- Copyright (c) 1995 by Sun Microsystems  --  1 file(s)
 - Copyright (C) 1995-1998 The Open Group. All Rights Reserved.  --  1 file(s)
+- Copyright (C) 2001 Joe English <jenglish@sourceforge.net>.  --  1 file(s)
+- Copyright (C) 2001 by William H. Duquette. See expander_license.txt,  --  1 file(s)
+- Copyright (C) 2001-2003 by Dr.Johannes-Heinrich Vogeler (jhv)  --  1 file(s)
+- Copyright (C) 2003-2005 ARNOLD Stephane  --  1 file(s)
+- Copyright (C) 2004 Frank Pilhofer  --  1 file(s)
+- Copyright (C) 2004 Salvatore Sanfilippo <antirez at invece dot org>  --  1 file(s)
+- Copyright (C) 2005 Pat Thoyts <patthoyts@users.sourceforge.net>  --  1 file(s)
+- Copyright (C) 2009/2010/2011 Andreas Drollinger  --  1 file(s)
+- Copyright (C) 2010 by Will Duquette  --  1 file(s)
+- Copyright (C) 2013 Andreas Drollinger  --  1 file(s)
+- Copyright (C) 2013 Glenn McIntosh  --  1 file(s)
+- Copyright (C) Mayo Foundation. All Rights Reserved.  --  1 file(s)
+- Copyright (c) 1995 by Sun Microsystems  --  1 file(s)
 - Copyright (c) 1996-1999 by Steffen Traeger <Steffen.Traeger@t-online.de>  --  1 file(s)
 - Copyright (c) 1999-2000 Marshall T. Rose  --  1 file(s)
 - Copyright (c) 2000 Ajuba Solutions.  --  1 file(s)
+- Copyright (c) 2000 Zveno Pty Ltd  --  1 file(s)
 - Copyright (c) 2000 by Andreas Kupries  --  1 file(s)
 - Copyright (c) 2000 by Keith Vetter  --  1 file(s)
 - Copyright (c) 2000 by Ross Palmer Mohn.  --  1 file(s)
-- Copyright (c) 2000 Zveno Pty Ltd  --  1 file(s)
 - Copyright (c) 2000-2005,2019 by Andreas Kupries  --  1 file(s)
 - Copyright (c) 2000-2009,2019 by Andreas Kupries <andreas_kupries@users.sourceforge.net>  --  1 file(s)
 - Copyright (c) 2001 Andreas Kupries <andreas_kupries@sourceforge.net>  --  1 file(s)
@@ -901,12 +913,9 @@
 - Copyright (c) 2001 by Ideogramic ApS and other parties.  --  1 file(s)
 - Copyright (c) 2001 by Jeffrey Hobbs  --  1 file(s)
 - Copyright (c) 2001 by Reinhard Max <Reinhard.Max@gmx.de>  --  1 file(s)
-- Copyright (C) 2001 by William H. Duquette. See expander_license.txt,  --  1 file(s)
-- Copyright (C) 2001 Joe English <jenglish@sourceforge.net>.  --  1 file(s)
 - Copyright (c) 2001, by Kevin B. Kenny. All rights reserved.  --  1 file(s)
 - Copyright (c) 2001,2019 Andreas Kupries <andreas_kupries@sourceforge.net>  --  1 file(s)
 - Copyright (c) 2001-2003 by David N. Welton <davidw@dedasys.com>.  --  1 file(s)
-- Copyright (C) 2001-2003 by Dr.Johannes-Heinrich Vogeler (jhv)  --  1 file(s)
 - Copyright (c) 2001-2013,2019,2022 by Andreas Kupries <andreas.kupries@gmail.com>  --  1 file(s)
 - Copyright (c) 2001-2014,2022 by Andreas Kupries <andreas.kupries@gmail.com>  --  1 file(s)
 - Copyright (c) 2001-2019 Andreas Kupries <andreas_kupries@sourceforge.net>  --  1 file(s)
@@ -918,26 +927,22 @@
 - Copyright (c) 2003 by Andreas Kupries <andreas_kupries@users.sourceforge.net>  --  1 file(s)
 - Copyright (c) 2003 by David N. Welton <davidw@dedasys.com>  --  1 file(s)
 - Copyright (c) 2003 by Kevin B. Kenny. All rights reserved.  --  1 file(s)
-- Copyright (C) 2003-2005 ARNOLD Stephane  --  1 file(s)
 - Copyright (c) 2003-2007 Aaron Faupell <afaupell@users.sourceforge.net>  --  1 file(s)
-- Copyright (c) 2004 by Andreas Kupries <andreas_kupries@users.sourceforge.net>  --  1 file(s)
-- Copyright (C) 2004 Frank Pilhofer  --  1 file(s)
 - Copyright (c) 2004 Reinhard Max <max@tclers.tk>  --  1 file(s)
-- Copyright (C) 2004 Salvatore Sanfilippo <antirez at invece dot org>  --  1 file(s)
 - Copyright (c) 2004 Salvatore Sanfillipo  --  1 file(s)
+- Copyright (c) 2004 by Andreas Kupries <andreas_kupries@users.sourceforge.net>  --  1 file(s)
 - Copyright (c) 2004, by Arjen Markus.  --  1 file(s)
 - Copyright (c) 2004-2005 Colin McCormack <coldstore@users.sourceforge.net>  --  1 file(s)
 - Copyright (c) 2004-2012 Aaron Faupell <afaupell@users.sourceforge.net>  --  1 file(s)
 - Copyright (c) 2005 Andreas Kupries <andreas_kupries@sourceforge.net>  --  1 file(s)
 - Copyright (c) 2005 Andreas Kupries <andreas_kupries@users.sourceforge.net>  --  1 file(s)
-- Copyright (c) 2005 by Colin McCormack <coldstore@users.sourceforge.net>  --  1 file(s)
 - Copyright (c) 2005 Neil Madden.  --  1 file(s)
-- Copyright (C) 2005 Pat Thoyts <patthoyts@users.sourceforge.net>  --  1 file(s)
 - Copyright (c) 2005 Thorsten Schloermann  --  1 file(s)
+- Copyright (c) 2005 by Colin McCormack <coldstore@users.sourceforge.net>  --  1 file(s)
 - Copyright (c) 2005, 2010 by Kevin B. Kenny. All rights reserved.  --  1 file(s)
-- Copyright (c) 2006 by Andreas Kupries <andreas_kupries@users.sourceforge.net>  --  1 file(s)
 - Copyright (c) 2006 Darren New  --  1 file(s)
 - Copyright (c) 2006 Darren New.  --  1 file(s)
+- Copyright (c) 2006 by Andreas Kupries <andreas_kupries@users.sourceforge.net>  --  1 file(s)
 - Copyright (c) 2006, Andreas Kupries <andreas_kupries@users.sourceforge.net>  --  1 file(s)
 - Copyright (c) 2006,2008 Darren New. All Rights Reserved.  --  1 file(s)
 - Copyright (c) 2006,2019 Andreas Kupries <andreas_kupries@users.sourceforge.net>  --  1 file(s)
@@ -954,17 +959,13 @@
 - Copyright (c) 2009,2014-2015 Andreas Kupries  --  1 file(s)
 - Copyright (c) 2009,2021 by Andreas Kupries <andreas_kupries@users.sourceforge.net>  --  1 file(s)
 - Copyright (c) 2009,2024 Andreas Kupries <andreas_kupries@sourceforge.net>  --  1 file(s)
-- Copyright (C) 2009/2010/2011 Andreas Drollinger  --  1 file(s)
 - Copyright (c) 2009-2011,2022 Andreas Kupries <andreas_kupries@sourceforge.net>  --  1 file(s)
 - Copyright (c) 2009-2014,2022 by Andreas Kupries <andreas.kupries@gmail.com>  --  1 file(s)
 - Copyright (c) 2009-2014,2024 Andreas Kupries <andreas_kupries@sourceforge.net>  --  1 file(s)
 - Copyright (c) 2009-2015,2024 by Andreas Kupries <andreas_kupries@users.sourceforge.net>  --  1 file(s)
 - Copyright (c) 2009-2018 Andreas Kupries <andreas_kupries@sourceforge.net>  --  1 file(s)
 - Copyright (c) 2010 Andreas Kupries  --  1 file(s)
-- Copyright (C) 2010 by Will Duquette  --  1 file(s)
-- Copyright (C) 2013 Andreas Drollinger  --  1 file(s)
 - Copyright (c) 2013 by Andreas Kupries  --  1 file(s)
-- Copyright (C) 2013 Glenn McIntosh  --  1 file(s)
 - Copyright (c) 2013,2015 - critcl wrapper - Andreas Kupries <andreas_kupries@users.sourceforge.net>  --  1 file(s)
 - Copyright (c) 2014 Andreas Kupries <andreas_kupries@sourceforge.net>  --  1 file(s)
 - Copyright (c) 2014 Caius Project  --  1 file(s)
@@ -982,9 +983,8 @@
 - Copyright (c) Emiliano Gavilan  --  1 file(s)
 - Copyright (c) Google Summer of Code 2008 Alejandro Eduardo Cruz Paz  --  1 file(s)
 - Copyright (c) Manfred ROSENBERGER, 2010/10/24  --  1 file(s)
-- Copyright (C) Mayo Foundation. All Rights Reserved.  --  1 file(s)
 - Copyright 2007 Eric Kemp-Benedict  --  1 file(s)
 - Copyright 2008 Michael Baudin  --  1 file(s)
 - Copyright 2011, 2013 Mark Alston. All rights reserved.  --  1 file(s)
-- COPYRIGHT AND PERMISSION NOTICE  --  1 file(s)
 - Copyright information  --  1 file(s)
+- copyright - copyright assignment\n\  --  1 file(s)

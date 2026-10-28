@@ -149,12 +149,14 @@ Info-ZIP-шифра в zipfs и нескольких нотисов, сущес�
 
 ## Сборка из исходников
 
-Порядок — в README репозитория (`scripts\build-msvc-*.bat` /
-`scripts\build-mingw-*.sh` + `scripts\assemble-*-kit.ps1` +
-`scripts\build-docs-artifact.ps1`, тексты лицензий — `scripts\make-licenses.ps1`);
-техрешения и найденные грабли — `docs\PLAN.md`, сравнение цепочек —
-`docs\COMPARISON.md`, окружение — `docs\ENVIRONMENT.md`, правки вендора —
-`patches\README.md`.
+Порядок — в README репозитория (`scripts\fetch-vendor.ps1` →
+`scripts\build-msvc-*.bat` / `scripts\build-mingw-*.sh` +
+`scripts\assemble-*-kit.ps1` + `scripts\build-docs-artifact.ps1`,
+тексты лицензий — `scripts\make-licenses.ps1`);
+вендорные архивы в репозиторий не входят, их источники и контрольные суммы —
+`docs\SOURCES.md`; техрешения и найденные грабли — `docs\PLAN.md`, сравнение
+цепочек — `docs\COMPARISON.md`, окружение — `docs\ENVIRONMENT.md`, правки
+вендора — `patches\README.md`.
 
 Релиз подготовлен `scripts\publish-release.ps1`; тег `{{TAG}}` указывает на commit
 `{{HEAD}}`.

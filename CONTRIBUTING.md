@@ -30,6 +30,30 @@ should link to it. If a scratch tool earns its keep, promote it to
 Both toolchains produce the same kit; a change is not done until it builds
 on both.
 
+Step zero — the vendor archives are not in this repository (67.65 MB,
+gitignored), so a fresh clone cannot build anything until they are fetched:
+
+```
+scripts\fetch-vendor.ps1          # 15 archives -> vendor\
+```
+
+The script downloads each one from the URL recorded in
+[`docs/SOURCES.md`](docs/SOURCES.md) and verifies size, SHA-256 **and** that
+the bytes are a readable archive before it lets the file replace anything.
+That third check is not ceremony: `https://www.dyncall.org/pub/dyncall-0.9.tar.gz`
+answers HTTP 200 with `Content-Type: text/html` and zero bytes, so a status
+code alone admits an HTML page into a build tree, where it surfaces much
+later as an inexplicable `configure` failure. `-VerifyOnly` re-checks an
+existing `vendor/` without network access; `-UsePins` switches the four
+movable-branch sources to their commit-pinned forms (same files, different
+bytes — see the SOURCES.md section on it).
+
+Unpack `vendor/` into the fixed paths the build expects
+(`build/<chain>/tcl9.0.4`, `build/<chain>/tk9.0.4`, `build/<chain>/ext/<top>`,
+`build/common/<name>`); the mapping is in SOURCES.md. No build script touches
+`vendor/` itself — unpacking is deliberate, so a half-extracted tree cannot be
+mistaken for a fetched one.
+
 MSVC (x64 Native Tools prompt, or `vcvars64.bat` first):
 
 ```
@@ -41,7 +65,7 @@ scripts\build-msvc-kit.bat      # kit glue objects + link the exe
 scripts\assemble-msvc-kit.ps1   # stage VFS -> zip -> attach -> dist\
 ```
 
-MinGW (MSYS2 UCRT64; the script needs a login shell):
+MinGW (MSYS2 UCRT64; the script needs a login shell **with `MSYSTEM` set**):
 
 ```
 $env:MSYSTEM = 'UCRT64'
@@ -52,6 +76,11 @@ C:\msys64\usr\bin\bash.exe -lc '/c/path/to/winkit/scripts/build-mingw-kit.sh'
 scripts\assemble-mingw-kit.ps1
 ```
 
+Without `MSYSTEM` the MSYS2 profile falls back to the MSYS toolchain, which
+has no `gcc`, and `scripts/mingw-env.sh` stops there with
+`no gcc in PATH` rather than letting the first `configure` die with
+`no acceptable C compiler found in $PATH` further down.
+
 Then, once both trees exist under `build/`:
 
 ```
@@ -59,9 +88,50 @@ scripts\make-licenses.ps1          # regenerate LICENSES/ (or -Check to verify)
 scripts\build-docs-artifact.ps1    # the fifth asset, built from build\msvc|mingw|common
 ```
 
-The absolute paths above are examples of one developer machine; nothing here
-is pinned to a checkout location yet, and that is a known gap (tracked as
-build hygiene, see [`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md)).
+Nothing above is pinned to a checkout location: every script derives the repo
+root from its own path (`%~dp0`, `$PSScriptRoot`, `${BASH_SOURCE[0]}`) and
+accepts `WINKIT_ROOT` / `-Root` as an override. The toolchain location is
+discovered too — `vswhere` for MSVC, the `Release_*` directory name that
+`win/rules.vc` computes from `_MSC_VER`, and `gcc -dumpmachine` for MinGW —
+so a different VS version or toolset is not an obstacle. Absolute paths in
+these examples describe one developer machine; see
+[`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md) for what was measured and how.
+
+Two constraints remain, both inherited from upstream rather than chosen here:
+the repo path must contain no spaces and no parentheses (Tcl's `makefile.vc`
+takes `TCLDIR` as a bare, unquotable nmake macro), and the MinGW chain must
+run under MSYS2 bash, not WSL.
+
+## Reproducibility
+
+Two full rebuilds on the reference host produce byte-identical assets: all
+five files in `dist/` matched across a complete `ext2 → kit → assemble → docs`
+double pass (2026-10-28). Treat that as a rule to keep, not as a property you
+may spend. Three things had to be pinned to get there, and each is a place
+where a new line of code can put the wall clock back in:
+
+| what | mechanism | where |
+|---|---|---|
+| ZIP entry times | pinned to the 1980-01-01 DOS epoch, **directory entries included** | `scripts/zip-entry.ps1` |
+| `generated:` in `VERSIONS.txt` | committer date of `HEAD`, or `SOURCE_DATE_EPOCH` if set | `scripts/build-docs-artifact.ps1` |
+| PE `TimeDateStamp` | MSVC `-Brepro` (stamp becomes a hash of the image); MinGW `SOURCE_DATE_EPOCH=315532800` | `scripts/build-msvc-kit.bat`, `scripts/build-mingw-kit.sh` |
+
+So, concretely: no `Get-Date`, no `__DATE__`/`__TIME__`, and no
+`git rev-parse` output reaching anything we ship. The last one is not
+hypothetical — `rl_json` and `itk` both derive their version UUID from
+`git rev-parse HEAD` run inside the vendor tree, which lives inside this
+checkout, so before it was pinned the shipped executables carried a commit
+hash of **this** repository and served it through `rl_json::build-info commit`
+and `itk::build-info commit`. Both now report `unknown`, which is exactly what
+upstream's own fallback writes when no version control is present. See
+[`patches/README.md`](patches/README.md) for the mechanism and
+[`docs/SOURCES.md`](docs/SOURCES.md) for what `manifest.uuid` does and does
+not prove.
+
+Reproducibility is measured per toolchain, not across them: the two chains do
+not agree on the timestamp value (nor on any other byte), and a rebuild with a
+different compiler version is expected to differ. What is verified is that the
+same host and toolchain rebuild to the same bytes.
 
 ## Conventions that are easy to break
 

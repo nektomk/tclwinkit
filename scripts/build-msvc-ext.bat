@@ -2,14 +2,10 @@
 rem =====================================================================
 rem build-msvc-ext.bat - dyncall (static CRT) + TWAPI static lib (MSVC)
 rem Requires: build-msvc-core.bat finished (OPTS=static,nomsvcrt)
+rem Paths and the MSVC environment come from msvc-env.bat.
 rem =====================================================================
 setlocal
-call "C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\VC\Auxiliary\Build\vcvars64.bat" || exit /b 1
-set ROOT=C:\src\winkit
-set TCLROOT=%ROOT%\build\msvc\tcl9.0.4
-set EXT=%ROOT%\build\msvc\ext
-set LOGS=%ROOT%\build\msvc\logs
-mkdir %LOGS% 2>nul
+call "%~dp0msvc-env.bat" || exit /b 1
 
 echo === dyncall 0.9 (x64 msvc, default /MT) ===
 cd /d %EXT%\dyncall-0.9

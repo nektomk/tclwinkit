@@ -2,22 +2,17 @@
 rem =====================================================================
 rem build-msvc-kit.bat - compile & link tclwinkit exes (MSVC, static CRT)
 rem Requires: build-msvc-core.bat, build-msvc-ext.bat, build-msvc-img.bat
+rem Paths, the MSVC environment and the nmake output dir name come from
+rem msvc-env.bat; "needoutdir" makes it fail early when the core build has
+rem not run yet, because every library path below depends on it.
 rem =====================================================================
 setlocal EnableDelayedExpansion
-call "C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\VC\Auxiliary\Build\vcvars64.bat" || exit /b 1
+call "%~dp0msvc-env.bat" needoutdir || exit /b 1
 
-set ROOT=C:\src\winkit
-set TCLROOT=%ROOT%\build\msvc\tcl9.0.4
-set TKROOT=%ROOT%\build\msvc\tk9.0.4
-set TCLOUT=%TCLROOT%\win\Release_AMD64_VC1951
-set TKOUT=%TKROOT%\win\Release_AMD64_VC1951
-set PKGS=%TCLROOT%\pkgs
-set EXT=%ROOT%\build\msvc\ext
 set IMG=%EXT%\Img-2.1.2
-set OUTDIR=Release_AMD64_VC1951
-set KITOUT=%ROOT%\build\msvc\kit
+set OUTDIR=%BUILDDIR%
 set KITSRC=%ROOT%\src\kit
-mkdir %KITOUT% 2>nul
+mkdir "%KITOUT%" 2>nul
 
 rem ---- compile flags mirroring the core static nomsvcrt build ---------
 set KITDEFS=/DSTDC_HEADERS /DUSE_NMAKE=1 /DHAVE_STDINT_H=1 /DHAVE_INTTYPES_H=1 /DHAVE_STDBOOL_H=1 /DTCL_THREADS=1 /DUSE_THREAD_ALLOC=1 /DSTATIC_BUILD /DNDEBUG /DTCL_CFG_OPTIMIZED /DTCL_CFG_DO64BIT /DUNICODE /D_UNICODE
@@ -51,7 +46,17 @@ for %%p in (itk-4.2.7 tkdnd-2.9.5 tktreectrl-2.5.1) do call :addlibs2 EXT2GUILIB
 rem ---- system libs -------------------------------------------------------
 set TCSYS=kernel32.lib advapi32.lib netapi32.lib userenv.lib ws2_32.lib odbc32.lib cfgmgr32.lib credui.lib crypt32.lib iphlpapi.lib mpr.lib ole32.lib oleaut32.lib pdh.lib powrprof.lib psapi.lib rpcrt4.lib secur32.lib setupapi.lib shell32.lib shlwapi.lib user32.lib uxtheme.lib version.lib winmm.lib winspool.lib wintrust.lib wtsapi32.lib gdi32.lib
 set TKSYS=%TCSYS% imm32.lib comdlg32.lib comctl32.lib oleacc.lib uuid.lib
-set LFLAGS=-nologo -machine:X64 -release -opt:ref -opt:icf,3 -stack:2300000
+rem -Brepro pins the PE TimeDateStamp to a hash of the image instead of the
+rem wall clock of the link. Without it every rebuild of identical sources
+rem differs in four bytes, which defeats byte-for-byte reproducibility of the
+rem shipped exes (measured: two full chains 5 minutes apart differed only in
+rem this field). link /TIMESTAMP:<n> is accepted and silently ignored here,
+rem and editbin /TIMESTAMP does not change it either, so -Brepro is the only
+rem lever this toolset offers. The MinGW chain has no -Brepro and uses
+rem SOURCE_DATE_EPOCH instead (see scripts/build-mingw-kit.sh), so the two
+rem toolchains still disagree on the stamp VALUE -- they disagree on every
+rem byte already -- but each one is now reproducible on its own.
+set LFLAGS=-nologo -machine:X64 -release -opt:ref -opt:icf,3 -stack:2300000 -Brepro
 
 rem ---- compile ------------------------------------------------------------
 cd /d %KITOUT%

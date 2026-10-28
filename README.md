@@ -49,6 +49,13 @@ certutil -hashfile tclwinkit-0.1-msvc-x64-console.exe SHA256
 sha256sum -c SHA256SUMS.txt          # on any machine with coreutils
 ```
 
+The sums are checkable against your own build: two full rebuilds on the
+reference host reproduce all five files byte for byte (ZIP times, the
+`VERSIONS.txt` stamp and the PE timestamp are all pinned). A rebuild with a
+different compiler version will differ, and so do the two toolchains from each
+other — reproducibility is per toolchain. See
+[`CONTRIBUTING.md`](CONTRIBUTING.md) for the mechanisms.
+
 The docs archive is the fifth asset because the kits deliberately carry
 **runtime only**. Inside the archive: `man/` (584 nroff pages for 14
 packages), `html/` (1473), `demos/` (519), `docs/`, `tools/` (a groff-free man
@@ -200,6 +207,15 @@ test numbers and the release procedure are in
 [`CONTRIBUTING.md`](CONTRIBUTING.md); the environment inventory is in
 [`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md) (Russian).
 
+Step zero: the vendor archives are **not** in this repository (67.65 MB,
+gitignored). Fetch them first — the script downloads and verifies every one
+against [`docs/SOURCES.md`](docs/SOURCES.md) by size, SHA-256 and archive
+shape, and refuses a wrong file before it can reach a build tree:
+
+```
+scripts\fetch-vendor.ps1          # 15 archives -> vendor\
+```
+
 ```
 scripts\build-msvc-kit.bat        # core + extensions + kit, then:
 scripts\assemble-msvc-kit.ps1     # stage VFS -> zip -> attach to exe -> dist\
@@ -258,6 +274,7 @@ issues, and translating a doc is a canonical good first issue here).
 | [`README.ru.md`](README.ru.md) | this page in Russian, with the detail that does not fit a showcase |
 | [`docs/PLAN.md`](docs/PLAN.md) | build decisions and findings (Russian) |
 | [`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md) | toolchain and host inventory (Russian) |
+| [`docs/SOURCES.md`](docs/SOURCES.md) | where every vendor archive comes from, with verified digests (Russian) |
 | [`docs/CONVENTIONS.md`](docs/CONVENTIONS.md) | encoding and line-ending rules, with the measurements behind them (Russian) |
 | [`docs/COMPARISON.md`](docs/COMPARISON.md) | MSVC vs MinGW, measured (Russian) |
 | [`docs/NOTES.md`](docs/NOTES.md) | vendor test-suite runs: numbers, root causes, accepted failures (Russian) |

@@ -12,9 +12,10 @@
 #      (see THIRD-PARTY-NOTICES.md and scripts/make-licenses.ps1, which copies
 #      byte-verbatim and reports a vendor BOM instead of removing it).
 #
-# Nothing in this repository is binary today (123 tracked files: text,
-# sources, license texts). If a binary ever arrives, it needs an explicit
-# `-text` rule here, because `text=auto` guesses from content and a
+# Nothing in this repository is binary today (count it with
+# `git ls-files | wc -l`; every tracked file passes the assertions in
+# docs/CONVENTIONS.md section 7). If a binary ever arrives, it needs an
+# explicit `-text` rule here, because `text=auto` guesses from content and a
 # misdetected binary gets its byte pairs rewritten.
 * text=auto eol=lf
 

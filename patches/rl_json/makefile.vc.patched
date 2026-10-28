@@ -47,5 +47,12 @@ PRJ_INCLUDES = -I"..\teabase"
 $(TMP_DIR)\names.obj: ..\teabase\names.c
 	$(cc32) $(cflags) $(INCLUDES) $(PRJ_DEFINES) /DBUILD_$(PROJECT) -Fo$(TMP_DIR)\names.obj ..\teabase\names.c
 
+# rl_jsonBuildInfo.c stringifies RL_JSON_VERSION_UUID out of generic\rl_jsonUuid.h.
+# Upstream generates that header from autoconf and declares the dependency
+# (Makefile.in: "rl_jsonBuildInfo.$(OBJEXT): rl_jsonUuid.h"); this nmakefile has
+# neither the rule nor the dependency, so nmake reuses a stale object and the
+# shipped library keeps whatever UUID the previous build wrote. Declared here.
+$(TMP_DIR)\rl_jsonBuildInfo.obj: ..\generic\rl_jsonUuid.h
+
 pkgindex: default-pkgindex-tea
 install: default-install-docs-html

@@ -1,12 +1,21 @@
 # assemble-msvc-kit.ps1 -- stage VFS, zip it with zipfs, attach to kit exes.
 # Usage: pwsh -File scripts\assemble-msvc-kit.ps1
 param(
-    [string]$Root = 'C:\src\winkit'
+    [string]$Root = ''
 )
 $ErrorActionPreference = 'Stop'
 
-$TclOut = "$Root\build\msvc\tcl9.0.4\win\Release_AMD64_VC1951"
-$TkOut  = "$Root\build\msvc\tk9.0.4\win\Release_AMD64_VC1951"
+# $PSScriptRoot is not populated during parameter binding on Windows
+# PowerShell 5.1, so the default is resolved in the body, not in param().
+if (-not $Root) { $Root = Split-Path -Parent $PSScriptRoot }
+
+# The nmake output dir name embeds the toolset version, so it is discovered
+# rather than hardcoded (see scripts\msvc-common.ps1).
+. "$Root\scripts\msvc-common.ps1"
+$Builddir = Get-MsvcBuilddir -Path "$Root\build\msvc\tcl9.0.4\win"
+
+$TclOut = "$Root\build\msvc\tcl9.0.4\win\$Builddir"
+$TkOut  = "$Root\build\msvc\tk9.0.4\win\$Builddir"
 $Pkgs   = "$Root\build\msvc\tcl9.0.4\pkgs"
 $Ext    = "$Root\build\msvc\ext"
 $Common = "$Root\build\common"
@@ -128,24 +137,28 @@ function New-VfsTree {
 function New-KitZip {
     param([string]$ZipName)
     # Fast pure-.NET zip with forward-slash entry names and directory
-    # entries (zipfs-compatible; ~100x faster than zipfs mkzip).
+    # entries (zipfs-compatible; ~100x faster than zipfs mkzip). Entries go
+    # through scripts\zip-entry.ps1 so every timestamp is pinned and the
+    # image is byte-identical between runs; Get-SortedFile walks the tree in
+    # ordinal path order for the same reason (bare Get-ChildItem order is
+    # NTFS-index order, and Sort-Object compares with the current culture).
     Add-Type -AssemblyName System.IO.Compression.FileSystem
+    . "$Root\scripts\zip-entry.ps1"
     $zipPath = "$Stage\$ZipName"
     Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
     $zip = [System.IO.Compression.ZipFile]::Open($zipPath, 'Create')
     try {
         $root = (Resolve-Path "$Stage\kit.vfs").Path.TrimEnd('\') + '\'
         $dirs = [System.Collections.Generic.HashSet[string]]::new()
-        Get-ChildItem -LiteralPath "$Stage\kit.vfs" -Recurse -File | ForEach-Object {
-            $rel = $_.FullName.Substring($root.Length) -replace '\\','/'
+        $files = Get-SortedFile -Path "$Stage\kit.vfs"
+        foreach ($f in $files) {
+            $rel = $f.FullName.Substring($root.Length) -replace '\\','/'
             $d = [System.IO.Path]::GetDirectoryName($rel) -replace '\\','/'
             while ($d -and $dirs.Add($d)) {
-                $null = $zip.CreateEntry($d + '/')
+                Add-ZipDir -Zip $zip -Name ($d + '/')
                 $d = [System.IO.Path]::GetDirectoryName($d) -replace '\\','/'
             }
-            $null = [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
-                $zip, $_.FullName, $rel,
-                [System.IO.Compression.CompressionLevel]::Fastest)
+            Add-ZipFile -Zip $zip -Source $f.FullName -Name $rel -Level ([System.IO.Compression.CompressionLevel]::Fastest)
         }
     } finally { $zip.Dispose() }
 }
