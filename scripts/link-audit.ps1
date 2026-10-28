@@ -37,11 +37,16 @@ $enc = New-Object System.Text.UTF8Encoding($false)
 
 $prev = $ErrorActionPreference
 $ErrorActionPreference = 'Continue'
-$md = @(& git -C $Repo ls-files '*.md' 2>&1 | Out-String -Stream) | Where-Object { $_.Trim() -ne '' }
-$trackedRaw = @(& git -C $Repo ls-files 2>&1 | Out-String -Stream) | Where-Object { $_.Trim() -ne '' }
+# @() must wrap the WHOLE pipeline, not just the git call: `@(& git ...) | Where-Object`
+# yields a SCALAR string when exactly one line survives, so $md[0] becomes a CHAR
+# and $md[0].Length becomes 1 while .Count and foreach still look sane. Harmless
+# here today (143 tracked files, 18 of them .md), but the shape is the one that
+# broke ci-status.ps1 on 2026-10-28 with "CANNOT RESOLVE HEAD: <valid sha>".
+$md = @((& git -C $Repo ls-files '*.md' 2>&1 | Out-String -Stream) | Where-Object { $_.Trim() -ne '' })
+$trackedRaw = @((& git -C $Repo ls-files 2>&1 | Out-String -Stream) | Where-Object { $_.Trim() -ne '' })
 # gitignored-but-present paths, so "target exists on my machine" is not mistaken
 # for "target is publishable"
-$ignored = @(& git -C $Repo ls-files --others --ignored --exclude-standard 2>&1 | Out-String -Stream) | Where-Object { $_.Trim() -ne '' }
+$ignored = @((& git -C $Repo ls-files --others --ignored --exclude-standard 2>&1 | Out-String -Stream) | Where-Object { $_.Trim() -ne '' })
 $ErrorActionPreference = $prev
 
 $tracked = New-Object System.Collections.Generic.HashSet[string]

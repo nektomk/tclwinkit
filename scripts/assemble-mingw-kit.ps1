@@ -150,11 +150,15 @@ function New-KitZip {
     Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
     $zip = [System.IO.Compression.ZipFile]::Open($zipPath, 'Create')
     try {
-        $root = (Resolve-Path "$Stage\kit.vfs").Path.TrimEnd('\') + '\'
+        # $vfsRoot, not $root: PowerShell names are case-INsensitive, so assigning
+        # $root here silently overwrote the $Root parameter holding the repo path.
+        # Latent only today (nothing reads $Root after this line), but the shape is
+        # the one that silently reported "0 opened" twice in this repository's history.
+        $vfsRoot = (Resolve-Path "$Stage\kit.vfs").Path.TrimEnd('\') + '\'
         $dirs = [System.Collections.Generic.HashSet[string]]::new()
         $files = Get-SortedFile -Path "$Stage\kit.vfs"
         foreach ($f in $files) {
-            $rel = $f.FullName.Substring($root.Length) -replace '\\','/'
+            $rel = $f.FullName.Substring($vfsRoot.Length) -replace '\\','/'
             $d = [System.IO.Path]::GetDirectoryName($rel) -replace '\\','/'
             while ($d -and $dirs.Add($d)) {
                 Add-ZipDir -Zip $zip -Name ($d + '/')

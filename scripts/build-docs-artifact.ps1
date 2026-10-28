@@ -51,8 +51,11 @@ function Put-LfText([string]$Path, [string[]]$Lines) {
     [System.IO.File]::WriteAllText($Path, (($Lines -join "`n") + "`n"), $script:Utf8NoBom)
 }
 
-foreach ($d in @($M, $C, $Src)) {
-    if (-not (Test-Path $d)) { throw "missing build tree: $d (run the build scripts first)" }
+# $req, not $d: PowerShell names are case-INsensitive and $D (the staging dir) is
+# assigned a few lines below, so a loop variable spelled $d would have clobbered it
+# had the order ever been flipped. Same reason for $ent vs $E (= "$M\ext") below.
+foreach ($req in @($M, $C, $Src)) {
+    if (-not (Test-Path $req)) { throw "missing build tree: $req (run the build scripts first)" }
 }
 if (Test-Path $Stage) { Remove-Item -Recurse -Force $Stage }
 New-Item -ItemType Directory -Force "$Stage\$Name" | Out-Null
@@ -211,14 +214,14 @@ $Roots = [ordered]@{
 
 $stats = [ordered]@{ man = 0; html = 0; demos = 0; docs = 0; LICENSES = 0; tools = 0 }
 
-foreach ($e in $Man) {
-    $stats.man += Copy-Set -Src_ $e.s -Dst_ "$D\man\$($e.p)" -Exclude $e.x -OnlyFiles $e.f
+foreach ($ent in $Man) {
+    $stats.man += Copy-Set -Src_ $ent.s -Dst_ "$D\man\$($ent.p)" -Exclude $ent.x -OnlyFiles $ent.f
 }
-foreach ($e in $Html) {
-    $stats.html += Copy-Set -Src_ $e.s -Dst_ "$D\html\$($e.p)" -Exclude $e.x -OnlyFiles $e.f
+foreach ($ent in $Html) {
+    $stats.html += Copy-Set -Src_ $ent.s -Dst_ "$D\html\$($ent.p)" -Exclude $ent.x -OnlyFiles $ent.f
 }
-foreach ($e in $Demos) {
-    $stats.demos += Copy-Set -Src_ $e.s -Dst_ "$D\demos\$($e.p)" -Exclude $e.x -OnlyFiles $e.f
+foreach ($ent in $Demos) {
+    $stats.demos += Copy-Set -Src_ $ent.s -Dst_ "$D\demos\$($ent.p)" -Exclude $ent.x -OnlyFiles $ent.f
 }
 $stats.demos += Copy-Set -Src_ $ExtraDemos.s -Dst_ "$D\demos\$($ExtraDemos.p)\$($ExtraDemos.sub)"
 $fixed = Fix-IwidgetsDemoPaths "$D\demos\iwidgets"
