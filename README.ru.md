@@ -163,6 +163,15 @@ scripts\fetch-vendor.ps1          # 15 архивов -> vendor\
 Дальше (пути репозитория в примерах нет: скрипты выводят корень из своего
 положения, `WINKIT_ROOT` переопределяет):
 
+Между загрузкой и компиляцией лежат два шага, для которых **скрипта нет**:
+раскладка `vendor/` по фиксированным каталогам `build/<цепочка>/…` (включая
+переименования верхних каталогов архивов и джанкшены `itcl4.3.8` / `tk9.0.4`) и
+наложение `patches/` на распакованные деревья. Оба описаны (SOURCES.md даёт
+карту «архив → дерево», `patches/README.md` индексирует каждую правку) и оба
+сделаны вручную намеренно, поэтому список ниже предполагает, что они уже
+выполнены: `build-msvc-kit.bat` объявляет `Requires: build-msvc-core.bat, …` и
+не вызывает ничего из этого.
+
 ```
 scripts\build-msvc-core.bat     # Tcl+Tk+pkgs: nmake OPTS=static,nomsvcrt
 scripts\build-msvc-ext.bat      # dyncall 0.9 + TWAPI 5.2.0 (MSVC)
@@ -173,13 +182,28 @@ scripts\assemble-msvc-kit.ps1   # staging VFS -> zip -> прицеп к exe -> d
 
 $env:MSYSTEM='UCRT64'
 & <MSYS2>\usr\bin\bash.exe -lc '<repo>/scripts/build-mingw-core.sh'
-& <MSYS2>\usr\bin\bash.exe -lc '<repo>/scripts/build-mingw-ext.sh'   # + repack-dyncall.sh
+& <MSYS2>\usr\bin\bash.exe -lc '<repo>/scripts/build-mingw-ext.sh'   # dyncall + twapi + Img
 & <MSYS2>\usr\bin\bash.exe -lc '<repo>/scripts/build-mingw-ext2.sh'  # rl_json, mpexpr, itk, tkdnd, treectrl
 & <MSYS2>\usr\bin\bash.exe -lc '<repo>/scripts/build-mingw-kit.sh'
 scripts\assemble-mingw-kit.ps1
 
+scripts\make-licenses.ps1         # пересобрать LICENSES/ (до упаковки)
 scripts\build-docs-artifact.ps1 # 5-й артефакт: docs/man/demos -> dist\tclwinkit-docs-<вер>.zip
 ```
+
+Внутри этой цепочки прячется ещё один условный ручной шаг: makefile dyncall
+под MSYS2 собирает **пустые** архивы (правило `ar` теряет список объектников,
+сами объекты компилируются нормально), и `scripts\repack-dyncall.sh` перекладывает
+их заново. `build-mingw-ext.sh` его не вызывает — намеренно, потому что дефект
+проявляется не всегда; запускать между шагами dyncall и TWAPI, если архивы
+вышли пустыми (см. docs/COMPARISON.md).
+
+CI запускает два джоба — гейт кодировок и детерминизма (вместе с негативным
+контролем, который доказывает, что гейт умеет падать) и шаг нулевой против
+всех 15 URL. Джоба сборки в CI нет именно из-за двух ручных шагов выше:
+распакованных деревьев не существует, поэтому компилировать нечего, а пустое
+дерево дало бы зелёный цвет. См. раздел «Continuous integration» в
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 `MSYSTEM` обязателен: без него профиль MSYS2 откатывается на инструции
 MSYS, где нет `gcc`, и `scripts/mingw-env.sh` останавливается там же с

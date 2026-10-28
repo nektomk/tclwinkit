@@ -54,6 +54,15 @@ Unpack `vendor/` into the fixed paths the build expects
 `vendor/` itself — unpacking is deliberate, so a half-extracted tree cannot be
 mistaken for a fetched one.
 
+Two steps between fetching and compiling are **manual, and no script exists for
+them**: unpacking the 15 archives into that layout (including the
+top-directory renames and the `itcl4.3.8` / `tk9.0.4` junctions that SOURCES.md
+describes), and applying `patches/` onto the extracted trees. The command lists
+below therefore assume both have already been done: `build-msvc-kit.bat` states
+`Requires: build-msvc-core.bat, build-msvc-ext.bat, build-msvc-img.bat` and
+invokes none of them. This is why CI has no build job — see "Continuous
+integration" below.
+
 MSVC (x64 Native Tools prompt, or `vcvars64.bat` first):
 
 ```
@@ -221,6 +230,63 @@ index, and an unindexed patch does not exist. Rules:
   `scopedobject.itcl`), none is invented and no holder is guessed.
 - Patches should be minimal and each one must say what it fixes. A patch
   that only silences a compiler warning belongs in the build script instead.
+
+## Continuous integration
+
+`.github/workflows/ci.yml` runs two jobs. Both scripts they invoke were executed
+on a real fresh clone of this repository before the file was added — a job that
+has never run anywhere is not a guarantee, it is a promise — and the clone run
+is what exposed two defects in `fetch-vendor.ps1` and the silent-skip behaviour
+of the artifact sections:
+
+| Job | What it runs | What it proves |
+|---|---|---|
+| `encoding` | `scripts\check-gates-selftest.ps1`, then `scripts\check-encoding.ps1` | first that the gates are able to fail and to name the right defect, then the three-level encoding rule (index/blob/worktree), plus the PE `TimeDateStamp` and builder-state gates when artifacts exist |
+| `sources` | `scripts\fetch-vendor.ps1`, then `-VerifyOnly` | step zero: all 15 archives download from their recorded URLs and pass size, SHA-256 and archive-shape checks; the second run proves idempotence with no network |
+
+**What CI does not do, and why.** There is no build job. Compiling the kit
+needs the vendor trees unpacked and `patches/` applied, and both of those steps
+are manual (see *Building* above), so a build job would have nothing to compile
+and would report success on an empty tree. The test gates in *Testing* below
+run against built executables for the same reason: they are local, not CI.
+
+On a CI checkout the three artifact sections of `check-encoding.ps1` **skip
+loudly** rather than pass silently; `-RequireArtifacts` turns each skip into a
+failure and is what the local pre-publish run uses. The exit code of every
+script here is the number of failed assertions, so a step fails on its own and
+the workflow parses no logs.
+
+```
+scripts\check-gates-selftest.ps1               # negative control for the gates
+scripts\check-encoding.ps1 -RequireArtifacts   # pre-publish: skips become failures
+scripts\verify-docs-artifact.ps1               # the fifth artifact (local: needs dist/)
+```
+
+**Why the selftest runs in CI and not only locally.** This job is the one place
+where the artifact sections have nothing to look at, so it is also the one place
+where a section that skipped silently would go unnoticed. The rule in *Testing*
+— every "check passed" needs a negative control — applies to the checkers
+themselves, and a checker whose failure has only ever been read about in a
+document is not a checker. It costs 23 seconds on a bare checkout and 36 on a
+full one: it builds throwaway repositories and archives under `build/`
+(gitignored) carrying exactly one injected defect each, requires the valid
+baseline to pass, then requires each defect to produce a nonzero exit **and**
+the specific assertion named. 13 injected defects (12 table-driven, plus a
+`.ps1` that is ASCII-and-CRLF-correct but does not parse) and 3 vacuous-pass
+guards — missing artifacts under `-RequireArtifacts`, a zero-tracked-file
+repository, a missing archive. 51 assertions on a full tree, 49 on a bare
+checkout: two of them need the built artifacts and print a skip instead.
+
+`verify-docs-artifact.ps1` is the exception to being in CI: it checks entry
+pinning, the manifest cross-check, license byte-identity and the `VERSIONS.txt`
+stamp of the fifth artifact, and on a checkout there is no archive to check. Its
+negative control is in the selftest, which builds synthetic archives instead.
+
+Both jobs are `windows-latest` only. A second OS would be the honest test of
+the `.gitattributes` normalization, but the reference machine has no Linux, no
+PowerShell 7 and no container, so that leg has never executed anywhere and
+shipping it would put an unexercised promise in public. It is tracked as a
+post-flip item instead.
 
 ## Testing
 

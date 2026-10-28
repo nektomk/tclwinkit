@@ -184,7 +184,10 @@ foreach ($r in $Rows) {
     $url = $r.u; $dig = $r.d; $size = $r.s; $form = 'branch'
     if ($UsePins -and $r.movable) { $url = $r.pu; $dig = $r.pd; $size = $r.pss; $form = 'pinned' }
     $dest = Join-Path $Vendor $r.f
-    $line = ('{0,-11}' -f $r.c) + ('{0,-7}' -f $form)
+    # -12, not -11: the longest component name is TclReadLine at exactly 11
+    # characters, so an 11-wide column leaves no separator and the verdict line
+    # printed "TclReadLinebranch MISSING" (observed on a fresh clone).
+    $line = ('{0,-12}' -f $r.c) + ('{0,-7}' -f $form)
 
     $haveGood = $false
     if ((Test-Path $dest) -and -not $Force) {
@@ -193,7 +196,13 @@ foreach ($r in $Rows) {
         elseif ($VerifyOnly) { $bad++; $line += 'BAD  ' + $why; $line; continue }
     }
     if ($haveGood) { $ok++; $line += 'ok (verified local copy)'; $line; continue }
-    if ($VerifyOnly) { $bad++; $line += 'MISSING'; $missing += $r.f; $line; continue }
+    if ($VerifyOnly) {
+        # NOT $bad++: an absent archive is not a bad archive. Counting it twice
+        # made the verdict read "ok 0  bad 15  missing 15" for 15 files, i.e. it
+        # reported thirty problems where there are fifteen (observed on a fresh
+        # clone, which is the only place this branch ever runs).
+        $line += 'MISSING'; $missing += $r.f; $line; continue
+    }
 
     # Download to a scratch name first: a half-written or wrong file must
     # never land on top of a copy that might have been good.

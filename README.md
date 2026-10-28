@@ -216,16 +216,51 @@ shape, and refuses a wrong file before it can reach a build tree:
 scripts\fetch-vendor.ps1          # 15 archives -> vendor\
 ```
 
+Between the fetch and the compile sit two steps that **have no script**:
+unpacking `vendor/` into the fixed `build/<chain>/…` layout, and applying
+`patches/` onto the extracted trees. Both are documented (SOURCES.md maps every
+archive to its target directory; `patches/README.md` indexes every edit), and
+both are manual on purpose, so the commands below assume they are done —
+`build-msvc-kit.bat` states `Requires: build-msvc-core.bat, …` and invokes none
+of them.
+
 ```
-scripts\build-msvc-kit.bat        # core + extensions + kit, then:
+scripts\build-msvc-core.bat       # Tcl+Tk+pkgs: nmake OPTS=static,nomsvcrt
+scripts\build-msvc-ext.bat        # dyncall 0.9 + TWAPI 5.2.0
+scripts\build-msvc-img.bat        # Img 2.1.2: base, support, 19 formats
+scripts\build-msvc-ext2.bat       # rl_json, mpexpr, itk, tkdnd, treectrl
+scripts\build-msvc-kit.bat        # kit glue objects + link the exe
 scripts\assemble-msvc-kit.ps1     # stage VFS -> zip -> attach to exe -> dist\
+```
 
-scripts\build-mingw-kit.sh        # under MSYS2 UCRT64, then:
+The MinGW chain is the same shape in five steps — Img builds inside `ext`, so
+there is no separate Img step — and it must run inside an MSYS2 login shell
+with `MSYSTEM` set:
+
+```
+$env:MSYSTEM = 'UCRT64'
+& <MSYS2>\usr\bin\bash.exe -lc '<repo>/scripts/build-mingw-core.sh'
+& <MSYS2>\usr\bin\bash.exe -lc '<repo>/scripts/build-mingw-ext.sh'
+& <MSYS2>\usr\bin\bash.exe -lc '<repo>/scripts/build-mingw-ext2.sh'
+& <MSYS2>\usr\bin\bash.exe -lc '<repo>/scripts/build-mingw-kit.sh'
 scripts\assemble-mingw-kit.ps1
+```
 
+One conditional manual helper lives inside that chain too: the dyncall makefile
+produces **empty** archives under MSYS2 (the `ar` rule loses the object list),
+and `scripts\repack-dyncall.sh` re-archives the objects. `build-mingw-ext.sh`
+does not call it, by design — run it between the dyncall and TWAPI steps when
+the archives come out empty.
+
+```
 scripts\make-licenses.ps1         # regenerate LICENSES/ (must run before packaging)
 scripts\build-docs-artifact.ps1   # the fifth asset
 ```
+
+CI runs two jobs — the encoding/determinism gate (with a negative control that
+proves the gate can fail) and step zero against all 15 URLs — and no build job,
+because the two manual steps above leave it nothing to compile; see *Continuous
+integration* in [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 `assemble-*.ps1` clean the staged image with `scripts\kit-prune.ps1`, so
 `kit.vfs` carries runtime files only (−32.40 MB, −4269 files on the GUI kit).
