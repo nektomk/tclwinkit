@@ -143,6 +143,48 @@ $r = Run-Gate $checker @('-Repo', $mini, '-RequireArtifacts')
 Chk ($r.code -ne 0) ('-RequireArtifacts turns the same repo red (exit ' + $r.code + ')')
 Chk ($r.out -match 'SHA256SUMS\.txt absent') '  and names the missing checksum list'
 Chk ($r.out -match 'no exes under dist/') '  and names the missing exes'
+# Section 4 reads build/release-stage/SHA256SUMS.txt, a gitignored path with no
+# tracked-file surface, so without a fixture here the whole section is
+# unexercised. Two real defects lived behind exactly this gap: the "-ge 1"
+# comment floor accepted a header that had lost two of its three lines to an -f
+# precedence bug, and the blank-line guard counted blanks AFTER filtering the
+# empty strings out, so an empty separator line (docs/CONVENTIONS.md 4.2) was
+# invisible to it. Each case gets a green baseline first, because a case that
+# only ever fails proves nothing.
+$sumsDir = Join-Path $mini 'build\release-stage'
+[void](New-Item -ItemType Directory -Force -Path $sumsDir)
+$sumsFile = Join-Path $sumsDir 'SHA256SUMS.txt'
+$hdr = @(('# tclwinkit {0} -- SHA-256 of the release assets' -f '0.1'),
+         '# verify:  sha256sum -c SHA256SUMS.txt',
+         '#      or:  certutil -hashfile <file> SHA256')
+$names = @('tclwinkit-0.1-msvc-x64-console.exe', 'tclwinkit-0.1-msvc-x64-gui.exe',
+           'tclwinkit-0.1-mingw-x64-console.exe', 'tclwinkit-0.1-mingw-x64-gui.exe',
+           'tclwinkit-docs-0.1.zip')
+$ent = @()
+for ($i = 0; $i -lt $names.Count; $i++) { $ent += (('{0:x64}' -f ($i + 1)) + ' *' + $names[$i]) }
+function Write-Sums([string[]]$L) {
+    [System.IO.File]::WriteAllText($sumsFile, (($L -join "`n") + "`n"), $enc)
+}
+Write-Sums @($hdr + $ent)
+$r = Run-Gate $checker @('-Repo', $mini)
+Chk ($r.code -eq 0) ('valid checksum list passes (exit ' + $r.code + ') -- baseline for the three cases below')
+Chk ($r.out -match 'comment header lines: 3') '  baseline counts all three header lines'
+Chk ($r.out -match 'blank lines inside the list: 0') '  baseline reports zero blank lines'
+Write-Sums @(@($hdr[0]) + $ent)
+$r = Run-Gate $checker @('-Repo', $mini)
+Chk ($r.code -ne 0) ('rejects a header that lost two of three lines (exit ' + $r.code + ')')
+Chk ($r.out -match 'comment header lines: 1') '  and reports the surviving count'
+Write-Sums @($hdr + @('') + $ent)
+$r = Run-Gate $checker @('-Repo', $mini)
+Chk ($r.code -ne 0) ('rejects an empty separator line inside the list (exit ' + $r.code + ')')
+Chk ($r.out -match 'blank lines inside the list: 1') '  and names the blank line'
+[System.IO.File]::WriteAllText($sumsFile, ((($hdr + $ent) -join "`r`n") + "`r`n"), $enc)
+$r = Run-Gate $checker @('-Repo', $mini)
+Chk ($r.code -ne 0) ('rejects a CRLF checksum list (exit ' + $r.code + ')')
+Chk ($r.out -match 'FAIL SHA256SUMS\.txt: CR=0') '  and the failure is attributed to the CR/BOM line, not to a coincidence'
+Remove-Item -LiteralPath $sumsFile -Force
+[void](Remove-Item -LiteralPath $sumsDir -Recurse -Force)
+Chk (-not (Test-Path -LiteralPath $sumsFile)) 'checksum fixture removed so the tracked-file cases start clean'
 
 $defects = @(
     @{ n = 'CRLF in a .md worktree file';  b = { param($p) [System.IO.File]::WriteAllBytes($p, $enc.GetBytes("a`r`nb`r`n")) };            f = 'bad-crlf.md';  needle = 'WORKTREE WRONG' },

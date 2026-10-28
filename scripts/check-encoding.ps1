@@ -195,8 +195,15 @@ if (-not $sums) {
     $b = [System.IO.File]::ReadAllBytes($sums)
     $isBom = ($b.Length -ge 3 -and $b[0] -eq 0xEF -and $b[1] -eq 0xBB -and $b[2] -eq 0xBF)
     Chk ((-not ($b -contains 13)) -and (-not $isBom)) ('SHA256SUMS.txt: CR=0, no BOM, ' + $b.Length + ' B  (' + $sums.Substring($Repo.Length + 1) + ')')
-    $lines = @(([System.Text.Encoding]::UTF8.GetString($b) -split "`n") | Where-Object { $_ -ne '' })
-    $blank = @($lines | Where-Object { $_ -match '^\s*$' }).Count
+    # The blank-line guard used to be VACUOUS: the old code first dropped every
+    # empty element ("Where-Object { $_ -ne '' }") and only then counted
+    # '^\s*$', so a truly empty separator line -- the exact defect documented in
+    # docs/CONVENTIONS.md 4.2 -- could never be seen by it. Count on the raw split
+    # instead, minus the one empty element a trailing newline legitimately produces.
+    $raw = @(([System.Text.Encoding]::UTF8.GetString($b) -split "`n"))
+    if ($raw.Count -gt 0 -and $raw[$raw.Count - 1] -eq '') { $raw = @($raw[0..($raw.Count - 2)]) }
+    $blank = @($raw | Where-Object { $_.Trim() -eq '' }).Count
+    $lines = @($raw | Where-Object { $_ -ne '' })
     # A blank line inside the list makes `sha256sum -c --strict` fail on the
     # user's machine, which is the public instruction in README.
     Chk ($blank -eq 0) ('blank lines inside the list: ' + $blank)
@@ -208,7 +215,16 @@ if (-not $sums) {
     Chk ($other.Count -eq 0) ('lines that are neither a comment nor a checksum entry: ' + $other.Count)
     foreach ($o in $other) { if ($o.Trim()) { Say ('  MALFORMED: ' + $o) } }
     Chk ($entries.Count -eq 5) ('checksum entries: ' + $entries.Count + ' (expected 5: 4 exes + docs archive)')
-    Chk ($comment.Count -ge 1) ('comment header lines: ' + $comment.Count)
+    # -ge 1 was a vacuous floor: publish-release.ps1 lost TWO of its three header
+    # lines to an -f precedence bug (see docs/CONVENTIONS.md 4.2) and this line
+    # still passed, because one surviving comment satisfies ">= 1". The header is
+    # not decoration -- it is the machine-readable form of the instruction printed
+    # in README.md, so assert its exact size and that both commands it advertises
+    # are actually named.
+    Chk ($comment.Count -eq 3) ('comment header lines: ' + $comment.Count + ' (expected 3)')
+    $hdr = $comment -join "`n"
+    Chk ($hdr -match 'sha256sum -c SHA256SUMS\.txt') ('  header names the documented sha256sum invocation: ' + ($hdr -match 'sha256sum -c SHA256SUMS\.txt'))
+    Chk ($hdr -match 'certutil -hashfile') ('  header names the documented certutil invocation: ' + ($hdr -match 'certutil -hashfile'))
     # The list must name exactly the assets the release carries, and its hashes
     # must be the hashes of the files actually built. Name matching alone is not
     # possible directly: dist/ holds tclwinkit-msvc.exe while the release asset

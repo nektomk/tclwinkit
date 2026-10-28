@@ -119,7 +119,19 @@ Say 'total' ('{0:N2} MB over {1} files' -f ($total / 1MB), $rows.Count)
 # line, which is a warning under plain -c and a hard exit 1 under --strict
 # (both measured). So the header runs straight into the checksums.
 New-Item -ItemType Directory -Force $Stage | Out-Null
-$sums = @('# tclwinkit {0} -- SHA-256 of the release assets' -f $Version,
+# Each -f operand needs its OWN parentheses inside a comma list: the format
+# operator binds looser than the list separator, so
+#   @('...{0}...' -f $Version, 'next line', 'third line')
+# parses as ONE format call with three arguments ('...{0}...' -f @($Version,
+# 'next line', 'third line')). The extra arguments are silently discarded
+# because the template has no {1}/{2}, so the array has one element and two
+# header lines vanish WITHOUT ANY ERROR. Measured on 2026-10-28: the rendered
+# SHA256SUMS.txt was 536 B / 6 lines instead of 620 B / 8 lines, i.e. the
+# `sha256sum -c` and `certutil` hints documented in docs/CONVENTIONS.md 4.2
+# were never shipped. The published file (630 B, 9 CRLF lines) still predates
+# both that bug and the fix, so it carries the CRLF and blank-line defects
+# described in 4.1 and 4.2 until the release is re-issued.
+$sums = @(('# tclwinkit {0} -- SHA-256 of the release assets' -f $Version),
           '# verify:  sha256sum -c SHA256SUMS.txt',
           '#      or:  certutil -hashfile <file> SHA256')
 $sums += $rows | ForEach-Object { '{0} *{1}' -f $_.sha256, $_.asset }

@@ -101,8 +101,8 @@ First release. [Tag `v0.1`](https://github.com/nektomk/tclwinkit/releases/tag/v0
   gitignored directory cannot be re-run by a reader. Measured on this tree: 0
   findings, 5.4 s and 0.6 s.
 - **Negative control for the gates** (`scripts/check-gates-selftest.ps1`, the
-  first step of the `encoding` job): 116 assertions (114 on a bare checkout —
-  two need the built artifacts), 31 injected defect classes and 6 vacuous-pass
+  first step of the `encoding` job): 126 assertions (124 on a bare checkout —
+  two need the built artifacts), 34 injected defect classes and 6 vacuous-pass
   guards, each built as a throwaway repository or archive carrying exactly one
   defect, with the valid baseline required to pass first and re-verified after
   every teardown. A gate that has only ever been observed passing is not

@@ -269,19 +269,21 @@ where the artifact sections have nothing to look at, so it is also the one place
 where a section that skipped silently would go unnoticed. The rule in *Testing*
 — every "check passed" needs a negative control — applies to the checkers
 themselves, and a checker whose failure has only ever been read about in a
-document is not a checker. It costs 45 seconds on a bare checkout and 56 on a
-full one: it builds throwaway repositories and archives under `build/`
+document is not a checker. It costs 56 seconds on a bare checkout and 60 to 63
+on a full one: it builds throwaway repositories and archives under `build/`
 (gitignored) carrying exactly one injected defect each, requires the valid
 baseline to pass, then requires each defect to produce a nonzero exit **and**
-the specific assertion named. 31 injected defect classes — 13 for the two
+the specific assertion named. 34 injected defect classes — 16 for the two
 encoding gates (12 table-driven, plus a `.ps1` that is ASCII-and-CRLF-correct
-but does not parse), 6 for the link audit, 12 for the source-map parity check —
+but does not parse, plus three on the release checksum list: a header that lost
+two of its three lines, an empty separator line, and a CRLF list), 6 for the
+link audit, 12 for the source-map parity check —
 and 6 guards that a leg actually ran: missing artifacts under
 `-RequireArtifacts`, a zero-tracked-file repository, a missing archive, a
 markdown set whose anchors were never resolved, a manifest whose notation was
 not understood at all, and a source map with no URL-bearing rows. The last two
 are also among the 31, because there the injected defect *is* that the parser
-understood nothing. 116 assertions on a full tree, 114 on a
+understood nothing. 126 assertions on a full tree, 124 on a
 bare checkout: two of them need the built artifacts and print a skip instead.
 
 **Why the two documentation gates are in CI.** `link-audit.ps1` and
