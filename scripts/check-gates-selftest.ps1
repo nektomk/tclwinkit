@@ -1,4 +1,5 @@
-# check-gates-selftest.ps1 -- negative control for the two gates in scripts/.
+# check-gates-selftest.ps1 -- negative control for the four read-only gates in
+# scripts/: check-encoding, verify-docs-artifact, link-audit, source-parity.
 #
 # Why this exists as a shipped script rather than a scratch run: the public
 # documents claim the gates have a negative control. A claim whose evidence
@@ -24,6 +25,24 @@
 #     valid step reported a failure with an empty message.
 #   * OrderedDictionary.Remove(@(...)) removes nothing silently, because @()
 #     turns the lookup key into an array.
+#
+# Gates 3 and 4 were added on 2026-10-28 (block G) together with the auditors
+# they control, promoted from build/research/ in the same change that links to
+# them. What their injection loops caught while being written, all of it the
+# vacuous-pass class documented in docs/NOTES.md section 10:
+#   * link-audit walked 26 anchors and `continue`d past every one of them, so it
+#     reported 0 findings while the anchor leg had not run -- hence the
+#     "fragments actually resolved" assertion on the BASELINE, not on a case;
+#   * Get-SlugSet returned a bare HashSet, which PowerShell unrolled to $null
+#     when empty, so the leg died only on files without headings;
+#   * source-parity extracted fields with (?m)^\s*key\s*= and got 12 of 15 empty
+#     per manifest row, then reported findings about the one field that did
+#     extract while looking like a working gate -- hence
+#     "rows fully harvested: 3" on the baseline;
+#   * three mutation fixtures tested the ABSENCE of a defect while staging the
+#     evidence of one (git add -A staged the orphan the untracked case relied on)
+#     -- hence "reports exactly one finding, not two" and the teardown that
+#     re-verifies the baseline after every case.
 # Contract: ASCII-only source (docs/CONVENTIONS.md section 5), read-only
 # w.r.t. the repository -- all fixtures go under build/, which is gitignored.
 # Exit code = number of failed assertions.
@@ -370,10 +389,248 @@ $r = Run-Gate $verifier @('-Zip', (Join-Path $zdir 'nope.zip'))
 Chk ($r.code -ne 0) ('a missing archive exits nonzero instead of reporting a clean run (exit ' + $r.code + ')')
 
 # ===========================================================================
-# the gates themselves, against the real repository and the real artifacts
+# gate 3: scripts/link-audit.ps1
+# ===========================================================================
+# The auditor walks every relative link and every #fragment of the 18 tracked
+# markdown files and reports zero findings on the real repository. "Zero" from a
+# tool that has never been observed to fire is not evidence, and unlike the
+# encoding gate this one guards a claim a reader of the public repository acts
+# on: that the documentation's cross-links resolve. Six branches of its decision
+# are exercised here, one per case.
+Say ''
+Say '=== gate 3: scripts/link-audit.ps1 ==='
+$laTool = Join-Path $Repo 'scripts/link-audit.ps1'
+if (-not (Test-Path -LiteralPath $laTool)) { Say ('FATAL: gate not found: ' + $laTool); exit 1 }
+
+function Run-LinkAudit([string]$path) {
+    $prev2 = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    $o2 = (& powershell -NoProfile -ExecutionPolicy Bypass -File $laTool -Repo $path 2>&1 | Out-String)
+    $c2 = $LASTEXITCODE
+    $ErrorActionPreference = $prev2
+    return @{ code = $c2; out = [string]$o2 }
+}
+function Write-FixFile([string]$fxBase, [string]$fxRel, [string]$fxBody) {
+    $fp2 = Join-Path $fxBase ($fxRel -replace '/', [System.IO.Path]::DirectorySeparatorChar)
+    $dir2 = Split-Path -Parent $fp2
+    if (-not (Test-Path -LiteralPath $dir2)) { [void](New-Item -ItemType Directory -Force -Path $dir2) }
+    [System.IO.File]::WriteAllBytes($fp2, $enc.GetBytes($fxBody))
+    return $fp2
+}
+
+$laGood = Join-Path $scratch 'links-good'
+[void](New-Item -ItemType Directory -Force -Path $laGood)
+[void](Invoke-Git @('init', '-q', '-b', 'main', $laGood))
+[void](Invoke-Git @('-C', $laGood, 'config', 'user.email', 'fixture@invalid.example'))
+[void](Invoke-Git @('-C', $laGood, 'config', 'user.name', 'fixture'))
+# .gitignore mirrors the real repository: without it the "gitignored target"
+# case below would take the "not tracked" branch and that branch would never run.
+[void](Write-FixFile $laGood '.gitignore' "build/`ndist/`nvendor/`n")
+[void](Write-FixFile $laGood 'docs/NOTE.md' "# note`n")
+[void](Write-FixFile $laGood 'README.md' "# t`n`n[docs](docs/NOTE.md)`n[anchor](#t)`n[frag](docs/NOTE.md#note)`n[ext](https://example.com/x)`n[dir](docs/)`n")
+[void](Invoke-Git @('-C', $laGood, 'add', '-A'))
+[void](Invoke-Git @('-C', $laGood, 'commit', '-q', '-m', 'baseline'))
+$r = Run-LinkAudit $laGood
+Chk ($r.code -eq 0) ('valid mini-repo passes (exit ' + $r.code + ') -- without this the findings below prove nothing')
+Chk ($r.out -match 'LINK-AUDIT OK') '  and prints the success verdict'
+Chk ($r.out -match 'relative=[1-9]') ('  and walked the relative links (' + ((@($r.out -split "`r?`n") | Where-Object { $_ -match 'links: total' }) -join '').Trim() + ')')
+# The anchor leg must be seen PASSING a real fragment here, not only failing one
+# later: a check that can only ever report a finding is indistinguishable from a
+# check that reports findings because it never looked. This is the exact shape
+# that made the first version of the auditor vacuous (26 anchors counted, zero
+# resolved), so it is asserted on the baseline, not on a defect case.
+Chk ($r.out -match 'fragments actually resolved against headings: [2-9]') '  and resolved at least two fragments against headings (the anchor leg is not vacuous)'
+Chk ($r.out -notmatch 'DEAD ANCHOR|DEAD FRAGMENT') '  and the baseline fragments PASS, so a later DEAD FRAGMENT is about the defect and not about the leg'
+
+# Six distinct branches, so no two cases are the same test wearing a different
+# name. Each case owns its FILE: the dead-link case originally overwrote
+# docs/NOTE.md, which the baseline links to, so tearing it down created a second,
+# unintended dead link and every later case reported 2 findings instead of 1.
+$laCases = @(
+    @{ n = 'dead relative link';           file = 'docs/A-dead.md';      body = "[gone](../nope.md)`n";           needle = 'DEAD LINK';   pre = '' },
+    @{ n = 'link into a gitignored path';  file = 'docs/B-ignored.md';   body = "[dist](../dist/kit.exe)`n";      needle = 'GITIGNORED';  pre = @('dist/kit.exe', 'MZ') },
+    @{ n = 'untracked-but-present target'; file = 'docs/C-untracked.md'; body = "[orphan](./drafts/orphan.md)`n"; needle = 'NOT tracked'; pre = @('docs/drafts/orphan.md', 'orphan') },
+    @{ n = 'dead in-file anchor';          file = 'docs/D-anchor.md';    body = "# host`n`n[x](#no-such-heading)`n"; needle = 'DEAD ANCHOR'; pre = '' },
+    @{ n = 'dead fragment in a good file'; file = 'docs/E-frag.md';      body = "[note](NOTE.md#nope)`n";         needle = 'DEAD FRAGMENT'; pre = '' },
+    # The heading below sits inside a fence: GitHub does not link to it and
+    # neither may the auditor. Backticks are single-quoted so they stay literal.
+    @{ n = 'anchor only inside a code fence'; file = 'docs/F-fence.md';  body = (@('[x](#inside)', '```', '# inside', '```', '') -join "`n"); needle = 'DEAD ANCHOR'; pre = '' }
+)
+foreach ($lc in $laCases) {
+    if ($lc.pre) { [void](Write-FixFile $laGood $lc.pre[0] $lc.pre[1]) }
+    [void](Write-FixFile $laGood $lc.file $lc.body)
+    # Stage ONLY the linking document. `git add -A` here would defeat the point of
+    # the untracked case: it stages docs/drafts/orphan.md, the target becomes
+    # tracked, the "on disk but not in the index" branch never runs, and the case
+    # degrades into a passing link that exits 0 (measured: it did, twice).
+    [void](Invoke-Git @('-C', $laGood, 'add', '--', $lc.file))
+    [void](Invoke-Git @('-C', $laGood, 'commit', '-q', '-m', $lc.n))
+    $r = Run-LinkAudit $laGood
+    $laNf = @($r.out -split "`r?`n" | Where-Object { $_ -match '^FINDING ' }).Count
+    Chk ($r.code -ne 0) ('rejects: ' + $lc.n + ' (exit ' + $r.code + ')')
+    Chk ($laNf -eq 1) ('  reports exactly one finding, not two (findings=' + $laNf + ')')
+    Chk ($r.out -match [regex]::Escape($lc.needle)) ('  and names it (' + $lc.needle + ')')
+    # tear down and prove the baseline is whole again
+    [void](Invoke-Git @('-C', $laGood, 'rm', '-q', '-f', $lc.file))
+    [void](Invoke-Git @('-C', $laGood, 'commit', '-q', '-m', ('removed ' + $lc.n)))
+    $rb = Run-LinkAudit $laGood
+    Chk ($rb.code -eq 0) ('  baseline passes again after teardown (exit ' + $rb.code + ')')
+}
+
+$laEmpty = Join-Path $scratch 'links-empty'
+[void](New-Item -ItemType Directory -Force -Path $laEmpty)
+[void](Invoke-Git @('init', '-q', '-b', 'main', $laEmpty))
+[void](Write-FixFile $laEmpty 'a.txt' "x`n")
+[void](Invoke-Git @('-C', $laEmpty, 'add', '-A'))
+[void](Invoke-Git @('-C', $laEmpty, 'commit', '-q', '-m', 'no md'))
+$r = Run-LinkAudit $laEmpty
+Chk ($r.code -ne 0) ('a repo with 0 tracked .md fails instead of passing vacuously (exit ' + $r.code + ')')
+Chk ($r.out -match 'must be > 0') '  and names the guard'
+
+# ===========================================================================
+# gate 4: scripts/source-parity.ps1
+# ===========================================================================
+# docs/SOURCES.md and scripts/fetch-vendor.ps1 are two hand-written notations of
+# one fact -- where the 15 vendor archives come from -- and the direction that
+# matters for licensing is the one a reader cannot see: an origin the manifest
+# fetches but the document does not publish.
+Say ''
+Say '=== gate 4: scripts/source-parity.ps1 ==='
+$spTool = Join-Path $Repo 'scripts/source-parity.ps1'
+if (-not (Test-Path -LiteralPath $spTool)) { Say ('FATAL: gate not found: ' + $spTool); exit 1 }
+$spFix = Join-Path $scratch 'parity'
+
+$hex = '0123456789abcdef'
+$hex64 = $hex * 4                                  # 64 chars, ends in 'f'
+$dTcl = $hex64
+$dImg = ('fedcba9876543210' * 4)                   # 64, ends in '0' but BACKTICKED
+$dTt = $hex64.Substring(0, 63) + '8'               # 64, ends in a digit, BACKTICKED
+$dPin = $hex64.Substring(0, 63) + '0'              # 64, ends in a digit, BARE  <-- regression shape
+$uTcl = 'https://example.invalid/tcl.tar.gz'
+$uImg = 'https://example.invalid/img.tar.gz'
+$uTt = 'https://example.invalid/tt.tar.gz'
+$uPin = 'https://example.invalid/tt-pin.tar.gz'
+$fTcl = 'tcl9.0.4-src.tar.gz'
+$fImg = 'Img-2.1.2.tar.gz'
+$fTt = 'tktreectrl-2.5.1.tar.gz'
+
+$spDoc = @(
+    '# Vendor sources'
+    ''
+    '| component | version | source | method | SHA-256 | size, B |'
+    '|---|---|---|---|---|---|'
+    ('| Tcl | 9.0.4 | `' + $uTcl + '` | GET | `' + $dTcl + '` | 11 866 337 |')
+    ('| Img | 2.1.2 | `' + $uImg + '` | GET | `' + $dImg + '` | 12 544 404 |')
+    ('| treectrl | 2.5.2 | `' + $uTt + '` | codeload | `' + $dTt + '` | 998 346 |')
+    ''
+    'Pinned form of the movable ref (bare, as the real map writes it):'
+    ''
+    '```'
+    ('tktreectrl    ' + $uPin)
+    ($dPin + '   999 449 B')
+    '```'
+    ''
+    'Archive -> tree:'
+    ''
+    ('* `' + $fTcl + '` -> build/tcl9.0.4/')
+    ('* `' + $fImg + '` -> build/ext/Img-2.1.2/')
+    ('* `' + $fTt + '` -> build/ext/')
+    ''
+) -join "`n"
+
+$spScr = @(
+    '$Rows = @('
+    ("    @{ c = 'Tcl';  f = '$fTcl'; k = 'tgz'; t = 'tcl9.0.4/';")
+    ("       u = '$uTcl';")
+    ("       d = '$dTcl'; s = 11866337 },")
+    ("    @{ c = 'Img';  f = '$fImg'; k = 'tgz'; t = 'Img-2.1.2/';")
+    ("       u = '$uImg';")
+    ("       d = '$dImg'; s = 12544404 },")
+    ("    @{ c = 'tktreectrl'; f = '$fTt'; k = 'tgz'; t = ''; movable = `$true;")
+    ("       u = '$uTt';")
+    ("       d = '$dTt'; s = 998346;")
+    ("       pu = '$uPin';")
+    ("       pd = '$dPin'; pss = 999449 }")
+    ')'
+    ''
+) -join "`n"
+
+function Write-Parity([string]$docTxt, [string]$scrTxt) {
+    if (Test-Path -LiteralPath $spFix) { Remove-Item -LiteralPath $spFix -Recurse -Force }
+    [void](New-Item -ItemType Directory -Force -Path (Join-Path $spFix 'docs'))
+    [void](New-Item -ItemType Directory -Force -Path (Join-Path $spFix 'scripts'))
+    [System.IO.File]::WriteAllBytes((Join-Path $spFix 'docs\SOURCES.md'), $enc.GetBytes(($docTxt -replace "`r`n", "`n")))
+    [System.IO.File]::WriteAllBytes((Join-Path $spFix 'scripts\fetch-vendor.ps1'), $enc.GetBytes(($scrTxt -replace "`r`n", "`n")))
+}
+function Run-SourceParity {
+    $prev2 = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    $o2 = (& powershell -NoProfile -ExecutionPolicy Bypass -File $spTool -RepoRel $spFix 2>&1 | Out-String)
+    $c2 = $LASTEXITCODE
+    $ErrorActionPreference = $prev2
+    return @{ code = $c2; out = [string]$o2 }
+}
+
+# The fixture deliberately reproduces the shape that broke the checker on the
+# real documents: the pinned digest is written BARE with its size after it, so
+# stripping whitespace from the whole line merges the tail of the hex digest into
+# the size. Three assertions lock that shape in -- a future edit that makes the
+# fixture "tidier" must not be able to retire the regression quietly.
+$spPinLine = ((@($spDoc -split "`n") | Where-Object { $_.Contains($dPin) }) -join '')
+$spTtLine = ((@($spDoc -split "`n") | Where-Object { $_.Contains($dTt) }) -join '')
+Chk ($dPin.Length -eq 64 -and [char]::IsDigit($dPin[$dPin.Length - 1])) 'fixture: the pinned digest is 64 hex and ENDS IN A DIGIT'
+Chk ($spPinLine.Contains($dPin) -and -not $spPinLine.Contains([string][char]96)) 'fixture: that digest appears BARE (no backticks) next to its size'
+Chk ($spTtLine.Contains([string][char]96)) 'fixture: the branch digest is backticked, so only the pin line exercises the merge'
+
+Write-Parity $spDoc $spScr
+$r = Run-SourceParity
+Chk ($r.code -eq 0) ('valid fixture passes (exit ' + $r.code + ') -- without this the findings below prove nothing')
+if ($r.code -ne 0) { foreach ($ln in ($r.out -split "`r?`n")) { if ($ln.Trim()) { Say ('      | ' + $ln.Trim()) } } }
+Chk ($r.out -match 'rows fully harvested: 3') '  and harvested all 3 manifest rows (a count of 0 means the notation was not understood)'
+Chk ($r.out -match 'pin triples: 1') '  and exercised the pinned-ref leg once'
+Chk ($r.out -match 'with its digest: 3/3') '  and matched every size on its digest line'
+Chk ($r.out -match 'tktreectrl -> treectrl') '  and reported the declared name alias'
+Chk ($r.out -match 'SOURCE-PARITY OK') '  and printed the success verdict'
+
+# Twelve branches. The last three are vacuity guards, not content defects: they
+# ask what happens when the parser understands nothing at all, which is the case
+# a parity check is most likely to survive silently.
+$spCases = @(
+    @{ n = 'URL fetched but not published';            docMut = { param($di, $si) $di.Replace($uTcl, 'gone') }; scrMut = $null; needle = 'URL fetched but not published' },
+    @{ n = 'digest enforced but not published';        docMut = { param($di, $si) $di.Replace($dTcl, 'gone') }; scrMut = $null; needle = 'SHA-256 enforced but not published' },
+    @{ n = 'size moved off the digest line';           docMut = { param($di, $si) $di.Replace('| 11 866 337 |', '| - |') }; scrMut = $null; needle = 'is not on any' },
+    @{ n = 'vendored filename not published';          docMut = { param($di, $si) $di.Replace($fTcl, 'gone') }; scrMut = $null; needle = 'vendored filename not published' },
+    @{ n = 'URL in the map but never fetched';         docMut = { param($di, $si) $di.Replace('| Img |', ('| Ghost | 1.0 | `https://example.invalid/ghost.tar.gz` | GET | `0` | 1 |' + "`n" + '| Img |')) }; scrMut = $null; needle = 'never fetched by' },
+    @{ n = 'component row renamed (alias must not swallow)'; docMut = { param($di, $si) $di.Replace('| treectrl |', '| Renamed |') }; scrMut = $null; needle = 'no table row' },
+    @{ n = 'pinned URL not published';                 docMut = { param($di, $si) $di.Replace($uPin, 'gone') }; scrMut = $null; needle = 'pinned URL not published' },
+    @{ n = 'pinned digest not published';              docMut = { param($di, $si) $di.Replace($dPin, 'gone') }; scrMut = $null; needle = 'pinned SHA-256 not published' },
+    @{ n = 'pinned size off the pinned line';          docMut = { param($di, $si) $di.Replace(($dPin + '   999 449 B'), ($dPin + '   B')) }; scrMut = $null; needle = 'pinned size' },
+    @{ n = 'manifest row lost a field';                docMut = $null; scrMut = { param($si, $di) $si.Replace('; s = 11866337', '') }; needle = 'did not yield' },
+    @{ n = 'manifest notation unrecognised';           docMut = $null; scrMut = { param($si, $di) $si.Replace('@{', '[').Replace(' }', ']') }; needle = 'yielded 0 rows' },
+    @{ n = 'map has no URL-bearing table rows';        docMut = { param($di, $si) $di.Replace($uTcl, 'gone').Replace($uImg, 'gone').Replace($uTt, 'gone') }; scrMut = $null; needle = '0 URL-bearing table rows' }
+)
+foreach ($sc in $spCases) {
+    $spDt = $spDoc
+    $spSt = $spScr
+    if ($sc.docMut) { $spDt = & ($sc.docMut) $spDoc $spScr }
+    if ($sc.scrMut) { $spSt = & ($sc.scrMut) $spScr $spDoc }
+    Write-Parity $spDt $spSt
+    $r = Run-SourceParity
+    Chk ($r.code -ne 0) ('rejects: ' + $sc.n + ' (exit ' + $r.code + ')')
+    Chk ($r.out -match [regex]::Escape($sc.needle)) ('  and names it (' + $sc.needle + ')')
+}
+Write-Parity $spDoc $spScr
+$r = Run-SourceParity
+Chk ($r.code -eq 0) ('the undamaged fixture passes again after all 12 injections (exit ' + $r.code + ')')
+
+# ===========================================================================
+# the encoding gates, against the real repository and the real artifacts
 # ===========================================================================
 Say ''
-Say '=== both gates against this checkout ==='
+Say '=== the two encoding gates against this checkout ==='
+# Gates 3 and 4 are NOT re-run against the real repository here: ci.yml runs each
+# of them as its own step, so doing it twice would only double the wall time of
+# the job that has to stay cheap. Their ability to fail is what this file proves.
 $hasArtifacts = (Test-Path -LiteralPath (Join-Path $Repo 'dist/tclwinkit-msvc.exe'))
 $r = Run-Gate $checker @('-Repo', $Repo)
 Chk ($r.code -eq 0) ('check-encoding on this checkout (exit ' + $r.code + $(if ($hasArtifacts) { ', artifacts present' } else { ', no artifacts' }) + ')')

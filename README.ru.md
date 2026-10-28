@@ -55,7 +55,6 @@ winkitwish-msvc.exe demos\iwidgets\catalog    # браузер демо iwidgets
 tclwinkit-msvc.exe  tools\man.tcl man\tcl\subst.n
 ```
 
-
 ## Состав
 
 | Компонент | Версия | Как подключён |
@@ -109,7 +108,6 @@ proc show {args} { wm deiconify . }             ;# клик по иконке �
 # twapi::systemtray::removeicon $id             ;# убрать иконку
 # twapi::free_icon $hico                        ;# только для load_icon_from_file
 ```
-
 
 ### REPL (консольный кит)
 

@@ -241,7 +241,7 @@ of the artifact sections:
 
 | Job | What it runs | What it proves |
 |---|---|---|
-| `encoding` | `scripts\check-gates-selftest.ps1`, then `scripts\check-encoding.ps1` | first that the gates are able to fail and to name the right defect, then the three-level encoding rule (index/blob/worktree), plus the PE `TimeDateStamp` and builder-state gates when artifacts exist |
+| `encoding` | `scripts\check-gates-selftest.ps1`, then `scripts\check-encoding.ps1`, `scripts\link-audit.ps1`, `scripts\source-parity.ps1` | first that the four gates are able to fail and to name the right defect, then the three-level encoding rule (index/blob/worktree) plus the PE `TimeDateStamp` and builder-state gates when artifacts exist, then that every relative link and `#fragment` in the tracked markdown resolves, then that `docs\SOURCES.md` publishes exactly what `scripts\fetch-vendor.ps1` fetches |
 | `sources` | `scripts\fetch-vendor.ps1`, then `-VerifyOnly` | step zero: all 15 archives download from their recorded URLs and pass size, SHA-256 and archive-shape checks; the second run proves idempotence with no network |
 
 **What CI does not do, and why.** There is no build job. Compiling the kit
@@ -260,6 +260,8 @@ the workflow parses no logs.
 scripts\check-gates-selftest.ps1               # negative control for the gates
 scripts\check-encoding.ps1 -RequireArtifacts   # pre-publish: skips become failures
 scripts\verify-docs-artifact.ps1               # the fifth artifact (local: needs dist/)
+scripts\link-audit.ps1                         # every tracked markdown link resolves
+scripts\source-parity.ps1                      # docs\SOURCES.md == fetch-vendor.ps1
 ```
 
 **Why the selftest runs in CI and not only locally.** This job is the one place
@@ -267,15 +269,31 @@ where the artifact sections have nothing to look at, so it is also the one place
 where a section that skipped silently would go unnoticed. The rule in *Testing*
 — every "check passed" needs a negative control — applies to the checkers
 themselves, and a checker whose failure has only ever been read about in a
-document is not a checker. It costs 23 seconds on a bare checkout and 36 on a
+document is not a checker. It costs 45 seconds on a bare checkout and 56 on a
 full one: it builds throwaway repositories and archives under `build/`
 (gitignored) carrying exactly one injected defect each, requires the valid
 baseline to pass, then requires each defect to produce a nonzero exit **and**
-the specific assertion named. 13 injected defects (12 table-driven, plus a
-`.ps1` that is ASCII-and-CRLF-correct but does not parse) and 3 vacuous-pass
-guards — missing artifacts under `-RequireArtifacts`, a zero-tracked-file
-repository, a missing archive. 51 assertions on a full tree, 49 on a bare
-checkout: two of them need the built artifacts and print a skip instead.
+the specific assertion named. 31 injected defect classes — 13 for the two
+encoding gates (12 table-driven, plus a `.ps1` that is ASCII-and-CRLF-correct
+but does not parse), 6 for the link audit, 12 for the source-map parity check —
+and 6 guards that a leg actually ran: missing artifacts under
+`-RequireArtifacts`, a zero-tracked-file repository, a missing archive, a
+markdown set whose anchors were never resolved, a manifest whose notation was
+not understood at all, and a source map with no URL-bearing rows. The last two
+are also among the 31, because there the injected defect *is* that the parser
+understood nothing. 116 assertions on a full tree, 114 on a
+bare checkout: two of them need the built artifacts and print a skip instead.
+
+**Why the two documentation gates are in CI.** `link-audit.ps1` and
+`source-parity.ps1` were scratch tools until this change, and they moved into
+`scripts/` in the same commit that states their result in a tracked document.
+The reason is the rule above: the repository now publishes "every cross-link in
+the markdown resolves" and "the vendor map publishes exactly what the manifest
+fetches", and a published claim whose evidence lives in a gitignored directory
+is not evidence — a reader cannot re-run it, and whoever edits
+`docs\SOURCES.md` next cannot check the edit. Together they cost six seconds,
+which is why they are two more steps of the existing `encoding` job rather than
+a third job.
 
 `verify-docs-artifact.ps1` is the exception to being in CI: it checks entry
 pinning, the manifest cross-check, license byte-identity and the `VERSIONS.txt`

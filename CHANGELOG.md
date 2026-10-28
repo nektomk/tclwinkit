@@ -82,20 +82,36 @@ First release. [Tag `v0.1`](https://github.com/nektomk/tclwinkit/releases/tag/v0
   fallback writes when no VCS is present.
 - **Continuous integration** (`.github/workflows/ci.yml`), two jobs, both
   executed on a real fresh clone before the file was added: `encoding` runs
-  `scripts/check-encoding.ps1` (the three-level encoding rule, PowerShell
-  syntax of every tracked `.ps1`, and the PE timestamp / builder-state gates),
-  and `sources` runs `scripts/fetch-vendor.ps1` followed by `-VerifyOnly`, i.e.
-  step zero against all 15 recorded URLs and then idempotence without network.
-  Every script exits with the number of failed assertions, so no job parses logs.
+  `scripts/check-gates-selftest.ps1`, then `scripts/check-encoding.ps1` (the
+  three-level encoding rule, PowerShell syntax of every tracked `.ps1`, and the
+  PE timestamp / builder-state gates), then `scripts/link-audit.ps1` and
+  `scripts/source-parity.ps1`; `sources` runs `scripts/fetch-vendor.ps1`
+  followed by `-VerifyOnly`, i.e. step zero against all 15 recorded URLs and
+  then idempotence without network. Every script exits with the number of failed
+  assertions, so no job parses logs.
+- **Documentation gates** (`scripts/link-audit.ps1`, `scripts/source-parity.ps1`):
+  the first resolves all 218 markdown links of the tracked tree — 183 relative
+  targets against the index, the worktree and the ignore rules, 26 `#fragment`
+  anchors against the real heading slugs (fenced headings excluded) — and the
+  second checks that `docs/SOURCES.md` and the `scripts/fetch-vendor.ps1`
+  manifest carry the same 15 URLs, digests, sizes and vendored filenames, in
+  both directions, with the size required to sit on the same line as its digest.
+  Both were scratch tools during the audit and were promoted in the same change
+  that publishes their result, because a claim whose evidence lives in a
+  gitignored directory cannot be re-run by a reader. Measured on this tree: 0
+  findings, 5.4 s and 0.6 s.
 - **Negative control for the gates** (`scripts/check-gates-selftest.ps1`, the
-  first step of the `encoding` job): 51 assertions (49 on a bare checkout — two
-  need the built artifacts), 13 injected defect classes, each built as a
-  throwaway repository or archive carrying exactly one defect, with the valid
-  baseline required to pass first. A gate that has only ever been observed
-  passing is not evidence, and CI is precisely where the encoding gate sees no
-  artifacts. Running it exposed an artifact section that passed while skipping,
-  a wrong search path for `SHA256SUMS.txt`, and a fixture that failed for a
-  reason of its own.
+  first step of the `encoding` job): 116 assertions (114 on a bare checkout —
+  two need the built artifacts), 31 injected defect classes and 6 vacuous-pass
+  guards, each built as a throwaway repository or archive carrying exactly one
+  defect, with the valid baseline required to pass first and re-verified after
+  every teardown. A gate that has only ever been observed passing is not
+  evidence, and CI is precisely where the encoding gate sees no artifacts.
+  Running it exposed an artifact section that passed while skipping, a wrong
+  search path for `SHA256SUMS.txt`, a fixture that failed for a reason of its
+  own, a link audit that counted 26 anchors and resolved none, a parity parser
+  that extracted 1 of 15 manifest fields and reported findings as if it worked,
+  and a diagnostic message whose second half PowerShell silently dropped.
 - **Release automation** (`scripts/publish-release.ps1`): annotated tag,
   GitHub release with versioned and architecture-qualified asset names,
   rendered `SHA256SUMS.txt`, release body generated from
