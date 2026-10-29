@@ -1,0 +1,13 @@
+diff --git a/tests/toolbar.test b/tests/toolbar.test
+index 7d31b7c..f26684d 100644
+--- a/tests/toolbar.test
++++ b/tests/toolbar.test
+@@ -154,7 +154,7 @@ foreach test {
+ 	{0 -takefocus false false  }
+ 	{0 -text {} {} }
+ 	{0 -textvariable {} {}  }
+-	{0 -underline -1 -1 }
++	{0 -underline -1 {} }
+ 	{0 -width 0 0 }
+ 	{0 -wraplength 0 0 }
+ 	{0 -helpstr {} {} }

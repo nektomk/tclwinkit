@@ -1,0 +1,17 @@
+diff --git a/generic/checkbox.itk b/generic/checkbox.itk
+index 49e8888..4f9b1a1 100644
+--- a/generic/checkbox.itk
++++ b/generic/checkbox.itk
+@@ -315,7 +315,11 @@ itcl::body iwidgets::Checkbox::deselect {index} {
+ # ------------------------------------------------------------------
+ itcl::body iwidgets::Checkbox::flash {index} {
+     set tag [gettag $index]
+-    $itk_component($tag) flash  
++    $itk_component($tag) flash
++    # Tk 9 leaves the indicator-image name in the interpreter result after
++    # "button flash" (tkButton.c COMMAND_FLASH does not reset it); the
++    # documented result of this method is empty.
++    return
+ }
+ 
+ # ------------------------------------------------------------------

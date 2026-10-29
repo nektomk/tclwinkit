@@ -1,0 +1,33 @@
+diff --git a/generic/radiobox.itk b/generic/radiobox.itk
+index 4ba9401..f5fc3bf 100644
+--- a/generic/radiobox.itk
++++ b/generic/radiobox.itk
+@@ -111,7 +111,7 @@ itcl::body iwidgets::Radiobox::constructor {args} {
+     #
+     set _modes($this) {}
+ 
+-    trace variable [itcl::scope _modes($this)] w [itcl::code $this _command]
++    trace add variable [itcl::scope _modes($this)] write [itcl::code $this _command]
+ 
+     grid columnconfigure $itk_component(childsite) 0 -weight 1
+ 
+@@ -123,7 +123,7 @@ itcl::body iwidgets::Radiobox::constructor {args} {
+ # ------------------------------------------------------------------
+ itcl::body iwidgets::Radiobox::destructor { } {
+ 
+-    trace vdelete [itcl::scope _modes($this)] w [itcl::code $this _command]
++    trace remove variable [itcl::scope _modes($this)] write [itcl::code $this _command]
+     catch {unset _modes($this)}
+ 
+ }
+@@ -389,7 +389,9 @@ itcl::body iwidgets::Radiobox::deselect {index} {
+ # ------------------------------------------------------------------
+ itcl::body iwidgets::Radiobox::flash {index} {
+     set tag [gettag $index]
+-    $itk_component($tag) flash  
++    $itk_component($tag) flash
++    # see iwidgets::Checkbox::flash: Tk 9 leaks the indicator-image name
++    return
+ }
+ 
+ # ------------------------------------------------------------------

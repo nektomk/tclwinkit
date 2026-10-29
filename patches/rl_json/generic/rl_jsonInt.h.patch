@@ -1,0 +1,13 @@
+diff --git a/generic/rl_jsonInt.h b/generic/rl_jsonInt.h
+index e97811a..11b538c 100644
+--- a/generic/rl_jsonInt.h
++++ b/generic/rl_jsonInt.h
+@@ -3,7 +3,7 @@
+ #define _POSIX_C_SOURCE	200809L
+ #define _DEFAULT_SOURCE
+ 
+-#if defined(__has_c_attribute)
++#if defined(__clang__)
+ #	if __has_c_attribute(clang::suppress)
+ #		define SUPPRESS_DEADSTORE [[clang::suppress]]
+ #	endif

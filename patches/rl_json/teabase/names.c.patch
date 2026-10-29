@@ -1,0 +1,33 @@
+diff --git a/teabase/names.c b/teabase/names.c
+index 13198e5..befab05 100644
+--- a/teabase/names.c
++++ b/teabase/names.c
+@@ -5,8 +5,15 @@
+ #include "names.h"
+ #include <stdlib.h>
+ #include <string.h>
++#ifndef _WIN32
+ #include <unistd.h>
++#endif
+ #include <time.h>
++#ifdef _WIN32
++#include <windows.h>
++#define srandom(x) srand((unsigned)(x))
++#define random() ((long)rand())
++#endif
+ 
+ int adjectivesc = 0;
+ static const char* adjectives[] = {
+@@ -326,7 +333,12 @@ static void init()
+ 	Tcl_HashEntry*	he = NULL;
+ 	struct timespec ts;
+ 
++#ifdef _WIN32
++	ts.tv_sec = 0;
++	ts.tv_nsec = (long)(GetTickCount64() % 1000) * 1000000L;
++#else
+ 	clock_gettime(CLOCK_MONOTONIC, &ts);
++#endif
+ 
+ 	Tcl_MutexLock(&things_mutex);
+ 	if (hash_tables_initialized == 0) {

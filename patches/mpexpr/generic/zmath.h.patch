@@ -1,0 +1,19 @@
+diff --git a/generic/zmath.h b/generic/zmath.h
+index ec95b11..5695057 100644
+--- a/generic/zmath.h
++++ b/generic/zmath.h
+@@ -38,6 +38,14 @@
+ #include "calcendian.h"
+ #endif
+ 
++/* modern tcl.h no longer defines CONST/CONST84 */
++#ifndef CONST
++# define CONST
++#endif
++#ifndef CONST84
++# define CONST84
++#endif
++
+ 
+ #ifndef ALLOCTEST
+ # if defined(CALC_MALLOC)

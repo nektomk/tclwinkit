@@ -1,0 +1,217 @@
+{
+  "schema": 1,
+  "canon": { "eol": "lf", "encoding": "utf-8" },
+  "rules": {
+    "marker": ".winkit-patched.json",
+    "apply": "git -c core.autocrlf=false -c core.eol=lf apply -p1 --unsafe-paths",
+    "auditExtensions": ["c", "h", "cc", "cpp", "hh", "hpp", "tcl", "itcl", "itk", "test", "vc", "sh", "bat", "mk", "in", "ac", "am", "txt", "md", "def", "idl"],
+    "auditSkipNames": [".winkit-unpacked.json", ".winkit-patched.json", "manifest.uuid"],
+    "auditSkipDirs": ["bld-msvc", "bld-mingw", "Release*", "Debug*", "obj", ".deps", "autom4te.cache"],
+    "notes": [
+      "This file is the only description of what was changed in the vendor trees. The .patch files next to it are derived: scripts/make-patches.ps1 recomputes them, and it recomputes from_sha256/sha256/patch bytes, so those three fields are never authored by hand.",
+      "canon.eol = lf: both sides are normalized CRLF -> LF before diffing, so every .patch here is pure LF and obeys this repository's tracked-file rule; .gitattributes pins *.patch to eol=lf so a checkout cannot widen that rule into CRLF and break byte-for-byte hunk context. apply-patches.ps1 performs that normalization as a declared step, it is not hidden in the diff bytes. Measured 2026-10-29: none of the 44 CR bytes in the reference trees sits inside a string literal, and preserving them instead would cost a 338-line whole-file hunk for itk win/makefile.vc, whose upstream is CRLF and whose tree is already LF.",
+      "chains is absent when a patch applies to both build chains. Where it is present the other chain keeps the upstream bytes: rl_json win/makefile.vc and itk win/makefile.vc + win/rules.vc are msvc-only, verified 2026-10-29 against the unpacked pristine tree.",
+      "rename_token is an invariant operation, not a patch: it renames a whole-word identifier everywhere in the file. It is declared separately because the 256 occurrences of the C keyword finally would otherwise occupy 1931 diff lines that all say the same thing. make-patches.ps1 applies rename_token first and diffs only the residue, so the patch next to it is what a reviewer actually has to read. matches/remaining are asserted, not documented: a mismatch fails the run.",
+      "file paths are relative to the vendor tree named by component in scripts/vendor-layout.json, which supplies the destination directory; nothing here repeats it.",
+      "Scope of this manifest: source edits only. Three things that alter a build deliberately stay outside it because they are properties of the build, not of the vendor source - the dyncall .lib substitution in the twapi tree (scripts/build-msvc-ext.bat L17-20, scripts/build-mingw-ext.sh L19-22), the rl_jsonUuid.h / manifest.uuid seeding (scripts/build-msvc-ext2.bat L14-40, scripts/build-mingw-ext2.sh L13-29), and the two derived junctions under build/msvc/ext. All three are indexed in patches/README.md.",
+      "from_sha256 is the hash of the pristine file after CRLF->LF normalization, i.e. the input rename_token and the patch expect. sha256 is the hash of the expected result, measured from the tree the kit was built and tested from. apply-patches.ps1 verifies both, so a patch that applies cleanly but produces the wrong bytes still fails."
+    ]
+  },
+  "entries": [
+    {
+      "component": "rl_json",
+      "file": "generic/rl_json.c",
+      "rename_token": { "from": "finally", "to": "finally_label", "matches": 191, "remaining": 0 },
+      "patch": "rl_json/generic/rl_json.c.patch",
+      "note": "goto-метка finally переименована (ключевое слово SEH в MSVC) — см. rename_token; остаток: #if defined(_MSC_VER)-заглушка mkstemp (нет в MSVC CRT, используется только debug-командой checkmem) и правки классификации чисел под Tcl 9",
+      "from_sha256": "ca0d36fc411f488ffbff1e70c0a99a1ddbffeb9dc57a7f20e2c8c82ac31ef0a0",
+      "sha256": "3ec8772cba109a6c799beddc6aa79bbf1c67d2e633a7c3edf27be292a949bbba"
+    },
+    {
+      "component": "rl_json",
+      "file": "generic/api.c",
+      "rename_token": { "from": "finally", "to": "finally_label", "matches": 65, "remaining": 0 },
+      "note": "то же переименование, 65 из 256 вхождений. Патча нет и не нужно: после rename_token файл совпадает с апстримом байт-в-байт (замер 2026-10-29), что и проверяет make-patches.ps1 — запись без patch-поля обязана воспроизводиться объявленными операциями целиком",
+      "from_sha256": "64625ef02595dd01a114cee18e78aeec5a85c8a6667a3bf76cfa322ebcb3f614",
+      "sha256": "bf9e54fa98e3875f5c73290f2e4a69818718eebdf6a4352052fc42788593b876"
+    },
+    {
+      "component": "rl_json",
+      "file": "teabase/names.c",
+      "patch": "rl_json/teabase/names.c.patch",
+      "note": "unistd.h/clock_gettime/srandom/random заменены Win32-эквивалентами под #ifdef _WIN32",
+      "from_sha256": "31cd008de29704d16ce89905f93b7e93b62e726912fd59f61e17bb4739263512",
+      "sha256": "f7e978f66722fc36e51eb35ba7b4b4c787a20e90312073f94be75fe2797fc2fd"
+    },
+    {
+      "component": "rl_json",
+      "file": "generic/rl_jsonInt.h",
+      "patch": "rl_json/generic/rl_jsonInt.h.patch",
+      "note": "__has_c_attribute(clang::suppress) спрятан в #if defined(__clang__): MSVC парсит токены даже за &&-guard",
+      "from_sha256": "d5e3431fb200fbdb8c6952bcc75146a1358ba633159939b69aa0874db8c31712",
+      "sha256": "7d9d64147013c979fa12d18a5a0ff363ccf6b72f8baf14ebf3461b5b7abf1e87"
+    },
+    {
+      "component": "rl_json",
+      "file": "win/makefile.vc",
+      "chains": ["msvc"],
+      "patch": "rl_json/win/makefile.vc.patch",
+      "note": "echo ... \\>> вместо \\> (апстрим-баг: > обрезал файл и стирал TK_DIR/TK_DOTVERSION); PRJ_INCLUDES = -I\"..\\teabase\" и names.obj + rl_jsonBuildInfo.obj в PRJ_OBJS; конфиг-макросы и /Zc:preprocessor в PRJ_DEFINES (без него вариативный макрос CHECK_ARGS_LABEL раскрывается неверно → C4003/C2065); зависимость rl_jsonBuildInfo.obj: ..\\generic\\rl_jsonUuid.h (у апстрима есть в Makefile.in, в nmake-файле её никогда не было → nmake переиспользовал старый объектник и библиотека носила UUID предыдущей сборки). Mingw-цепь не тронута: там апстримные байты",
+      "from_sha256": "8b880560e685a02f4fa9355410d0bcf43a88ed849f1a76f0ad44a9cd17244f34",
+      "sha256": "75ff29f78925c5099607f138c68e8bd85fd4161e2188e43d6e16111b45ba24ac"
+    },
+    {
+      "component": "mpexpr",
+      "file": "generic/mpexpr.h",
+      "patch": "mpexpr/generic/mpexpr.h.patch",
+      "note": "легаси-макросы Tcl 8.x: _ANSI_ARGS_(x) → x, TCL_VARARGS_DEF → (type name, ...), TCL_VARARGS_START → (va_start(ap,name), name); guard'ы CONST/CONST84",
+      "from_sha256": "b4449451edcbcde79e9129faf5cb9d1f6b7c2a9906e1bdcc72ed667e78a95b72",
+      "sha256": "229ccdaf1d3fba9c5477dfa3e6af67e8a387808f8fd4a3a8bdd65f1f19a93a19"
+    },
+    {
+      "component": "mpexpr",
+      "file": "generic/mpparse.c",
+      "patch": "mpexpr/generic/mpparse.c.patch",
+      "note": "(VOID *) → (void *); шим MpBackslash (~80 строк) + #define Tcl_Backslash MpBackslash под TCL_MAJOR_VERSION > 8 — в Tcl 9 публичный Tcl_Backslash удалён. Замечание: VOID НЕ определяется (#define VOID void ломает winnt.h)",
+      "from_sha256": "b971a839385e33dfa75f116f701ade4591717ffe666f89e32d28f479658a9056",
+      "sha256": "1c433d435ce390985aca82626698eae688717d9343d8b36d372761aaf11cba64"
+    },
+    {
+      "component": "mpexpr",
+      "file": "generic/mpiface.c",
+      "patch": "mpexpr/generic/mpiface.c.patch",
+      "note": "правки для Tcl 9 в интерфейсном файле; в прежнем индексе patches/README.md отсутствовали — запись закрывает пробел индекса",
+      "from_sha256": "9fe51c876fceeb03d9ab57a1fa8ff2bc4b2e5ed1f4810d975d6c5438459fb8d8",
+      "sha256": "b31aecc3f98bcc31918a5278c125325bf66aeb442c5d6541799bf0ec2eaa4473"
+    },
+    {
+      "component": "mpexpr",
+      "file": "generic/zmath.h",
+      "patch": "mpexpr/generic/zmath.h.patch",
+      "note": "guard'ы CONST/CONST84 (zmod.c и другие включают только zmath.h, не mpexpr.h)",
+      "from_sha256": "10def67725923ae83ce294378d7ed5bbad362b7d3ceeac92d0aa7b3f4e827e70",
+      "sha256": "1949ff38d1beddc3ebb5d8a7fca7743464eddfa137f4ca17eba4957e6f227999"
+    },
+    {
+      "component": "itk",
+      "file": "win/makefile.vc",
+      "chains": ["msvc"],
+      "patch": "itk/win/makefile.vc.patch",
+      "note": "echo TK_DIR = \\> nmakehlp.out → \\>> (тот же апстрим-баг обрезания, что в rl_json; стирал ITCL_DIR), аналогично TK_DOTVERSION; правило $(ROOT)\\manifest.uuid пишет echo unknown вместо git rev-parse HEAD, и copy на склейке заголовка получает /b (в текстовом режиме copy дописывает Ctrl-Z → warning C5298). Mingw-цепь не тронута",
+      "from_sha256": "a138f75d5796469afc2987b0c7353f10771cd4696c7059ec753f0a08924dd2ca",
+      "sha256": "11be6218f32f00f1f0546ba0dd733b27b7eb028ce8f667513a749e63d4ac7eb8"
+    },
+    {
+      "component": "itk",
+      "rename_file": { "from": "win/rules.vc", "to": "win/rules.vc.own" },
+      "chains": ["msvc"],
+      "note": "itk несёт rules.vc 1.19 без targets.vc → U1052; переименование включает fallback на tcl'овский rules.vc 1.16. Содержимое байт-в-байт апстримное, поэтому это не дифф, а операция переименования: в дереве msvc есть rules.vc.own и нет rules.vc, в mingw наоборот",
+      "from_sha256": "630639d5397291ca33a45243b5ac0454389192c3464b0b731222fbb873851793",
+      "sha256": "630639d5397291ca33a45243b5ac0454389192c3464b0b731222fbb873851793"
+    },
+    {
+      "component": "tktreectrl",
+      "file": "win/tkWinTree.c",
+      "patch": "tktreectrl/win/tkWinTree.c.patch",
+      "note": "DllMain обёрнут в #ifndef STATIC_BUILD: в статическом ките DllMain уже определяет twapi → LNK2005. thisModule остаётся NULL, что для кита корректно (GetModuleFileNameA(NULL) возвращает путь exe)",
+      "from_sha256": "42b059b012134955278e2da4ecd2e54ad6fc90d5bc92e3546384ee680dd407f7",
+      "sha256": "925513ff8b2eb8c0166586acabe59844eec1f429a85999137218291b80731450"
+    },
+    {
+      "component": "iwidgets",
+      "file": "generic/colors.itcl",
+      "patch": "iwidgets/generic/colors.itcl.patch",
+      "note": "case $i \\ → switch -- $i \\ (команда case удалена в Tcl 9). Один вызов в hsbToRgb → каскад падений во всех виджетах, использующих iwidgets::colors::bottomShadow/topShadow",
+      "from_sha256": "86756a26d069d4263ec3c59f7bb59074dcf8256a53709fa73c62617a6fc14a8c",
+      "sha256": "2e6a85f72bc072925d1632e1365f139fd0ab8d76df5f8706de47d8cda13bc0d5"
+    },
+    {
+      "component": "iwidgets",
+      "file": "generic/canvasprintbox.itk",
+      "patch": "iwidgets/generic/canvasprintbox.itk.patch",
+      "note": "два case $x in { → switch -- $x { в ezPaperInfo (размеры бумаги + ориентация). Каскад: canvasprintbox 31 F, canvasprintdialog 52 F, usual c3/c4",
+      "from_sha256": "87e8ec574b1ed791ba68076079fc1b7ac39fa054887e446ea9f06fcc09b65dff",
+      "sha256": "af9ad924260b2f1d9529ce31c47b1814598cb3f133a98dd269af958c5dd325cb"
+    },
+    {
+      "component": "iwidgets",
+      "file": "generic/checkbox.itk",
+      "patch": "iwidgets/generic/checkbox.itk.patch",
+      "note": "flash теперь явно return: в Tk 9 button flash оставляет в результате имя индикаторного изображения, а документированный результат метода — пустая строка",
+      "from_sha256": "fa58a092ccf8ff993a7a455485df458d8822b897283db80a6dd62603c885daec",
+      "sha256": "2c396c4ebd0d81eef375ca7a79f9ab6b1c55fb5932d32a1e30595cb090e9711c"
+    },
+    {
+      "component": "iwidgets",
+      "file": "generic/radiobox.itk",
+      "patch": "iwidgets/generic/radiobox.itk.patch",
+      "note": "trace variable … w → trace add variable … write, trace vdelete … w → trace remove variable … write (синтаксис trace variable удалён в Tcl 9) → 33 F radiobox + usual c32; плюс явный return в flash, как в checkbox.itk",
+      "from_sha256": "05775bfe6db055444858ba170a4ec143105fe8e8d655f3227a8cc1b9461950da",
+      "sha256": "cb1f06f8a747ac39579aa732359134fa5134ec21ec950cf02998be6f3b27ff17"
+    },
+    {
+      "component": "iwidgets",
+      "file": "generic/scopedobject.itcl",
+      "patch": "iwidgets/generic/scopedobject.itcl.patch",
+      "note": "то же trace в конструкторе/деструкторе (trace add/remove variable … undef). Scopedobject — базовый класс, поэтому починка сняла большую часть точечных падений. Порядок аргументов важен: trace add variable NAME op CMD",
+      "from_sha256": "dd7f13a5815e179481a7dce8694ad784de6dc43ace7b80c95619c4000f3a9a87",
+      "sha256": "8ceb50080e1fe56304ba9c327a34d58a2613f3d4f789ce1848d2f83b05ac339b"
+    },
+    {
+      "component": "iwidgets",
+      "file": "tests/combobox.test",
+      "patch": "iwidgets/tests/combobox.test.patch",
+      "note": "bad screen distance \"bogus\" → expected screen distance but got \"bogus\" (Tk 9 переформулировал сообщение); 4 F",
+      "from_sha256": "c15696b99930e5103fdaaccbe331fb3e3ff45158d7e1b0ba20cf802573b7376e",
+      "sha256": "54297e5b9c6fc8a6338d3519309a00458d4b93a52450f74380f69861083763c0"
+    },
+    {
+      "component": "iwidgets",
+      "file": "tests/extbutton.test",
+      "patch": "iwidgets/tests/extbutton.test.patch",
+      "note": "image \"bogus\" doesn't exist → does not exist; 1 F",
+      "from_sha256": "5ea1901001eba5d323615717e003e28b111bee75dcb3e0f3cb75232c2be9ad2c",
+      "sha256": "a4cdeadb94dbadc952005fb84256ddd0f6d1881e3ebee16d2a4b9dda7dead4c1"
+    },
+    {
+      "component": "iwidgets",
+      "file": "tests/hierarchy.test",
+      "patch": "iwidgets/tests/hierarchy.test.patch",
+      "note": "glob $env(HOME)/* на Windows даёт пустой список (обратные слеши — экранирование) → the node doesn't exist в Hierarchy-3.9…3.12; введён set homedir [string map {\\\\ /} $env(HOME)], get_files использует ту же переменную, чтобы UID узлов совпадали байт-в-байт; 4 F",
+      "from_sha256": "8d65c4723394ef5205ed1ed5c8adfab50f8f641063902952b8b988ba6ab05b2d",
+      "sha256": "ab3ab9170de2a339616cc49966821a72dd3e93cca936d8b0030b73231a101f4f"
+    },
+    {
+      "component": "iwidgets",
+      "file": "tests/menubar.test",
+      "patch": "iwidgets/tests/menubar.test.patch",
+      "note": "-underline -1 → ожидаемый {}: Tk 9 хранит «нет подчёркивания» как пустое значение, а не -1",
+      "from_sha256": "5b726ebe83530f9eec15c3869ecc5ebea1b6ce8f505224967aa4f9952ec1ba8d",
+      "sha256": "23282826ef53a22772d6979be016b3585eef1cb86f94c86b9170c10092a728d6"
+    },
+    {
+      "component": "iwidgets",
+      "file": "tests/scrolledhtml.test",
+      "patch": "iwidgets/tests/scrolledhtml.test.patch",
+      "note": "жёстко зашитый Unix-путь /tmp/… в export → $::iwtmp = [string map {\\\\ /} $env(TEMP)]",
+      "from_sha256": "8ae84b58e025b8681bfca1b2977c51717bc1569b9048b01de8699794aa08ce3e",
+      "sha256": "6c5aa076de1d1f75bba4548508bf3fb48f4b77163e1914e8f49e5f32dba9b567"
+    },
+    {
+      "component": "iwidgets",
+      "file": "tests/scrolledtext.test",
+      "patch": "iwidgets/tests/scrolledtext.test.patch",
+      "note": "тот же /tmp/… → $::iwtmp в export",
+      "from_sha256": "f821302e9923d4205be44b6429960fb8ec5c2b082a4efad25ee5dd30800db5aa",
+      "sha256": "8a2d8d46e1a50f0618ccd3e355a1ebd1c5b30aced9dff6209f1d3fd62e1f7222"
+    },
+    {
+      "component": "iwidgets",
+      "file": "tests/toolbar.test",
+      "patch": "iwidgets/tests/toolbar.test.patch",
+      "note": "-underline -1 → ожидаемый {}, как в menubar.test",
+      "from_sha256": "80bfd5989fb48067e29830a617cc538aac8ef3cd50d15d8b6d9671759120b46e",
+      "sha256": "9e27eb0c1871d88f03397a09de4a6a956db40838b7a57497b14e11bfdbdbee44"
+    }
+  ]
+}

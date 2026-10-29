@@ -1,0 +1,28 @@
+diff --git a/generic/mpiface.c b/generic/mpiface.c
+index 5cbb38e..28c4c0a 100644
+--- a/generic/mpiface.c
++++ b/generic/mpiface.c
+@@ -73,13 +73,22 @@ Mpexpr_Init (interp)
+     TCL_DECLARE_MUTEX(mpMutex)
+ 
+ #ifdef USE_TCL_STUBS
+-    if (Tcl_InitStubs(interp, "8.5", 0) == NULL) {
++    #if TCL_MAJOR_VERSION >= 9
++    if (Tcl_InitStubs(interp, "9.0", 0) == NULL) {
++#else
++    if (Tcl_InitStubs(interp, "8.6", 0) == NULL) {
++#endif
+ 	return TCL_ERROR;
+     }
+ 
++#if TCL_MAJOR_VERSION < 9
++    /* winkit: on Tcl 9 this redundant check always fails ("version
++     * conflict for package Tcl: have 9.x, need 8.5"); Tcl_InitStubs above
++     * already guarantees the core version. */
+     if (Tcl_PkgRequire(interp, "Tcl", "8.5", 0) == NULL) {
+ 	return TCL_ERROR;
+     }
++#endif
+ #endif
+ 
+     if (!initialized) {

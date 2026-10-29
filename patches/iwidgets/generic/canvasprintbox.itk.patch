@@ -1,0 +1,22 @@
+diff --git a/generic/canvasprintbox.itk b/generic/canvasprintbox.itk
+index 9d41daa..b1f472d 100644
+--- a/generic/canvasprintbox.itk
++++ b/generic/canvasprintbox.itk
+@@ -986,7 +986,7 @@ itcl::body iwidgets::Canvasprintbox::ezPaperInfo {size {attr ""} \
+ 	set attr [string tolower $attr]
+ 	set orient [string tolower $orient]
+ 	
+-	case $size in {
++	switch -- $size {
+ 		types {
+ 			return "A5 A4 A3 A2 A1 Legal Letter"
+ 		}
+@@ -1090,7 +1090,7 @@ itcl::body iwidgets::Canvasprintbox::ezPaperInfo {size {attr ""} \
+ 	set inv(centerx) "centery"
+ 	set inv(centery) "centerx"
+ 	
+-	case $orient in {
++	switch -- $orient {
+ 		landscape {
+ 			set res $paper($inv($attr))
+ 		}

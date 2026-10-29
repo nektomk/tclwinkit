@@ -1,0 +1,24 @@
+diff --git a/tests/scrolledtext.test b/tests/scrolledtext.test
+index 4021b9c..b8f0451 100644
+--- a/tests/scrolledtext.test
++++ b/tests/scrolledtext.test
+@@ -36,6 +36,10 @@ if {[string compare test [info procs test]] == 1} {
+ wm geometry . {}
+ raise .
+ 
++# WINKIT: upstream exported to the hard-coded Unix path /tmp/..., which does
++# not exist on Windows; use the per-user temp dir instead.
++set ::iwtmp [string map {\\ /} $env(TEMP)]
++
+ set c 1
+ set o 1
+ set m 1
+@@ -144,7 +148,7 @@ foreach test {
+ #
+ foreach test {
+     {{.st import ./scrolledtext.test} {}}
+-    {{.st export /tmp/scrolledtext.test} {}}
++    {{.st export $::iwtmp/scrolledtext.test} {}}
+     {{.st clear} {}}} {
+ 	set method [lindex [lindex $test 0] 1]
+ 	test Scrolledtext-3.$m "object methods, $method" {

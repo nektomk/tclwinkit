@@ -195,7 +195,10 @@ if (-not $VerifyOnly) {
     $fvRc = $LASTEXITCODE
     foreach ($l in $fvOut) { if ($l -match '^(verdict|FETCH-VENDOR)') { '            ' + $l } }
     if ($fvRc -ne 0) {
-        'PRECONDITION FAILED: vendor/ is not verified (fetch-vendor rc=' + $fvRc + '); refusing to unpack'
+        'PRECONDITION FAILED: fetch-vendor.ps1 -VerifyOnly rc=' + $fvRc + ' for'
+        '                   vendor dir: ' + (Join-Path $Root 'vendor')
+        '                   (a throwaway -Root needs its own copy of vendor/)'
+        '                   refusing to unpack'
         exit 1
     }
     ''
@@ -215,7 +218,12 @@ foreach ($p in $plan) {
     }
     $sha = Get-ShaHex $archPath
     $state = Test-Dest $p.dest $e $sha
-    if ($state -eq '') {
+    if ($state -eq '' -and (-not $Force -or $VerifyOnly)) {
+        # -Force falls through even here: a marked tree is exactly the case the
+        # flag exists for. Before 2026-10-29 this early skip ran first, so
+        # -Force silently did nothing to any tree that had ever verified, which
+        # is the state a patched tree is in -- step 2 needs "give me pristine
+        # bytes back" to work on a patched tree, not only on a damaged one.
         $skipped++
         ($tag + 'ok (marked, ' + $e.archive + ')')
         continue

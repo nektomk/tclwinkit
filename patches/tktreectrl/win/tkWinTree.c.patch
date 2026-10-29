@@ -1,0 +1,23 @@
+diff --git a/win/tkWinTree.c b/win/tkWinTree.c
+index a827dd8..52cc6c2 100644
+--- a/win/tkWinTree.c
++++ b/win/tkWinTree.c
+@@ -1376,6 +1376,10 @@ GetMyHandle(void)
+ #endif
+ }
+ 
++#ifndef STATIC_BUILD
++/* winkit patch: static kits link twapi, which already defines DllMain.
++ * thisModule is only used for GetModuleFileNameA(), which falls back to
++ * the exe path when passed NULL — fine for a statically linked kit. */
+ BOOL WINAPI
+ DllMain(
+     HINSTANCE hInst,	/* Library instance handle. */
+@@ -1387,6 +1391,7 @@ DllMain(
+     }
+     return TRUE;
+ }
++#endif /* STATIC_BUILD */
+ 
+ static HANDLE
+ ActivateManifestContext(ULONG_PTR *ulpCookie)

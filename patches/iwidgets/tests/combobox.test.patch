@@ -1,0 +1,27 @@
+diff --git a/tests/combobox.test b/tests/combobox.test
+index a61d2e6..0330f6d 100644
+--- a/tests/combobox.test
++++ b/tests/combobox.test
+@@ -155,18 +155,18 @@ foreach test {
+ # Option tests which fail and produce errors.
+ #
+ foreach test {
+-    {-borderwidth bogus {bad screen distance "bogus"}}
++    {-borderwidth bogus {expected screen distance but got "bogus"}}
+ 	{-completion bogus {bad completion option "bogus": should be boolean}}
+     {-cursor bogus {bad cursor spec "bogus"}}
+     {-dropdown bogus {bad dropdown option "bogus": should be boolean}}
+ 	{-editable bogus {bad editable option "bogus": should be boolean}}
+     {-exportselection bogus {expected boolean value but got "bogus"}}
+     {-grab bogus {bad grab value "bogus": must be global or local}}
+-    {-listheight bogus {bad screen distance "bogus"}}
++    {-listheight bogus {expected screen distance but got "bogus"}}
+     {-hscrollmode bogus {bad hscrollmode option "bogus": should be static, dynamic, or none}}
+-    {-margin bogus {bad screen distance "bogus"}}
++    {-margin bogus {expected screen distance but got "bogus"}}
+     {-popupcursor bogus {bad cursor spec "bogus"}}
+-    {-selectborderwidth bogus {bad screen distance "bogus"}}
++    {-selectborderwidth bogus {expected screen distance but got "bogus"}}
+     {-state bogus {bad state "bogus": must be disabled or normal}}
+     {-unique bogus {bad unique value "bogus": should be boolean}}
+     {-vscrollmode bogus {bad vscrollmode option "bogus": should be static, dynamic, or none}}

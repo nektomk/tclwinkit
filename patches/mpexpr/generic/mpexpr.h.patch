@@ -1,0 +1,24 @@
+diff --git a/generic/mpexpr.h b/generic/mpexpr.h
+index a3dd687..57597bf 100644
+--- a/generic/mpexpr.h
++++ b/generic/mpexpr.h
+@@ -74,6 +74,19 @@ typedef void * Tcl_ThreadDataKey;
+ # define CONST84
+ #endif
+ 
++/* modern tcl.h no longer defines _ANSI_ARGS_ */
++#ifndef _ANSI_ARGS_
++# define _ANSI_ARGS_(x) x
++#endif
++
++/* Tcl 8.0-era varargs helpers removed from modern tcl.h */
++#ifndef TCL_VARARGS_DEF
++# define TCL_VARARGS_DEF(type,name) (type name, ...)
++#endif
++#ifndef TCL_VARARGS_START
++# define TCL_VARARGS_START(type,name,ap) (va_start(ap, name), name)
++#endif
++
+ #include "qmath.h"
+ 
+ #define MPEXPR_VERSION   "1.2"

@@ -1,0 +1,13 @@
+diff --git a/tests/extbutton.test b/tests/extbutton.test
+index 122e2e5..60208a5 100644
+--- a/tests/extbutton.test
++++ b/tests/extbutton.test
+@@ -101,7 +101,7 @@ foreach test {
+ # Option tests which fail and produce errors.
+ #
+ foreach test {
+-  {-image bogus {image "bogus" doesn't exist}}
++  {-image bogus {image "bogus" does not exist}}
+   {-bitmap bogus {bitmap "bogus" not defined}}} {
+ 	set option [lindex $test 0]
+         test Extbutton-2.$o "configuration options, $option" {

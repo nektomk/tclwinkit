@@ -1,0 +1,13 @@
+diff --git a/generic/colors.itcl b/generic/colors.itcl
+index c7b7c33..2542d5d 100644
+--- a/generic/colors.itcl
++++ b/generic/colors.itcl
+@@ -136,7 +136,7 @@ namespace eval iwidgets::colors {
+ 	    set p [format %.0f [expr {65535.0*$value*(1 - $sat)}]]
+ 	    set q [format %.0f [expr {65535.0*$value*(1 - ($sat*$f))}]]
+ 	    set t [format %.0f [expr {65535.0*$value*(1 - ($sat*(1 - $f)))}]]
+-	    case $i \
++	    switch -- $i \
+ 		    0 {return "$v $t $p"} \
+ 		    1 {return "$q $v $p"} \
+ 		    2 {return "$p $v $t"} \

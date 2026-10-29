@@ -1,0 +1,22 @@
+diff --git a/generic/scopedobject.itcl b/generic/scopedobject.itcl
+index 91408ea..125bbe1 100644
+--- a/generic/scopedobject.itcl
++++ b/generic/scopedobject.itcl
+@@ -126,7 +126,7 @@ itcl::body iwidgets::Scopedobject::constructor {args} {
+   set depth [llength [$this info heritage]]
+   set _level "#[uplevel $depth info level]"
+   uplevel $_level set _localVar($this) $this
+-  uplevel $_level [list ::trace variable _localVar($this) u [itcl::code $this _traceCommand]]
++  uplevel $_level [list ::trace add variable _localVar($this) undef [itcl::code $this _traceCommand]]
+ 
+   eval configure $args
+ 
+@@ -140,7 +140,7 @@ itcl::body iwidgets::Scopedobject::constructor {args} {
+ #--------------------------------------------------------------------------------
+ itcl::body iwidgets::Scopedobject::destructor {} {
+ 
+-  uplevel $_level [list ::trace vdelete _localVar($this) u [itcl::code $this _traceCommand]]
++  uplevel $_level [list ::trace remove variable _localVar($this) undef [itcl::code $this _traceCommand]]
+ 
+   if {$exitscopecommand != {}} {
+     eval $exitscopecommand

@@ -47,3 +47,20 @@
 LICENSE text eol=lf
 THIRD-PARTY-NOTICES.md text eol=lf
 LICENSES/** text eol=lf
+
+# Vendor patches, pinned for a different reason than the blocks above. These
+# files are inputs to `git apply`, which matches hunk context byte for byte, so
+# one CR added by a checkout makes the apply fail rather than quietly corrupt a
+# source. patches/patches.json declares canon.eol = "lf" and
+# scripts/make-patches.ps1 emits LF; this rule keeps the two in sync.
+#
+# No rule is needed for build/ or vendor/: both are ignored, so git never
+# normalizes them. scripts/apply-patches.ps1 nevertheless stages its copies
+# under $env:TEMP, outside every repository, because `git apply` resolves a
+# patch path differently inside a working tree than outside one: measured on
+# 2026-10-29 with git 2.49.0, the same invocation returned rc=0 and left the
+# target byte-for-byte unchanged when its directory was inside a repository, and
+# patched correctly when it was not. The applier does not rely on either
+# behaviour -- it hashes the staged result against patches.json sha256 and only
+# commits the bytes if they match, so a silent no-op becomes HASH-MISMATCH.
+*.patch text eol=lf

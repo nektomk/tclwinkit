@@ -1,0 +1,24 @@
+diff --git a/tests/scrolledhtml.test b/tests/scrolledhtml.test
+index 8989d06..d76b851 100644
+--- a/tests/scrolledhtml.test
++++ b/tests/scrolledhtml.test
+@@ -36,6 +36,10 @@ if {[string compare test [info procs test]] == 1} {
+ wm geometry . {}
+ raise .
+ 
++# WINKIT: upstream exported to the hard-coded Unix path /tmp/..., which does
++# not exist on Windows; use the per-user temp dir instead.
++set ::iwtmp [string map {\\ /} $env(TEMP)]
++
+ set c 1
+ set o 1
+ set m 1
+@@ -155,7 +159,7 @@ foreach test {
+ foreach test {
+     {{.sh import ./scrolledhtml.test} {}}
+     {{.sh pwd} {.}}
+-    {{.sh export /tmp/scrolledhtml.test} {}}
++    {{.sh export $::iwtmp/scrolledhtml.test} {}}
+     {{.sh render {
+         <title>Test</title>
+   <body bgcolor="#000000" link="#40a0f0" text="#00d0d0" background="notyet.gif">

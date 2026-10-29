@@ -1,0 +1,28 @@
+diff --git a/tests/hierarchy.test b/tests/hierarchy.test
+index 14c91e7..4746da5 100644
+--- a/tests/hierarchy.test
++++ b/tests/hierarchy.test
+@@ -60,13 +60,20 @@ test Hierarchy-1.$c {Hierarchy construction} {
+            0xfe, 0x7f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+     }	
+ 
+-    set homelist [lsort [glob -nocomplain $env(HOME)/*]]
++    # WINKIT: on Windows $env(HOME) contains backslashes, which glob treats
++    # as escape characters, so the upstream [glob $env(HOME)/*] returned an
++    # empty list and Hierarchy-3.9..3.12 (expand/collapse/toggle/refresh on
++    # a real node) failed with "the node doesn't exist". Normalize the
++    # separators once and use the same form inside get_files, because the
++    # node UIDs must match the glob result byte for byte.
++    set homedir [string map {\\ /} $env(HOME)]
++    set homelist [lsort [glob -nocomplain $homedir/*]]
+ 
+     proc get_files {file} {
+-	global env
++	global homedir
+ 
+ 	if {$file == ""} {
+-	    set dir $env(HOME)
++	    set dir $homedir
+ 	} else {
+ 	    set dir $file
+ 	}

@@ -1,0 +1,22 @@
+diff --git a/tests/menubar.test b/tests/menubar.test
+index 7384d95..1d90079 100644
+--- a/tests/menubar.test
++++ b/tests/menubar.test
+@@ -145,7 +145,7 @@ foreach test {
+ 	{ .file.quit -image {} {} }
+ 	{ .file.quit -label hello hello }
+ 	{ .file.quit -state normal normal }
+-	{ .file.quit -underline -1 -1 }
++	{ .file.quit -underline -1 {} }
+ 	{ .file.quit -helpstr {} {} }
+ 	} {
+ 		set index  [lindex $test 0]
+@@ -177,7 +177,7 @@ foreach test {
+ 	{ .view.more -image {} {}  }
+ 	{ .view.more -label {} {}  }
+ 	{ .view.more -state normal normal }
+-	{ .view.more -underline -1 -1 }
++	{ .view.more -underline -1 {} }
+ 	{ .view.more -helpstr {} {} }
+ 	} {
+ 		set index  [lindex $test 0]

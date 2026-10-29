@@ -1,0 +1,17 @@
+diff --git a/generic/rl_json.c b/generic/rl_json.c
+index 644d087..b8e9f26 100644
+--- a/generic/rl_json.c
++++ b/generic/rl_json.c
+@@ -1,5 +1,12 @@
+ #include "rl_jsonInt.h"
+ 
++/* winkit patch: POSIX mkstemp() does not exist in the MSVC CRT; it is only
++ * used by the debug-only `checkmem'' command, so fail it cleanly. */
++#if defined(_MSC_VER) && !defined(mkstemp)
++#   include <errno.h>
++#   define mkstemp(t) (Tcl_SetErrno(EINVAL), -1)
++#endif
++
+ TCL_DECLARE_MUTEX(g_config_mutex)
+ Tcl_Obj*		g_packagedir = NULL;
+ Tcl_Obj*		g_includedir = NULL;
