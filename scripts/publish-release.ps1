@@ -143,15 +143,14 @@ Say 'sums' ('{0} ({1} B)' -f $sumsPath, $sumBytes)
 # ------------------------------------------------------ 3. release notes ---
 $tplPath = Join-Path $Root 'src\docs\release-notes.md'
 if (-not (Test-Path -LiteralPath $tplPath)) { throw "notes template missing: $tplPath" }
-$tbl = @('| Asset | Size | What it is |', '|---|---:|---|')
+$tbl = @('| Asset | What it is |', '|---|---|')
 foreach ($r in $rows) {
-    $tbl += ('| {0}{1}{0} | {2:N2} MB | {3} |' -f $Tick, $r.asset, ($r.bytes / 1MB), $r.label)
+    $tbl += ('| {0}{1}{0} | {2} |' -f $Tick, $r.asset, $r.label)
 }
-$tbl += ('| {0}SHA256SUMS.txt{0} | {1:N2} KB | checksums of all of the above |' -f $Tick, ($sumBytes / 1KB))
+$tbl += ('| {0}SHA256SUMS.txt{0} | checksums of all of the above |' -f $Tick)
 $notes = [System.IO.File]::ReadAllText($tplPath, $Utf8)
 $subst = [ordered]@{
     '{{ASSET_TABLE}}' = ($tbl -join "`n")
-    '{{TOTAL_MB}}' = ('{0:N2}' -f ($total / 1MB))
     '{{VERSION}}' = $Version
     '{{HEAD}}' = $head
     # These are substituted BARE: the template owns any markdown code spans, so

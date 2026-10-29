@@ -1,162 +1,166 @@
-Портативная сборка Tcl 9.0.4 (+ Tk 9.0.4) для Windows x64: один файл =
-интерпретатор + статически влинкованные расширения + pure-Tcl библиотеки,
-прицеплённые ZIP-архивом через встроенный zipfs. Ни DLL beside exe, ни
-установщика, ни внешних зависимостей — скопировал файл и работаешь.
+Portable single-file Tcl 9 for Windows x64. One executable is a whole Tcl 9
+distribution: the interpreter (plus Tk in the GUI builds), binary extensions
+statically linked in, and ~700 pure-Tcl libraries carried as a ZIP archive the
+built-in **zipfs** mounts at startup. No DLLs beside the exe, no installer, no
+registry writes — copy one file and run it.
 
-## Артефакты
+## Download
 
 {{ASSET_TABLE}}
 
-Итого {{TOTAL_MB}} МБ. Все четыре kit-exe и docs-архив собраны из одного дерева
-исходников и несут одну версию {{VERSION}}; контрольные суммы — в
-`SHA256SUMS.txt` (`sha256sum -c SHA256SUMS.txt`, либо `certutil -hashfile
-<file> SHA256` в Windows).
+All four kit executables and the docs archive are built from a single source
+tree and share one version {{VERSION}}. Checksums are in `SHA256SUMS.txt`
+(`sha256sum -c SHA256SUMS.txt`, or `certutil -hashfile <file> SHA256` on
+Windows; the file ships with the release assets).
 
-## Запуск
+## Running
 
 ```
-{{CONSOLE_EXE}} script.tcl arg1 arg2   ;# как tclsh: аргументы, -encoding
-type cmds.tcl | {{CONSOLE_EXE}}        ;# stdin-режим, как tclsh
-{{CONSOLE_EXE}}                        ;# интерактивный REPL: история,
-                                       ;# Ctrl+R, Tab-дополнение (TclReadLine)
-{{GUI_EXE}} app.tcl                    ;# как wish
+{{CONSOLE_EXE}} script.tcl arg1 arg2   ;# like tclsh: arguments, -encoding
+type cmds.tcl | {{CONSOLE_EXE}}        ;# stdin mode, like tclsh
+{{CONSOLE_EXE}}                        ;# interactive REPL: history, Ctrl+R,
+                                       ;# Tab completion (TclReadLine)
+{{GUI_EXE}} app.tcl                    ;# like wish
 {{GUI_EXE}}                            ;# GUI + Tk console widget
 ```
 
-Консольный exe — drop-in замена `tclsh` (те же семантики аргументов, pipe-режима
-и кодов возврата), GUI — drop-in замена `wish`. Варианты msvc и mingw взаимозаменяемы.
+The console exe is a drop-in `tclsh` replacement (same argument semantics, pipe
+mode and exit codes); the GUI exe is a drop-in `wish` replacement. The msvc and
+mingw builds are interchangeable — pick the one matching your downloaded file.
 
-## Состав
+## What is inside
 
-| Компонент | Версия | Как подключён |
-|---|---|---|
-| Tcl core | 9.0.4 | статически |
-| Tk | 9.0.4 | статически (GUI-exe) |
-| registry / dde | 1.3.7 / 1.4.6 | статически (часть ядра) |
-| Itcl | 4.3.8 | статически + `itcl4.3.8/itcl.tcl` в zipfs |
-| Itk | 4.2.7 | статически + `itk4.2.7/` в zipfs (GUI-exe) |
-| Iwidgets | 4.1.1 | pure Tcl (zipfs, GUI-exe) |
-| Thread | 3.0.6 | статически + `thread_library/ttrace.tcl` |
-| tdbc / sqlite3 | 1.1.13 / 3.53.0 | статически + Tcl-части в zipfs |
-| tdbc::sqlite3 / tdbc::odbc | 1.1.13 | pure Tcl / статически |
-| TWAPI | 5.2.0 | статически (+ dyncall 0.9) + Tcl-часть в zipfs |
-| Img (tkimg) | 2.1.2 | статически: base, zlibtcl, pngtcl, jpegtcl, tifftcl, 19 форматов |
-| rl_json | 0.17.8 | статически (обе сборки) |
-| mpexpr | 1.2 | статически (обе сборки) |
-| tkdnd | 2.9.5 | статически + Tcl-часть в zipfs (GUI-exe) |
-| Treectrl | 2.5.2 | статически + `treectrl2.5.2/` в zipfs (GUI-exe) |
-| tcllib | 2.0 | pure Tcl (zipfs) |
-| tklib | 0.9 | pure Tcl (zipfs, GUI-exe) |
-| CAWT | 3.1.1 | pure Tcl (zipfs) |
-| TclReadLine | 1.1 | pure Tcl (zipfs) + Win32-shim на TWAPI |
+| Component | How it is linked |
+|---|---|
+| Tcl core | statically |
+| Tk | statically (GUI builds) |
+| registry / dde | statically (part of the core) |
+| Itcl / Itk | statically + Tcl parts in zipfs (GUI builds for Itk) |
+| Iwidgets | pure Tcl (zipfs, GUI builds) |
+| Thread | statically + `thread_library/ttrace.tcl` |
+| tdbc / sqlite3 | statically + Tcl parts in zipfs |
+| tdbc::sqlite3 / tdbc::odbc | pure Tcl / statically |
+| TWAPI | statically (uses dyncall) + Tcl parts in zipfs |
+| Img (tkimg) | statically: base, zlibtcl, pngtcl, jpegtcl, tifftcl — 19 formats |
+| rl_json | statically |
+| mpexpr | statically |
+| tkdnd | statically + Tcl parts in zipfs (GUI builds) |
+| Treectrl | statically + Tcl parts in zipfs (GUI builds) |
+| tcllib | pure Tcl (zipfs) |
+| tklib | pure Tcl (zipfs, GUI builds) |
+| CAWT | pure Tcl (zipfs) |
+| TclReadLine | pure Tcl (zipfs) + Win32 shim on TWAPI |
 
-## Документация, маны и демо
+The exact version of every bundled component is recorded in `VERSIONS.txt`
+inside the docs archive.
 
-В kit-exe сознательно не кладётся ничего, кроме рантайма: справочные страницы,
-HTML-документация, демо-программы и тестовые наборы пакетов вырезаны из
-staging-образа (`scripts\kit-prune.ps1`, −32,40 МБ и −4269 файлов на GUI-кит) и
-публикуются отдельным архивом `{{DOCS_ZIP}}` — 2684 файла, 41,50 МБ в
-распакованном виде. Обязательные лицензионные тексты при этом остаются в exe:
-prune режет документацию, но не условия лицензий (см. «Лицензии» ниже).
+## Documentation, man pages and demos
 
-| Раздел | Файлов | Что внутри |
+The kit executables deliberately carry nothing but the runtime: reference pages,
+HTML documentation, package demos and test suites are pruned from the staging
+image (`scripts\kit-prune.ps1`) and published as the separate `{{DOCS_ZIP}}`
+archive instead. Required license texts stay in the exe — pruning removes
+documentation but never license terms (see «Licenses» below).
+
+| Section | Files | What is inside |
 |---|---:|---|
-| `man/` | 584 | nroff-страницы по 14 пакетам (tcl, tk, itcl, itk, iwidgets, img, tdbc×3, sqlite3, thread, rl_json, tkdnd, treectrl) |
-| `html/` | 1473 | tcllib/tklib idoc, справочник twapi, cawt, thread, mpexpr, tkdnd, treectrl |
+| `man/` | 584 | nroff pages for 14 packages (tcl, tk, itcl, itk, iwidgets, img, tdbc ×3, sqlite3, thread, rl_json, tkdnd, treectrl) |
+| `html/` | 1473 | tcllib/tklib idoc, TWAPI reference, cawt, thread, mpexpr, tkdnd, treectrl |
 | `demos/` | 519 | Tk, iwidgets, itk (+itkedit), treectrl, tkdnd, cawt |
-| `docs/` | 47 | README/CHANGES/ChangeLog по 20 пакетам |
-| `LICENSES/` | 54 | тексты лицензий всех бандловых компонентов + своп шапок исходников |
+| `docs/` | 47 | README/CHANGES/ChangeLog of the bundled packages |
+| `LICENSES/` | 54 | license texts of all bundled components + source-header swaps |
 | `tools/` | 2 | `man.tcl`, `iwidgets-demo.tcl` |
 | — | 5 | `README.md`, `VERSIONS.txt`, `MANIFEST.txt`, `LICENSE`, `THIRD-PARTY-NOTICES.md` |
 
-Распаковав архив, демо запускаются теми же exe:
+After unpacking, the demos run with the same executables:
 
 ```
-{{GUI_EXE}} demos\tk\widget              ;# браузер демо Tk
-{{GUI_EXE}} demos\iwidgets\catalog       ;# браузер демо iwidgets
-{{GUI_EXE}} demos\treectrl\demo.tcl      ;# браузер демо Treectrl
-{{CONSOLE_EXE}} tools\man.tcl man\tcl\subst.n  ;# ман-страница текстом, без groff
+{{GUI_EXE}} demos\tk\widget              ;# Tk demo browser
+{{GUI_EXE}} demos\iwidgets\catalog       ;# iwidgets demo browser
+{{GUI_EXE}} demos\treectrl\demo.tcl      ;# Treectrl demo browser
+{{CONSOLE_EXE}} tools\man.tcl man\tcl\subst.n  ;# a man page as plain text
 ```
 
-`tools\man.tcl` рендерит nroff в текст на самом ките — groff не нужен.
+`tools\man.tcl` renders nroff to text on the kit itself — no groff needed.
 
-## Лицензии
+## Licenses
 
-Собственная обвязка кита (`src/kit`, `scripts`, `docs`, `tests`) — MIT, см.
-`LICENSE` репозитория. Всё остальное остаётся при своих лицензиях: бандл
-состоит из Tcl 9.0.4 / Tk 9.0.4 и их расширений (лицензия Tcl), tcllib/tklib
-(лицензия Tcl с модульными исключениями), iwidgets (DSC/BSD), TWAPI и CAWT
-(BSD-3), SQLite (public-domain «благословение»), libpng/libtiff/libjpeg/zlib,
-Info-ZIP-шифра в zipfs и нескольких нотисов, существующих только в шапках
-исходников.
+The kit's own glue (`src/kit`, `scripts`, `docs`, `tests`) is MIT — see the
+repository `LICENSE`. Everything else stays under its own license: the bundle is
+Tcl / Tk and their extensions (Tcl license), tcllib/tklib (Tcl license with
+module exceptions), iwidgets (DSC/BSD), TWAPI and CAWT (BSD-3), SQLite
+(public-domain blessing), libpng/libtiff/libjpeg/zlib, the Info-ZIP cipher used
+by zipfs, and a few notices that exist only in source headers.
 
-Что это не декларация, а факт поставки:
+This is a fact of the shipment, not a policy statement:
 
-- обязательные тексты лежат **внутри каждого exe** (`//zipfs:/app/...`), а не
-  только в репозитории;
-- `THIRD-PARTY-NOTICES.md` (в корне репозитория и в docs-архиве) называет
-  каждый компонент, его лицензию, держателей и цитирует дословно то, что
-  лицензия требует воспроизвести в дистрибутиве;
-- каталог `LICENSES/` (54 текста) целиком генерируется
-  `scripts/make-licenses.ps1` из вендорских деревьев — ничего набрано руками,
-  флаг `-Check` верифицирует дерево обратно и годится в CI;
-- `tests/kit-license-check.tcl` читает тексты из образа готового exe и проверяет
-  в них фразы, которые требует каждая конкретная лицензия.
+- the required texts live **inside every exe** (`//zipfs:/app/...`), not only in
+  the repository;
+- `THIRD-PARTY-NOTICES.md` (in the repo root and in the docs archive) names every
+  component, its license, its copyright holders, and quotes verbatim what each
+  license requires to be reproduced in a distribution;
+- the `LICENSES/` directory (54 texts) is generated entirely by
+  `scripts\make-licenses.ps1` from the vendor trees — nothing is typed by hand,
+  and the `-Check` flag verifies the tree back and is CI-ready;
+- `tests\kit-license-check.tcl` reads the texts from the finished exe's image and
+  checks the phrases each specific license requires.
 
-## Проверено на этой сборке
+## Verified on this build
 
-- `tests\smoke.tcl` — SMOKE OK на всех четырёх exe, включая статику в дочерних
-  интерпретаторах (`thread create {package require sqlite3 ; thread wait}`).
-- `tests\tcllib-probe.tcl` — PROBE OK ×4: консоль 439 offered / 384 loaded,
-  GUI 571 / 508 loaded, 0 новых поломок против неприбранного дерева
-  (апстримовые отказы сверяются со снимком `tests\tcllib-probe.baseline.txt`).
-- `tests\kit-license-check.tcl` — KIT LICENSE CHECK OK ×4 (консоль: 8 путей + 6
-  фраз, GUI: 17 + 11; слои отсутствуют только целиком, поэтому консольный кит
-  без Tk не считается пропуском лицензии). Гард проверен негативными контролями:
-  удаление 6 обязательных текстов из копии образа → 6 провалов и exit 1;
-  обрезка одного до 43 байт → 2 провала (слишком короткий + требуемая фраза
-  отсутствует).
-- Пакетные наборы, оба кита (цифры msvc ↔ mingw совпадают): iwidgets
+- `tests\smoke.tcl` — SMOKE OK on all four exes, including statics in child
+  interpreters (`thread create {package require sqlite3 ; thread wait}`).
+- `tests\tcllib-probe.tcl` — PROBE OK ×4: console 439 offered / 384 loaded, GUI
+  571 / 508 loaded, 0 new breakages against the unpruned tree (upstream failures
+  are checked against the `tests\tcllib-probe.baseline.txt` snapshot).
+- `tests\kit-license-check.tcl` — KIT LICENSE CHECK OK ×4 (console: 8 paths + 6
+  phrases, GUI: 17 + 11; layers are absent only as a whole, so a console kit
+  without Tk is not a license miss). The guard is verified by negative controls:
+  deleting 6 required texts from a copy of the image → 6 failures and exit 1;
+  trimming one to 43 bytes → 2 failures (too short + required phrase missing).
+- Package suites, both kits (figures agree between msvc and mingw): iwidgets
   3308/3308/0F, itk 100/100/0F, Img 290/272/18skip/0F, treectrl
-  1236/1216/19skip/1F (upstream `itemdesc-1.15`), tkdnd 6/6 load-OK;
-  itcl 793/727/66skip/0F, thread 143/117/26skip/0F, sqlite3 1/1/0/0,
-  tdbc 13/13/0/0, tdbc::sqlite3 161/158/3/0F, rl_json 2565/2562/3/0F,
-  mpexpr чисто; tcllib-модули: doctools 599/599/0F, textutil 211/211/0F,
-  struct 2708/2672/36skip/0F, json 527/527/0F.
-- `tools\man.tcl` прогоняет 556/556 страниц man-раздела готового архива с exit 0.
+  1236/1216/19skip/1F (upstream `itemdesc-1.15`), tkdnd 6/6 load-OK; itcl
+  793/727/66skip/0F, thread 143/117/26skip/0F, sqlite3 1/1/0/0, tdbc 13/13/0/0,
+  tdbc::sqlite3 161/158/3/0F, rl_json 2565/2562/3/0F, mpexpr clean; tcllib
+  modules: doctools 599/599/0F, textutil 211/211/0F, struct 2708/2672/36skip/0F,
+  json 527/527/0F.
+- `tools\man.tcl` runs through 556/556 man pages of the finished archive with
+  exit 0.
 
-## Известные ограничения
+Qualifier legend: `N skip` = upstream skip (not a failure of this kit), `N F` =
+known upstream failure, `0 NEW` = no new breakage against the unpruned tree.
 
-- **twapi 5.2.0** — частичная поддержка: основные функции есть и работают, но
-  часть собственного тестового набора апстрима падает (Windows 11 + Tcl 9).
-  CAWT поверх twapi протестирован отдельно и работает.
-- **X11-курсоры**: Tk на Windows берёт имена курсоров из именных CURSOR-ресурсов
-  exe, поэтому нестандартные X11-имена в ките недоступны; штатные (`arrow`,
-  `hand2`, `xterm`, …) работают. В docs-архиве курсоры tkdnd положены только
-  для Windows.
-- **Демо CAWT** частично управляют реальными приложениями Office через COM
-  (Excel/Word/PowerPoint/Outlook/OneNote) — это демо автора пакета, а не тесты
-  кита; нужен установленный Office.
-- **Суб-демо Tk не стартуют отдельно**: 63 из 66 скриптов в `demos\tk\` при
-  прямом запуске открывают диалог «Error in startup script» с текстом
-  `This script should be run from the "widget" demo.` (в stderr ничего не
-  попадает, процесс живёт с диалогом) — штатное поведение вендора, а не
-  дефект архива; вход через `demos\tk\widget`. Демо iwidgets при упаковке
-  перепривязаны к своему каталогу и запускаются напрямую.
-- **MinGW-exe** несут форвардеры `api-ms-win-crt-*` (UCRT встроен в Windows 10+;
-  на Win7/8 нужен KB2999226/KB3118401). **MSVC-exe** не зависят от CRT-DLL
-  вовсе — только системные DLL.
+## Known limitations
 
-## Сборка из исходников
+- **twapi 5.2.0** — partial support: the main functions exist and work, but part
+  of the upstream test suite fails (Windows 11 + Tcl 9). CAWT on top of twapi is
+  tested separately and works.
+- **X11 cursors**: Tk on Windows takes cursor names from the named CURSOR
+  resources of the exe, so non-standard X11 names are unavailable in the kit;
+  the standard ones (`arrow`, `hand2`, `xterm`, ...) work. The tkdnd cursors in
+  the docs archive are shipped for Windows only.
+- **CAWT demos** partially drive real Office apps through COM
+  (Excel/Word/PowerPoint/Outlook/OneNote) — these are demos from the package's
+  author, not kit tests; an installed Office is required.
+- **Tk sub-demos do not start standalone**: 63 of the 66 scripts in
+  `demos\tk\` open an «Error in startup script» dialog with the text
+  `This script should be run from the "widget" demo.` (nothing goes to stderr,
+  the process stays alive with the dialog) — vendor behavior, not an archive
+  defect; enter through `demos\tk\widget`. The iwidgets demos are re-bound to
+  their own directory at packaging and start directly.
+- **MinGW exes** carry `api-ms-win-crt-*` forwarders (UCRT is built into
+  Windows 10+; on Win7/8 it needs KB2999226/KB3118401). **MSVC exes** depend on
+  no CRT DLL at all — only system DLLs.
 
-Порядок — в README репозитория (`scripts\fetch-vendor.ps1` →
-`scripts\build-msvc-*.bat` / `scripts\build-mingw-*.sh` +
-`scripts\assemble-*-kit.ps1` + `scripts\build-docs-artifact.ps1`,
-тексты лицензий — `scripts\make-licenses.ps1`);
-вендорные архивы в репозиторий не входят, их источники и контрольные суммы —
-`docs\SOURCES.md`; техрешения и найденные грабли — `docs\PLAN.md`, сравнение
-цепочек — `docs\COMPARISON.md`, окружение — `docs\ENVIRONMENT.md`, правки
-вендора — `patches\README.md`.
+## Building from source
 
-Релиз подготовлен `scripts\publish-release.ps1`; тег `{{TAG}}` указывает на commit
-`{{HEAD}}`.
+Build instructions moved to `BUILDING.md` (repo root): fetch the vendor archives,
+apply the patches, build both toolchains, assemble the kits, generate the
+licenses and the docs artifact, verify and publish. Vendor archives are not part
+of the repository — their sources and checksums are in `docs\SOURCES.md`;
+technical decisions and pitfalls in `docs\PLAN.md`; toolchain comparison in
+`docs\COMPARISON.md`; environment in `docs\ENVIRONMENT.md`; vendor patches in
+`patches\README.md`.
+
+The release is prepared by `scripts\publish-release.ps1`; tag `{{TAG}}` points at
+commit `{{HEAD}}`.
