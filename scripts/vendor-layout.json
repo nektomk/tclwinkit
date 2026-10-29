@@ -1,0 +1,207 @@
+{
+  "schema": 1,
+  "description": "Vendor layout map: which archive in vendor/ unpacks to which directory under build/, and for which toolchain chains. This file and docs/SOURCES.md describe one fact in two notations; scripts/unpack-vendor.ps1 executes this one, scripts/source-parity.ps1 keeps SOURCES.md and fetch-vendor.ps1 honest, and the archive/kind/top fields here are the same rows fetch-vendor.ps1 verifies. vendor/ is gitignored, so this map is part of the only interface between 'public repository' and 'buildable from source'.",
+  "rules": {
+    "scopePaths": {
+      "core": "build/{chain}",
+      "ext": "build/{chain}/ext",
+      "common": "build/common"
+    },
+    "chains": ["msvc", "mingw"],
+    "marker": ".winkit-unpacked.json",
+    "notes": [
+      "dest = scopePaths[scope] + '/' + dir, with {chain} expanded per entry.chains",
+      "top is the real top-level directory inside the archive, measured 2026-10-29; it differs from dir for seven entries, so an unpack that does not rename produces a tree no build script can find",
+      "movable entries carry top_prefix instead of top: GitHub names the archive top-level directory after the ref it archived (tktreectrl-main/ for the branch form, tktreectrl-<sha>/ for the commit-pinned form), so a fixed top would reject the pinned form with a correct archive inside. fetch-vendor.ps1 leaves t='' on the same rows for the same reason; the marker records the top actually seen",
+      "version is what the tree declares about itself (AC_INIT / configure.ac / pkgIndex.tcl), not what the file name says; tktreectrl is the case where the two disagree",
+      "provides is what ARRIVES inside the archive, not what the kit builds: tdbcmysql/tdbcpostgres arrive inside the Tcl tarball and are never built (docs/SOURCES.md). This map is about delivery; the build matrix is another layer",
+      "derived[] is not unpacked: those paths are created by the build itself and are listed so the map is complete"
+    ]
+  },
+  "entries": [
+    {
+      "component": "Tcl",
+      "archive": "tcl9.0.4-src.tar.gz",
+      "kind": "tgz",
+      "top": "tcl9.0.4",
+      "scope": "core",
+      "dir": "tcl9.0.4",
+      "chains": ["msvc", "mingw"],
+      "version": "9.0.4",
+      "provides": [
+        "itcl4.3.8",
+        "thread3.0.6",
+        "sqlite3.53.0",
+        "tdbc1.1.13",
+        "tdbcsqlite3-1.1.13",
+        "tdbcodbc1.1.13",
+        "tdbcmysql1.1.13",
+        "tdbcpostgres1.1.13"
+      ],
+      "note": "the eight pkgs directories arrive inside this tarball; there is no separate download for them (docs/SOURCES.md)"
+    },
+    {
+      "component": "Tk",
+      "archive": "tk9.0.4-src.tar.gz",
+      "kind": "tgz",
+      "top": "tk9.0.4",
+      "scope": "core",
+      "dir": "tk9.0.4",
+      "chains": ["msvc", "mingw"],
+      "version": "9.0.4"
+    },
+    {
+      "component": "tcllib",
+      "archive": "tcllib-2.0.tar.xz",
+      "kind": "txz",
+      "top": "tcllib-2.0",
+      "scope": "common",
+      "dir": "tcllib-2.0",
+      "version": "2.0"
+    },
+    {
+      "component": "tklib",
+      "archive": "tklib-0.9.tar.xz",
+      "kind": "txz",
+      "top": "tklib-0.9",
+      "scope": "common",
+      "dir": "tklib-0.9",
+      "version": "0.9"
+    },
+    {
+      "component": "iwidgets",
+      "archive": "iwidgets-4.1.1.tar.gz",
+      "kind": "tgz",
+      "top": "iwidgets-4.1.1",
+      "scope": "common",
+      "dir": "iwidgets-4.1.1",
+      "version": "4.1.1",
+      "note": "taken from the Debian orig tarball, not upstream (docs/SOURCES.md, decision A7)"
+    },
+    {
+      "component": "Img",
+      "archive": "Img-2.1.2.tar.gz",
+      "kind": "tgz",
+      "top": "Img-2.1.2",
+      "scope": "ext",
+      "dir": "Img-2.1.2",
+      "chains": ["msvc", "mingw"],
+      "version": "2.1.2"
+    },
+    {
+      "component": "TWAPI",
+      "archive": "twapi-5.2.0-src.zip",
+      "kind": "zip",
+      "top": "twapi-5.2",
+      "scope": "ext",
+      "dir": "twapi-5.2.0",
+      "chains": ["msvc", "mingw"],
+      "version": "5.2.0",
+      "note": "the GitHub tag is v5.2, so the archive top is twapi-5.2 while every build script path says twapi-5.2.0"
+    },
+    {
+      "component": "dyncall",
+      "archive": "dyncall-0.9.tar.gz",
+      "kind": "tgz",
+      "top": "dyncall-0.9",
+      "scope": "ext",
+      "dir": "dyncall-0.9",
+      "chains": ["msvc", "mingw"],
+      "version": "0.9",
+      "note": "bundled inside TWAPI too; ours is rebuilt so the kit can link a static-CRT copy (patches/README.md)"
+    },
+    {
+      "component": "CAWT",
+      "archive": "Cawt-3.1.1-User.zip",
+      "kind": "zip",
+      "top": "Cawt-3.1.1-User",
+      "scope": "common",
+      "dir": "cawt-3.1.1",
+      "version": "3.1.1"
+    },
+    {
+      "component": "rl_json",
+      "archive": "rl_json-0.17.8.tar.gz",
+      "kind": "tgz",
+      "top": "rl_json-v0.17.8",
+      "scope": "ext",
+      "dir": "rl_json-0.17.8",
+      "chains": ["msvc", "mingw"],
+      "version": "0.17.8"
+    },
+    {
+      "component": "tkdnd",
+      "archive": "tkdnd-2.9.5.tar.gz",
+      "kind": "tgz",
+      "top": "tkdnd-tkdnd-release-test-v2.9.5",
+      "scope": "ext",
+      "dir": "tkdnd-2.9.5",
+      "chains": ["msvc", "mingw"],
+      "version": "2.9.5",
+      "note": "the upstream tag is tkdnd-release-test-v2.9.5, which is why the archive top repeats the project name"
+    },
+    {
+      "component": "tktreectrl",
+      "archive": "tktreectrl-2.5.1.tar.gz",
+      "kind": "tgz",
+      "top_prefix": "tktreectrl-",
+      "scope": "ext",
+      "dir": "tktreectrl-2.5.1",
+      "chains": ["msvc", "mingw"],
+      "version": "2.5.2",
+      "movable": true,
+      "note": "file name and directory say 2.5.1, the tree declares 2.5.2 (AC_INIT([treectrl],[2.5.2])); the 2.5.1 in paths is a path name, not a component version (docs/SOURCES.md)"
+    },
+    {
+      "component": "mpexpr",
+      "archive": "mpexpr-1.2-vc.tar.gz",
+      "kind": "tgz",
+      "top_prefix": "mpexpr-",
+      "scope": "ext",
+      "dir": "mpexpr",
+      "chains": ["msvc", "mingw"],
+      "version": "1.2",
+      "movable": true,
+      "note": "the only ext directory without a version suffix; the tree is fossil master after the 1.2 release, with TEA conversion"
+    },
+    {
+      "component": "TclReadLine",
+      "archive": "TclReadLine.zip",
+      "kind": "zip",
+      "top_prefix": "TclReadLine-",
+      "scope": "common",
+      "dir": "TclReadLine",
+      "version": "1.1",
+      "movable": true,
+      "note": "four files only; no LICENSE inside, the grant is a wiki page (docs/SOURCES.md, decision R1)"
+    },
+    {
+      "component": "itk",
+      "archive": "itk-main-4.2.7.tar.gz",
+      "kind": "tgz",
+      "top_prefix": "itk-",
+      "scope": "ext",
+      "dir": "itk-4.2.7",
+      "chains": ["msvc", "mingw"],
+      "version": "4.2.7",
+      "movable": true,
+      "note": "taken from the official tcltk/itk GitHub mirror; core.tcl-lang.org throttles"
+    }
+  ],
+  "derived": [
+    {
+      "path": "build/msvc/ext/itcl4.3.8",
+      "kind": "junction",
+      "target": "build/msvc/tcl9.0.4/pkgs/itcl4.3.8",
+      "made_by": "scripts/build-msvc-ext2.bat",
+      "why": "nmakehlp -L looks for itcl next to the other ext dirs; itcl has no archive of its own"
+    },
+    {
+      "path": "build/msvc/ext/tk9.0.4",
+      "kind": "junction",
+      "target": "build/msvc/tk9.0.4",
+      "made_by": "scripts/build-msvc-ext2.bat",
+      "why": "same lookup reason as itcl4.3.8"
+    }
+  ]
+}

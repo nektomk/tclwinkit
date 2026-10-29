@@ -64,23 +64,33 @@ scripts\fetch-vendor.ps1          # 15 archives -> vendor\
 **Invariant after step 0:** `vendor/` has 15 archives and
 `scripts\fetch-vendor.ps1 -VerifyOnly` exits 0.
 
-## Step 1 — unpack into the build layout (manual, no script)
+## Step 1 — unpack into the build layout (scripted)
 
-Unpack `vendor/` into the fixed paths the build expects:
+```
+scripts\unpack-vendor.ps1
+```
+
+Expands `vendor/` into the fixed paths the build expects:
 
 - `build/<chain>/tcl9.0.4`
 - `build/<chain>/tk9.0.4`
 - `build/<chain>/ext/<top>` for each extension
 - `build/common/<name>` for pure-Tcl collections
 
-The archive → directory mapping (including the top-directory renames and the
-`itcl4.3.8` / `tk9.0.4` junctions SOURCES.md describes) is in
-[`docs/SOURCES.md`](docs/SOURCES.md). No build script touches `vendor/`
-itself — unpacking is deliberately manual, so a half-extracted tree cannot be
-mistaken for a fetched one.
+The archive → directory mapping is data in `scripts/vendor-layout.json`
+(including the top-directory renames and the `itcl4.3.8` / `tk9.0.4` junctions
+SOURCES.md describes); the same table in
+[`docs/SOURCES.md`](docs/SOURCES.md) is the human-facing view. The script
+refuses to unpack anything `fetch-vendor.ps1 -VerifyOnly` has not verified,
+extracts through a scratch directory so a half-extracted tree cannot be
+mistaken for a complete one, and marks each tree with
+`.winkit-unpacked.json` (component, archive, SHA-256) — `-VerifyOnly` re-checks
+the marks, `-Force` replaces a tree that exists, `-Chain`/`-Only` narrow the
+plan. No build script touches `vendor/` itself.
 
-**Invariant after step 1:** the directories above exist and hold complete
-trees; `vendor/` itself is untouched.
+**Invariant after step 1:** the directories above exist, are marked, and hold
+complete trees; `vendor/` itself is untouched. `scripts\unpack-vendor.ps1
+-VerifyOnly` exits 0.
 
 ## Step 2 — apply vendor patches (manual, no script)
 
@@ -205,5 +215,6 @@ expected to differ. The mechanisms are in CONTRIBUTING.md (_Reproducibility_).
 ## Why there is no CI build job
 
 CI runs two jobs (encoding/determinism gates and the vendor-fetch step), and
-no build job, because steps 1 and 2 are manual — a build job would have
-nothing to compile and would report success on an empty tree.
+no build job, because step 2 (applying vendor patches) is still manual — a
+build job would have nothing to compile past the unpatched tree and would
+report success on it.

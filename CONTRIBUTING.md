@@ -50,15 +50,18 @@ bytes — see the SOURCES.md section on it).
 
 Unpack `vendor/` into the fixed paths the build expects
 (`build/<chain>/tcl9.0.4`, `build/<chain>/tk9.0.4`, `build/<chain>/ext/<top>`,
-`build/common/<name>`); the mapping is in SOURCES.md. No build script touches
-`vendor/` itself — unpacking is deliberate, so a half-extracted tree cannot be
-mistaken for a fetched one.
+`build/common/<name>`); the mapping is data in `scripts/vendor-layout.json`
+and the human view is SOURCES.md. `scripts\unpack-vendor.ps1` performs the
+step: it verifies `vendor/` via `fetch-vendor.ps1 -VerifyOnly` first, extracts
+through a scratch directory, and marks each tree with `.winkit-unpacked.json`,
+so a half-extracted tree cannot be mistaken for a fetched one. No build script
+touches `vendor/` itself.
 
-Two steps between fetching and compiling are **manual, and no script exists for
-them**: unpacking the 15 archives into that layout (including the
-top-directory renames and the `itcl4.3.8` / `tk9.0.4` junctions that SOURCES.md
-describes), and applying `patches/` onto the extracted trees. The command lists
-below therefore assume both have already been done: `build-msvc-kit.bat` states
+One step between fetching and compiling is **manual, and no script exists for
+it**: applying `patches/` onto the extracted trees (the `itcl4.3.8` /
+`tk9.0.4` junctions that SOURCES.md describes are created by
+`build-msvc-ext2.bat` itself). The command lists
+below therefore assume it has already been done: `build-msvc-kit.bat` states
 `Requires: build-msvc-core.bat, build-msvc-ext.bat, build-msvc-img.bat` and
 invokes none of them. This is why CI has no build job — see "Continuous
 integration" below.
@@ -245,9 +248,9 @@ of the artifact sections:
 | `sources` | `scripts\fetch-vendor.ps1`, then `-VerifyOnly` | step zero: all 15 archives download from their recorded URLs and pass size, SHA-256 and archive-shape checks; the second run proves idempotence with no network |
 
 **What CI does not do, and why.** There is no build job. Compiling the kit
-needs the vendor trees unpacked and `patches/` applied, and both of those steps
-are manual (see *Building* above), so a build job would have nothing to compile
-and would report success on an empty tree. The test gates in *Testing* below
+needs `patches/` applied to the vendor trees, and that step is manual (see
+*Building* above), so a build job would have nothing to compile past the
+unpatched tree and would report success on it. The test gates in *Testing* below
 run against built executables for the same reason: they are local, not CI.
 
 On a CI checkout the three artifact sections of `check-encoding.ps1` **skip
