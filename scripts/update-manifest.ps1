@@ -1,4 +1,4 @@
-﻿# update-manifest.ps1 --
+# update-manifest.ps1 --
 #   Refresh vendor/manifest.json when a new version of a vendor archive is fetched.
 #   Re-measures size/sha256, updates top_dir/kind if they changed, and stops with
 #   a diagnosis on structural changes (component renamed, chains altered, movable
