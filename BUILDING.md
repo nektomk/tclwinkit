@@ -125,6 +125,15 @@ derived junctions under `build/msvc/ext`. All three are indexed at the end of
 [`patches/README.md`](patches/README.md) and measured in
 [`docs/SOURCES.md`](docs/SOURCES.md).
 
+**Invariant: dyncall 0.9 is tied to TWAPI 5.2.0.** The version is dictated by the
+path hardcoded in TWAPI 5.2.0 (`win/makefile.vc:37` `DYNCALLDIR=$(ROOT)\dyncall\dyncall-0.9`,
+`:124` `PRJ_LIBS = libdyncall_s.lib libdynload_s.lib libdyncallback_s.lib`; `configure.ac:93,267-269`
+and `configure:5011,8127-8132` `-I"${srcdir}/dyncall/dyncall-0.9/include"`, `win/ffi.c:10`
+`#include "dyncall.h"`). TWAPI 5.2.0 ships only 4 headers and 6 prebuilt `.lib`s — no dyncall
+sources. Substituting a 1.x tree into `dyncall-0.9` compiles TWAPI against 0.9 headers but links
+1.x objects (silent ABI mismatch). Upgrading dyncall requires upgrading TWAPI > 5.2, where dyncall
+is absent from master (GitHub API 404; latest release = v5.2).
+
 **Invariant after step 2:** `scripts\apply-patches.ps1 -VerifyOnly` exits 0; the
 tree builds the patched sources; the kit reports modified versions (e.g.
 `treectrl 2.5.2` from the `main` branch).

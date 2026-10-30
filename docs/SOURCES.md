@@ -141,6 +141,16 @@ Debian сейчас, потому что правки привязаны к со
 | TWAPI | 5.2.0 | `https://github.com/apnadkarni/twapi/archive/refs/tags/v5.2.zip` | codeload, тег `v5.2` | `9a0d84e20bb1493467ca0219596462f4feb1975a6a65fd4ec84f9e6b708eec4b` | 12 102 736 |
 | Img | 2.1.2 | `https://downloads.sourceforge.net/tkimg/Img-2.1.2.tar.gz` | GET (301→302→зеркало) | `932d386142e5aaff74add63da283d0547f0515d6155b9a2b69b433f9c353271a` | 12 544 404 |
 | dyncall | 0.9 | `https://www.dyncall.org/r0.9/dyncall-0.9.tar.gz` | GET | `8a7628fd00b4e0acc952c5d9d03035de90f349d4d4dfdad4c48a037f2a0979f9` | 431 660 |
+
+**Почему dyncall 0.9, а не актуальный 1.x:** версия диктуется путём, зашитым в TWAPI 5.2.0
+(`build/msvc/ext/twapi-5.2.0/win/makefile.vc:37` `DYNCALLDIR=$(ROOT)\dyncall\dyncall-0.9`,
+`:124` `PRJ_LIBS = libdyncall_s.lib libdynload_s.lib libdyncallback_s.lib`;
+`configure.ac:93,267-269` и `configure:5011,8127-8132` `-I"${srcdir}/dyncall/dyncall-0.9/include"`,
+`win/ffi.c:10` `#include "dyncall.h"`). TWAPI 5.2.0 бандлит только 4 заголовка и 6 предсобранных
+`.lib` (amd64 + x86) — исходников dyncall в релизе нет. Подложить дерево 1.x в каталог `dyncall-0.9`
+= компилировать TWAPI против заголовков 0.9 и линковать объекты 1.x (молчаливый ABI-разъезд).
+Переход на dyncall 1.x возможен только вместе с переходом на TWAPI > 5.2, где dyncall в master
+отсутствует (GET `/repos/apnadkarni/twapi/contents/dyncall?ref=master` → 404; latest release = v5.2).
 | rl_json | 0.17.8 | `https://github.com/RubyLane/rl_json/releases/download/v0.17.8/rl_json-v0.17.8.tar.gz` | GET release-asset | `c470edb5c92d44c178a095e45cd1a7992c5db78a9650c18588cf5cbca7619e28` | 394 235 |
 | tkdnd | 2.9.5 | `https://github.com/petasis/tkdnd/archive/refs/tags/tkdnd-release-test-v2.9.5.tar.gz` | codeload, тег | `7ab2d1d7c0f57a5dc7f6d5542895b44762a31a01621c9d7f80f3bbd67c7bcc39` | 1 365 461 |
 | treectrl | **2.5.2** | `https://github.com/tcltk-depot/tktreectrl/archive/refs/heads/main.tar.gz` | codeload, **подвижная ветка** | `fe7a7a28c9f2bc74427986d718158dcb040acde4e7f70fa29b4ab91f0d672578` | 998 346 |

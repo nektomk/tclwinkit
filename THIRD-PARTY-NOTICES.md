@@ -395,6 +395,13 @@ permission notice to appear in all copies. Full text:
 [`LICENSES/dyncall/LICENSE`](LICENSES/dyncall/LICENSE). dyncall is consumed by
 twapi, not by rl_json.
 
+**Version note:** dyncall 0.9 is tied to TWAPI 5.2.0 (the path is hardcoded in
+TWAPI's makefile and configure scripts). TWAPI 5.2.0 ships only prebuilt
+`.lib`s — no dyncall sources. Upgrading dyncall requires upgrading TWAPI > 5.2,
+where dyncall is absent from master. See
+[`docs/SOURCES.md`](docs/SOURCES.md) and [`BUILDING.md`](BUILDING.md) for the
+full rationale.
+
 ### 3.4 Info-ZIP (`crypt.h`)
 
 `tcl9.0.4/generic/tclZipfs.c` includes `compat/zlib/contrib/minizip/crypt.h`
