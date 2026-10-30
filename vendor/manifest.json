@@ -1,0 +1,183 @@
+{
+  "schema": 1,
+  "note": "Single source of truth for vendor archives. Scripts read versions/paths from here, not literals. update-manifest.ps1 refreshes this file when a new version is fetched; it stops with a diagnosis on structural changes (top_dir, kind, chains).",
+  "archives": [
+    {
+      "component": "Tcl",
+      "file": "tcl9.0.4-src.tar.gz",
+      "kind": "tgz",
+      "top_dir": "tcl9.0.4/",
+      "url": "https://master.dl.sourceforge.net/project/tcl/Tcl/9.0.4/tcl9.0.4-src.tar.gz",
+      "sha256": "d0aed49230bc02a65c1e0229e65f34590a4b037ec40d546f32573b467f7551ea",
+      "size": 11866337,
+      "movable": false,
+      "chains": null
+    },
+    {
+      "component": "Tk",
+      "file": "tk9.0.4-src.tar.gz",
+      "kind": "tgz",
+      "top_dir": "tk9.0.4/",
+      "url": "https://downloads.sourceforge.net/tcl/tk9.0.4-src.tar.gz",
+      "sha256": "d7a146d2917eb8b5cc95276dbf0e3d03c7464d2b19c1675357857c989301dbb4",
+      "size": 4613019,
+      "movable": false,
+      "chains": null
+    },
+    {
+      "component": "tcllib",
+      "file": "tcllib-2.0.tar.xz",
+      "kind": "txz",
+      "top_dir": "tcllib-2.0/",
+      "url": "https://downloads.sourceforge.net/tcllib/tcllib-2.0.tar.xz",
+      "sha256": "642c2c679c9017ab6fded03324e4ce9b5f4292473b62520e82aacebb63c0ce20",
+      "size": 14872556,
+      "movable": false,
+      "chains": null
+    },
+    {
+      "component": "tklib",
+      "file": "tklib-0.9.tar.xz",
+      "kind": "txz",
+      "top_dir": "tklib-0.9/",
+      "url": "https://downloads.sourceforge.net/tcllib/tklib-0.9.tar.xz",
+      "sha256": "b0258d1a5039d44ac0cde0b3a7ee0aa0d687acc9eb4d9c5f683f2cbffd26c6ca",
+      "size": 6052704,
+      "movable": false,
+      "chains": null
+    },
+    {
+      "component": "iwidgets",
+      "file": "iwidgets-4.1.1.tar.gz",
+      "kind": "tgz",
+      "top_dir": "iwidgets-4.1.1/",
+      "url": "https://deb.debian.org/debian/pool/main/i/iwidgets4/iwidgets4_4.1.1.orig.tar.gz",
+      "sha256": "572fd8eed70786b1fbff6e7fec62eab7bd731beea074022d1b5a480ecf2df586",
+      "size": 720630,
+      "movable": false,
+      "chains": null
+    },
+    {
+      "component": "Img",
+      "file": "Img-2.1.2.tar.gz",
+      "kind": "tgz",
+      "top_dir": "Img-2.1.2/",
+      "url": "https://downloads.sourceforge.net/tkimg/Img-2.1.2.tar.gz",
+      "sha256": "932d386142e5aaff74add63da283d0547f0515d6155b9a2b69b433f9c353271a",
+      "size": 12544404,
+      "movable": false,
+      "chains": null
+    },
+    {
+      "component": "TWAPI",
+      "file": "twapi-5.2.0-src.zip",
+      "kind": "zip",
+      "top_dir": "",
+      "url": "https://github.com/apnadkarni/twapi/archive/refs/tags/v5.2.zip",
+      "sha256": "9a0d84e20bb1493467ca0219596462f4feb1975a6a65fd4ec84f9e6b708eec4b",
+      "size": 12102736,
+      "movable": false,
+      "chains": null
+    },
+    {
+      "component": "dyncall",
+      "file": "dyncall-0.9.tar.gz",
+      "kind": "tgz",
+      "top_dir": "dyncall-0.9/",
+      "url": "https://www.dyncall.org/r0.9/dyncall-0.9.tar.gz",
+      "sha256": "8a7628fd00b4e0acc952c5d9d03035de90f349d4d4dfdad4c48a037f2a0979f9",
+      "size": 431660,
+      "movable": false,
+      "chains": null
+    },
+    {
+      "component": "CAWT",
+      "file": "Cawt-3.1.1-User.zip",
+      "kind": "zip",
+      "top_dir": "Cawt-3.1.1-User/",
+      "url": "https://downloads.sourceforge.net/cawt/Cawt-3.1.1-User.zip",
+      "sha256": "e20b5ed87557d2b26ba6863fda3f9abbf554caf9713444b71e9a5a55ab27efeb",
+      "size": 4398321,
+      "movable": false,
+      "chains": null
+    },
+    {
+      "component": "rl_json",
+      "file": "rl_json-0.17.8.tar.gz",
+      "kind": "tgz",
+      "top_dir": "rl_json-v0.17.8/",
+      "url": "https://github.com/RubyLane/rl_json/releases/download/v0.17.8/rl_json-v0.17.8.tar.gz",
+      "sha256": "c470edb5c92d44c178a095e45cd1a7992c5db78a9650c18588cf5cbca7619e28",
+      "size": 394235,
+      "movable": false,
+      "chains": ["msvc"]
+    },
+    {
+      "component": "tkdnd",
+      "file": "tkdnd-2.9.5.tar.gz",
+      "kind": "tgz",
+      "top_dir": "tkdnd-tkdnd-release-test-v2.9.5/",
+      "url": "https://github.com/petasis/tkdnd/archive/refs/tags/tkdnd-release-test-v2.9.5.tar.gz",
+      "sha256": "7ab2d1d7c0f57a5dc7f6d5542895b44762a31a01621c9d7f80f3bbd67c7bcc39",
+      "size": 1365461,
+      "movable": false,
+      "chains": null
+    },
+    {
+      "component": "tktreectrl",
+      "file": "tktreectrl-2.5.1.tar.gz",
+      "kind": "tgz",
+      "top_dir": "",
+      "url": "https://github.com/tcltk-depot/tktreectrl/archive/refs/heads/main.tar.gz",
+      "sha256": "fe7a7a28c9f2bc74427986d718158dcb040acde4e7f70fa29b4ab91f0d672578",
+      "size": 998346,
+      "movable": true,
+      "pin_url": "https://github.com/tcltk-depot/tktreectrl/archive/51498c7837193d621069d1159577392f2bfc1fb2.tar.gz",
+      "pin_sha256": "da93cc42438172f5faf1ec394a1fdc60872e3b5f1894b7d16cbce0207b23ae30",
+      "pin_size": 999449,
+      "chains": null
+    },
+    {
+      "component": "mpexpr",
+      "file": "mpexpr-1.2-vc.tar.gz",
+      "kind": "tgz",
+      "top_dir": "",
+      "url": "https://github.com/tcl-mirror/mpexpr/archive/refs/heads/master.tar.gz",
+      "sha256": "b02c5401f7a610056a25ec31dcb6e9bba37fa615fd9a2bec05721fa47335fcc4",
+      "size": 389336,
+      "movable": true,
+      "pin_url": "https://github.com/tcl-mirror/mpexpr/archive/1d2bf28d360da53b820ee3c5ad10e848d1af848.tar.gz",
+      "pin_sha256": "9c49c92a46ce62d51d1280d9dc648017ddb97300d822d66f9b2b789555e0ce6c",
+      "pin_size": 389516,
+      "chains": null
+    },
+    {
+      "component": "TclReadLine",
+      "file": "TclReadLine.zip",
+      "kind": "zip",
+      "top_dir": "",
+      "url": "https://github.com/derijkp/TclReadLine/archive/refs/heads/master.zip",
+      "sha256": "11da53cbbbddb7df9e3559d3013c87f5137a7d4e06c70ce367ce5c94404fb48b",
+      "size": 12284,
+      "movable": true,
+      "pin_url": "https://github.com/derijkp/TclReadLine/archive/8cad690349a3a6b418290bbdca111383519ba02e.zip",
+      "pin_sha256": "ffd7cd6ad4918878118496af2bec81a7b88313baec51c6fde037179718d8cea2",
+      "pin_size": 12624,
+      "chains": null
+    },
+    {
+      "component": "itk",
+      "file": "itk-main-4.2.7.tar.gz",
+      "kind": "tgz",
+      "top_dir": "",
+      "url": "https://github.com/tcltk/itk/archive/refs/heads/main.tar.gz",
+      "sha256": "54bd2e71e881af80cafb5f640ef4a9f5cd4547ed9636d00adedf5454ab5f3db8",
+      "size": 178751,
+      "movable": true,
+      "pin_url": "https://github.com/tcltk/itk/archive/e697407849b01d3498b56fc46e5a423690190954.tar.gz",
+      "pin_sha256": "d4db12ef9d984f11681b4bef544350184b13b63a17707f8334c45e2f5a16f301",
+      "pin_size": 178944,
+      "chains": ["msvc"]
+    }
+  ]
+}

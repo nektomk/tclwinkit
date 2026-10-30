@@ -2,6 +2,7 @@
 build/
 dist/
 vendor/
+!vendor/manifest.json
 
 # Editors
 *.swp
