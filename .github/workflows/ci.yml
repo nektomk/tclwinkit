@@ -92,29 +92,36 @@ jobs:
       - name: Verify again without network access (idempotence)
         run: ./scripts/fetch-vendor.ps1 -VerifyOnly
 
-      # Step 4b: unpack vendor into build/msvc/ (pristine copy for make-patches -Check)
-      - name: Unpack vendor (pristine for patch verification)
-        run: ./scripts/unpack-vendor.ps1 -Chain msvc
+      # Step 4b: unpack BOTH chains. apply-patches' precondition re-verifies the
+      # wanted components with -Chain both, so the mingw trees must exist too;
+      # make-patches -Check below additionally needs an unpatched copy of the
+      # msvc trees (PristineRoot), which is why the snapshot is taken BEFORE the
+      # patch step. Two unpacked copies is the disk cost BUILDING.md
+      # ("Why there is no CI build job") named as the design constraint.
+      - name: Unpack vendor (both chains)
+        run: ./scripts/unpack-vendor.ps1
 
-      # Step 4c: apply-patches -VerifyOnly verifies patched trees exist and match
-      # hashes. On a fresh CI run this will fail (trees are pristine), so we
-      # apply patches first, then verify.
+      - name: Snapshot pristine trees for make-patches -Check
+        run: |
+          $prist = Join-Path $env:RUNNER_TEMP 'winkit-pristine'
+          Copy-Item -Path build -Destination (Join-Path $prist 'build') -Recurse -Force
+          Add-Content -Path $env:GITHUB_ENV -Value "WINKIT_PRISTINE=$prist"
+          Write-Host "pristine snapshot: $prist"
+
+      # Step 4c: apply-patches -Chain msvc then -VerifyOnly asserts the trees
+      # carry exactly what patches.json declares.
       - name: Apply patches to build/msvc/
         run: ./scripts/apply-patches.ps1 -Chain msvc
 
       - name: Verify patches applied correctly
         run: ./scripts/apply-patches.ps1 -VerifyOnly -Chain msvc
 
-      # Step 4d: make-patches -Check verifies patches.json consistency:
-      # recomputes from_sha256/sha256/patch bytes from pristine vs patched trees
-      # and compares with manifest. Exits 1 if any mismatch.
-      # Requires: build/msvc/ (patched) and a pristine root. We use build/mingw/
-      # as pristine by unpacking without patches.
-      - name: Unpack pristine copy (build/mingw/ for make-patches -Check)
-        run: ./scripts/unpack-vendor.ps1 -Chain mingw
-
+      # Step 4d: make-patches -Check recomputes from_sha256/sha256/patch bytes
+      # from pristine (snapshot) vs patched (repo build/msvc) and exits 1 when a
+      # computed value disagrees with patches.json -- an assertion that runs with
+      # no compiler at all.
       - name: make-patches -Check (verify manifest consistency)
-        run: ./scripts/make-patches.ps1 -Check -Chain msvc -PristineRoot build/mingw
+        run: ./scripts/make-patches.ps1 -Check -Chain msvc -PristineRoot $env:WINKIT_PRISTINE
 
       - name: Report what landed
         run: |
