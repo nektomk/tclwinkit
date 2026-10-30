@@ -173,6 +173,8 @@ issues, and translating a doc is a canonical good first issue here).
 | [`docs/SOURCES.md`](docs/SOURCES.md) | vendor source map: URLs, SHA-256, how each was measured (Russian) |
 | [`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md) | toolchain inventory of the reference machine (Russian) |
 | [`docs/CONVENTIONS.md`](docs/CONVENTIONS.md) | encoding and line-ending rules, with the measurements behind them (Russian) |
+| [`docs/CONVENTIONS-HISTORY.md`](docs/CONVENTIONS-HISTORY.md) | the defects and decisions the conventions grew out of: the changelog (Russian) |
+| [`docs/CONVENTIONS-CI.md`](docs/CONVENTIONS-CI.md) | how the encoding gates verify the tree: runnable detail (Russian) |
 | [`docs/COMPARISON.md`](docs/COMPARISON.md) | MSVC vs MinGW, measured (Russian) |
 | [`docs/NOTES.md`](docs/NOTES.md) | vendor test-suite runs: numbers, root causes, accepted failures (Russian) |
 | [`src/docs/README.md`](src/docs/README.md) | the docs archive: contents and usage |

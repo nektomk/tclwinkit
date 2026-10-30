@@ -172,6 +172,8 @@ tclwinkit-….exe  tools\man.tcl man\tcl\subst.n
 | [`docs/SOURCES.md`](docs/SOURCES.md) | карта вендорных источников: URL, SHA-256, как измерено |
 | [`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md) | инвентарь тулчейнов эталонной машины |
 | [`docs/CONVENTIONS.md`](docs/CONVENTIONS.md) | кодировки и переводы строк с замерами |
+| [`docs/CONVENTIONS-HISTORY.md`](docs/CONVENTIONS-HISTORY.md) | дефекты и решения, из которых выросли конвенции: changelog |
+| [`docs/CONVENTIONS-CI.md`](docs/CONVENTIONS-CI.md) | как гейты кодировок проверяют дерево: запускаемая механика |
 | [`docs/COMPARISON.md`](docs/COMPARISON.md) | MSVC vs MinGW, с замерами |
 | [`docs/NOTES.md`](docs/NOTES.md) | прогоны вендорных наборов: числа, причины, принятые отказы |
 | [`src/docs/README.md`](src/docs/README.md) | docs-архив: состав и использование |

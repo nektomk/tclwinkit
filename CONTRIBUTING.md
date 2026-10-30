@@ -161,7 +161,10 @@ same host and toolchain rebuild to the same bytes.
 
 **Encoding has three levels and they are not the same rule.** The full table,
 with the measurement behind each row, is [`docs/CONVENTIONS.md`](docs/CONVENTIONS.md);
-what you need to obey while editing:
+the defects and decisions it grew out of are in
+[`docs/CONVENTIONS-HISTORY.md`](docs/CONVENTIONS-HISTORY.md), and how the gates
+verify the tree is in [`docs/CONVENTIONS-CI.md`](docs/CONVENTIONS-CI.md).
+What you need to obey while editing:
 
 1. **In the index: LF, always.** `* text=auto eol=lf` in `.gitattributes`
    normalizes every tracked file, so blobs, diffs and a Linux checkout are
