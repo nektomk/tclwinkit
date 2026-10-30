@@ -62,6 +62,11 @@ jobs:
       - name: Source map parity (docs/SOURCES.md vs fetch-vendor.ps1)
         run: ./scripts/source-parity.ps1
 
+      # Step 4a: unpack -DryRun verifies vendor-layout.json without needing
+      # vendor/ archives. Catches layout/manifest mismatches early.
+      - name: Unpack vendor (dry run)
+        run: ./scripts/unpack-vendor.ps1 -DryRun
+
       # Deliberately NOT windows-latest as well. A second OS would be the real
       # test of the .gitattributes normalization, but this repository's rule is
       # that a gate ships only after it has been seen run; there is no Linux,
@@ -86,6 +91,30 @@ jobs:
 
       - name: Verify again without network access (idempotence)
         run: ./scripts/fetch-vendor.ps1 -VerifyOnly
+
+      # Step 4b: unpack vendor into build/msvc/ (pristine copy for make-patches -Check)
+      - name: Unpack vendor (pristine for patch verification)
+        run: ./scripts/unpack-vendor.ps1 -Chain msvc
+
+      # Step 4c: apply-patches -VerifyOnly verifies patched trees exist and match
+      # hashes. On a fresh CI run this will fail (trees are pristine), so we
+      # apply patches first, then verify.
+      - name: Apply patches to build/msvc/
+        run: ./scripts/apply-patches.ps1 -Chain msvc
+
+      - name: Verify patches applied correctly
+        run: ./scripts/apply-patches.ps1 -VerifyOnly -Chain msvc
+
+      # Step 4d: make-patches -Check verifies patches.json consistency:
+      # recomputes from_sha256/sha256/patch bytes from pristine vs patched trees
+      # and compares with manifest. Exits 1 if any mismatch.
+      # Requires: build/msvc/ (patched) and a pristine root. We use build/mingw/
+      # as pristine by unpacking without patches.
+      - name: Unpack pristine copy (build/mingw/ for make-patches -Check)
+        run: ./scripts/unpack-vendor.ps1 -Chain mingw
+
+      - name: make-patches -Check (verify manifest consistency)
+        run: ./scripts/make-patches.ps1 -Check -Chain msvc -PristineRoot build/mingw
 
       - name: Report what landed
         run: |
