@@ -104,8 +104,13 @@ if ($Manifest.canon.eol -ne 'lf') { throw 'canon.eol must be "lf", got: ' + $Man
 if ($Manifest.canon.encoding -ne 'utf-8') { throw 'canon.encoding must be "utf-8", got: ' + $Manifest.canon.encoding }
 
 # The chain list comes from step 1's map, not from a literal here: if a third
-# chain ever appears, the patch set follows.
-$Chains = if ($Chain -eq 'both') { @($Layout.rules.chains) } else { @($Chain) }
+# chain ever appears, the patch set follows. The outer @() is load-bearing, not
+# decoration: PowerShell folds a one-element @(...) produced by an if/else into
+# a scalar, and then $Chains[0] below is the first CHARACTER ('m' for 'msvc')
+# rather than the chain name -- which silently skips every common-scope tree
+# (iwidgets) on a single-chain call. Measured 2026-10-30: -Chain msvc missed
+# all 12 iwidgets files for exactly that reason.
+$Chains = @(if ($Chain -eq 'both') { @($Layout.rules.chains) } else { @($Chain) })
 if ($Chains.Count -eq 0) { throw 'vendor-layout.json declares no chains' }
 foreach ($c in $Chains) {
     if (@($Layout.rules.chains) -notcontains $c) { throw 'unknown chain: ' + $c }
