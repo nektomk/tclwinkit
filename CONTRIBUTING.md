@@ -16,7 +16,7 @@ issue first.
 | `src/docs/` | sources of the docs archive and of the release body (`release-notes.md` with `{{PLACEHOLDER}}` tokens) |
 | `docs/` | internal engineering documents (Russian) |
 | `tests/` | gates that run **inside the shipped image** |
-| `patches/` | vendor modifications, one directory per package, indexed in `patches/README.md` |
+| `patches/` | vendor modifications as data: `patches.json` is the manifest, `*.patch` are derived from it, `patches/README.md` is the human index |
 | `LICENSES/` | generated — never hand-edit |
 | `build/` | gitignored: toolchain output, staging trees, and all scratch work |
 
@@ -57,11 +57,23 @@ through a scratch directory, and marks each tree with `.winkit-unpacked.json`,
 so a half-extracted tree cannot be mistaken for a fetched one. No build script
 touches `vendor/` itself.
 
-One step between fetching and compiling is **manual, and no script exists for
-it**: applying `patches/` onto the extracted trees (the `itcl4.3.8` /
+Steps 0, 1 and 2 are all scripted — fetch, unpack, patch — and each one refuses
+to run on top of a tree the previous one has not verified, so the chain is
+checkable at every seam rather than only at the end:
+
+```
+scripts\fetch-vendor.ps1 -VerifyOnly
+scripts\unpack-vendor.ps1 -VerifyOnly
+scripts\apply-patches.ps1            # or -VerifyOnly to re-check without applying
+```
+
+`apply-patches.ps1` stages every change outside any repository and writes none of
+them until the whole run has produced zero failures, so a refused patch cannot
+leave a half-patched tree; `make-patches.ps1 -Check` recomputes the diffs and
+both hashes from two trees and fails a manifest that drifted. The `itcl4.3.8` /
 `tk9.0.4` junctions that SOURCES.md describes are created by
-`build-msvc-ext2.bat` itself). The command lists
-below therefore assume it has already been done: `build-msvc-kit.bat` states
+`build-msvc-ext2.bat` itself, not by any of the three. The command lists below
+therefore assume step 2 has been run: `build-msvc-kit.bat` states
 `Requires: build-msvc-core.bat, build-msvc-ext.bat, build-msvc-img.bat` and
 invokes none of them. This is why CI has no build job — see "Continuous
 integration" below.
@@ -219,20 +231,31 @@ absolute paths.
 
 ## Vendor patches
 
-Every modification of upstream code lives in `patches/<pkg>/` and gets a row
-in the table in [`patches/README.md`](patches/README.md) — the table is the
-index, and an unindexed patch does not exist. Rules:
+Every modification of upstream code is declared in
+[`patches/patches.json`](patches/patches.json) — one entry per file, naming the
+operations and the pristine and final SHA-256 — and gets a row in the table in
+[`patches/README.md`](patches/README.md), the human index. An undeclared edit of
+a vendor tree does not exist: `apply-patches.ps1 -VerifyOnly` fails on it, and so
+does `make-patches.ps1 -Check`. Rules:
 
 - A modified file stays under the **original** license. No separate rights
   are claimed and copyright headers are never removed.
 - The `WINKIT:` marker is reserved for changes in **test logic** (a legacy
-  expectation that Tcl 9 / Tk 9 / Windows invalidates). It is not stamped
-  into library code, because marking is required only when new terms are
-  applied, and they are not.
+  expectation that Tcl 9 / Tk 9 / Windows invalidates) — three files, measured
+  2026-10-30. It is not stamped into library code, because marking is required
+  only when new terms are applied, and they are not. Where a library change is
+  not self-evident from its diff, the patch carries an ordinary lowercase
+  `winkit` comment instead (four files, plus both makefiles).
 - Where upstream simply has no copyright header (`rl_json.c`, `names.c`,
   `scopedobject.itcl`), none is invented and no holder is guessed.
 - Patches should be minimal and each one must say what it fixes. A patch
   that only silences a compiler warning belongs in the build script instead.
+- Never hand-edit a `*.patch`: `make-patches.ps1 -Write` recomputes it from two
+  trees, so an authored hunk is overwritten on the next run. Edit the tree,
+  regenerate, and let `-Check` agree.
+- Line endings are a declared operation (`canon.eol = lf`), not diff bytes. A
+  CR that survives into a `.patch` is a bug in the generator, not a cosmetic
+  issue: `git apply` matches hunk context byte for byte.
 
 ## Continuous integration
 
@@ -247,11 +270,16 @@ of the artifact sections:
 | `encoding` | `scripts\check-gates-selftest.ps1`, then `scripts\check-encoding.ps1`, `scripts\link-audit.ps1`, `scripts\source-parity.ps1` | first that the four gates are able to fail and to name the right defect, then the three-level encoding rule (index/blob/worktree) plus the PE `TimeDateStamp` and builder-state gates when artifacts exist, then that every relative link and `#fragment` in the tracked markdown resolves, then that `docs\SOURCES.md` publishes exactly what `scripts\fetch-vendor.ps1` fetches |
 | `sources` | `scripts\fetch-vendor.ps1`, then `-VerifyOnly` | step zero: all 15 archives download from their recorded URLs and pass size, SHA-256 and archive-shape checks; the second run proves idempotence with no network |
 
-**What CI does not do, and why.** There is no build job. Compiling the kit
-needs `patches/` applied to the vendor trees, and that step is manual (see
-*Building* above), so a build job would have nothing to compile past the
-unpatched tree and would report success on it. The test gates in *Testing* below
-run against built executables for the same reason: they are local, not CI.
+**What CI does not do, and why.** There is no build job, and it is no longer
+because patching was manual — steps 0–2 are scripted, and `sources` already holds
+all 15 archives, so `unpack-vendor` → `apply-patches` → `-VerifyOnly` could run
+there today. The blocker is the compilers: MSVC needs an x64 Native Tools prompt,
+MinGW an MSYS2 login shell with `MSYSTEM` set, and a job that built only one of
+the two would prove less than the local rule, because the kit is the pair. The
+test gates in *Testing* below run against built executables for that same reason:
+they are local, not CI. BUILDING.md (_Why there is no CI build job_) has the
+longer version, including the two legs that could be added without either
+toolchain and why neither is wired up yet.
 
 On a CI checkout the three artifact sections of `check-encoding.ps1` **skip
 loudly** rather than pass silently; `-RequireArtifacts` turns each skip into a

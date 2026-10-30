@@ -92,15 +92,42 @@ plan. No build script touches `vendor/` itself.
 complete trees; `vendor/` itself is untouched. `scripts\unpack-vendor.ps1
 -VerifyOnly` exits 0.
 
-## Step 2 — apply vendor patches (manual, no script)
+## Step 2 — apply vendor patches (scripted)
 
-Apply every patch in [`patches/README.md`](patches/README.md) onto the
-extracted trees — that table is the index, and an unindexed patch does not
-exist. A modified file stays under the original license; the `WINKIT:` marker
-is used only in test-logic changes.
+```
+scripts\apply-patches.ps1
+```
 
-**Invariant after step 2:** the tree builds the patched sources; the kit
-reports modified versions (e.g. `treectrl 2.5.2` from the `main` branch).
+Turns the pristine trees of step 1 into the trees the kit builds from. What is
+changed, and why, is data in [`patches/patches.json`](patches/patches.json) — 24
+entries over five components, each declaring its operations (EOL normalization,
+an asserted whole-word identifier rename, a unified diff, a file rename) and the
+SHA-256 of both the pristine and the final file. The 22 `*.patch` files next to
+it are derived, not authored: `scripts\make-patches.ps1` recomputes their bytes
+and both hashes from two trees, and `-Check` fails a manifest that drifted from
+the sources. [`patches/README.md`](patches/README.md) is the human index.
+
+The script refuses to patch a tree `unpack-vendor.ps1 -VerifyOnly` has not
+accepted, and requires every file it touches to be either pristine or already
+final. Everything is staged in a throwaway directory outside every repository
+and nothing reaches a tree until the whole run has produced zero failures, so a
+refusal cannot leave a half-patched tree — the one state a later run could not
+tell apart from a hand edit. `-VerifyOnly` re-checks the marks and the bytes,
+`-DryRun` announces a plan, `-Force` re-applies over a patched tree,
+`-Chain`/`-Only` narrow the plan. Line endings are a declared operation
+(`canon.eol = lf`), not diff bytes: applying drops 163 CR bytes, all of them from
+upstream `itk/win/makefile.vc`.
+
+Three things that alter a build stay outside the manifest on purpose, because
+they are properties of the build rather than of the vendor source — the dyncall
+`.lib` substitution, the `rl_jsonUuid.h`/`manifest.uuid` seeding, and the two
+derived junctions under `build/msvc/ext`. All three are indexed at the end of
+[`patches/README.md`](patches/README.md) and measured in
+[`docs/SOURCES.md`](docs/SOURCES.md).
+
+**Invariant after step 2:** `scripts\apply-patches.ps1 -VerifyOnly` exits 0; the
+tree builds the patched sources; the kit reports modified versions (e.g.
+`treectrl 2.5.2` from the `main` branch).
 
 ## Step 3 — MSVC chain
 
@@ -214,7 +241,23 @@ expected to differ. The mechanisms are in CONTRIBUTING.md (_Reproducibility_).
 
 ## Why there is no CI build job
 
-CI runs two jobs (encoding/determinism gates and the vendor-fetch step), and
-no build job, because step 2 (applying vendor patches) is still manual — a
-build job would have nothing to compile past the unpatched tree and would
-report success on it.
+CI runs two jobs (encoding/determinism gates and the vendor-fetch step), and no
+build job. Steps 0–2 are no longer the reason: they are scripted, so
+`fetch-vendor` → `unpack-vendor` → `apply-patches` → `-VerifyOnly` is a chain CI
+could execute today on the `sources` job, which already has all 15 archives.
+
+The reason is the compilers. The MSVC chain needs an x64 Native Tools prompt and
+the MinGW chain an MSYS2 login shell with `MSYSTEM` set — without it the MSYS2
+profile falls back to the MSYS toolchain, which has no `gcc` — and a build job
+that ran only one of the two would prove less than the local rule does, because
+the kit is defined as the pair: a change is not done until it builds on both.
+`SOURCE_DATE_EPOCH` and `-Brepro` make the five artifacts reproducible **per
+toolchain**, so the missing piece is not determinism but a second toolchain in
+CI and the wall clock to run both.
+
+What CI can gain without either is the patch half of the chain, and that is the
+next candidate: `unpack-vendor.ps1 -DryRun` on the `encoding` job (it needs no
+`vendor/`), and `apply-patches.ps1` plus `make-patches.ps1 -Check` on `sources`.
+`-Check` takes a `-PristineRoot` as well as the patched tree, so that leg needs
+two unpacked copies and the disk to hold them — a design constraint, not a
+one-liner, which is why it is not wired up yet.
