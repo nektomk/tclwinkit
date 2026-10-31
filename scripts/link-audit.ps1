@@ -22,7 +22,7 @@
 # is public, so its evidence has to be public too -- a checker living in the
 # gitignored scratch directory cannot be re-run by a reader. CONTRIBUTING.md
 # ("Layout") requires a promoted tool to move in the same change that links to
-# it, and .github/workflows/ci.yml now runs this file. Its negative control
+# it, and .github/workflows/encoding.yml now runs this file. Its negative control
 # lives in scripts/check-gates-selftest.ps1, which injects six link defects into
 # throwaway repositories and requires this auditor to name each one.
 #

@@ -174,7 +174,7 @@ $text = ($lines -join "`n") + "`n"
 `link-audit.ps1` (все ссылки и фрагменты `#…` трекингового markdown) и
 `source-parity.ps1` (паритет `docs/SOURCES.md` и манифеста
 `scripts/fetch-vendor.ps1`). Первый, третий и четвёртый запускаются в CI
-(`.github/workflows/ci.yml`, джоб `encoding`), второй — локально, потому что на
+(`.github/workflows/encoding.yml`, джоб `encoding`), второй — локально, потому что на
 чекауте нечего проверять: нет собранного архива. Негативный контроль у всех
 четырёх — `scripts/check-gates-selftest.ps1`: `RESULT: failures 0`.
 

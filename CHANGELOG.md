@@ -80,14 +80,17 @@ First release. [Tag `v0.1`](https://github.com/nektomk/tclwinkit/releases/tag/v0
   `rl_json::build-info commit` and `itk::build-info commit` — a hash of this
   repository; both now report `unknown`, which is what upstream's own
   fallback writes when no VCS is present.
-- **Continuous integration** (`.github/workflows/ci.yml`), two jobs, both
-  executed on a real fresh clone before the file was added: `encoding` runs
+- **Continuous integration** (`.github/workflows/encoding.yml` +
+  `.github/workflows/sources.yml`, split out of the original `ci.yml`), two
+  jobs, both executed on a real fresh clone before the files were added:
+  `encoding` runs on every push and runs
   `scripts/check-gates-selftest.ps1`, then `scripts/check-encoding.ps1` (the
   three-level encoding rule, PowerShell syntax of every tracked `.ps1`, and the
   PE timestamp / builder-state gates), then `scripts/link-audit.ps1` and
-  `scripts/source-parity.ps1`; `sources` runs `scripts/fetch-vendor.ps1`
-  followed by `-VerifyOnly`, i.e. step zero against all 15 recorded URLs and
-  then idempotence without network. Every script exits with the number of failed
+  `scripts/source-parity.ps1`; `sources` runs only when a vendor/patching input
+  changes (see CONTRIBUTING) and runs `scripts/fetch-vendor.ps1`, then
+  `-VerifyOnly`, then unpack both chains, apply, `-VerifyOnly`,
+  `make-patches -Check`. Every script exits with the number of failed
   assertions, so no job parses logs.
 - **Documentation gates** (`scripts/link-audit.ps1`, `scripts/source-parity.ps1`):
   the first resolves all 218 markdown links of the tracked tree — 183 relative

@@ -1,0 +1,65 @@
+name: encoding
+
+# Cheap gate job (selftest + encoding + link audit + source parity + dry unpack),
+# runs on every push so a doc-only change still gets the cheap verification. The
+# expensive sources job lives in sources.yml and runs only when the vendor /
+# patching inputs actually changed. Splitting in the same commit that added the
+# manifest-based path filter (docs/CONVENTIONS-CI.md section 6). Both jobs were
+# verified on a real fresh clone of this repository before ci.yml was split
+# (see CONTRIBUTING.md "Reproducibility").
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  encoding:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show the toolchain actually under test
+        run: |
+          git --version
+          $PSVersionTable.PSVersion.ToString()
+          [System.Runtime.InteropServices.RuntimeInformation]::OSDescription
+
+      # Runs BEFORE the gate it tests. Cost: 51 assertions in ~23 s on a bare
+      # checkout, 116 in ~56 s where the artifacts exist (measured 2026-10-28).
+      # Reason: this job is the one place
+      # where the gate's three artifact sections have nothing to look at, so it
+      # is also the one place where a section that skips silently would go
+      # unnoticed. The script builds throwaway repos and archives with exactly
+      # one injected defect each and requires the gate to fail AND name that
+      # defect; a gate only ever observed passing is not evidence.
+      - name: Negative control for the gates
+        run: ./scripts/check-gates-selftest.ps1
+
+      # Exit code of the script is the number of failed assertions, so the step
+      # fails on its own and no log parsing is needed here.
+      - name: Encoding and determinism gate
+        run: ./scripts/check-encoding.ps1
+
+      # The two documentation gates. Both are read-only and both are cheap
+      # (~5 s and ~1 s), and both guard a claim a reader of this public
+      # repository acts on: that the cross-links resolve, and that the vendor
+      # map publishes exactly what the manifest fetches. Their negative control
+      # is the step above (gates 3 and 4 there), which is why they are not also
+      # re-run inside it.
+      - name: Link audit (tracked markdown)
+        run: ./scripts/link-audit.ps1
+
+      - name: Source map parity (docs/SOURCES.md vs fetch-vendor.ps1)
+        run: ./scripts/source-parity.ps1
+
+      # Step 4a: unpack -DryRun verifies vendor-layout.json without needing
+      # vendor/ archives. Catches layout/manifest mismatches early.
+      - name: Unpack vendor (dry run)
+        run: ./scripts/unpack-vendor.ps1 -DryRun

@@ -670,7 +670,7 @@ Chk ($r.code -eq 0) ('the undamaged fixture passes again after all 12 injections
 # ===========================================================================
 Say ''
 Say '=== the two encoding gates against this checkout ==='
-# Gates 3 and 4 are NOT re-run against the real repository here: ci.yml runs each
+# Gates 3 and 4 are NOT re-run against the real repository here: encoding.yml runs each
 # of them as its own step, so doing it twice would only double the wall time of
 # the job that has to stay cheap. Their ability to fail is what this file proves.
 $hasArtifacts = (Test-Path -LiteralPath (Join-Path $Repo 'dist/tclwinkit-msvc.exe'))

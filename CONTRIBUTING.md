@@ -262,11 +262,20 @@ does `make-patches.ps1 -Check`. Rules:
 
 ## Continuous integration
 
-`.github/workflows/ci.yml` runs two jobs. Both scripts they invoke were executed
-on a real fresh clone of this repository before the file was added — a job that
-has never run anywhere is not a guarantee, it is a promise — and the clone run
-is what exposed two defects in `fetch-vendor.ps1` and the silent-skip behaviour
-of the artifact sections:
+CI is two workflows, split so that the expensive job never runs for a
+docs-only push. `.github/workflows/encoding.yml` runs on **every** push (it is
+cheap — selftest, encoding gate, link audit, source parity, dry unpack — and it
+is the canary). `.github/workflows/sources.yml` runs only when one of the
+vendor / patching inputs actually changed: `scripts/fetch-vendor.ps1`,
+`scripts/unpack-vendor.ps1`, `scripts/vendor-layout.json`,
+`scripts/apply-patches.ps1`, `scripts/make-patches.ps1`, `patches/**`,
+`vendor/manifest.json`, or `.gitattributes`. `docs/SOURCES.md` deliberately is
+**not** a trigger — its manifest rows live in `fetch-vendor.ps1` and the parity
+check runs in the encoding job. Both jobs' scripts were executed on a real
+fresh clone of this repository before ci.yml was split — a job that has never
+run anywhere is not a guarantee, it is a promise — and the clone run is what
+exposed two defects in `fetch-vendor.ps1` and the silent-skip behaviour of the
+artifact sections:
 
 | Job | What it runs | What it proves |
 |---|---|---|

@@ -1,0 +1,97 @@
+name: sources
+
+# Expensive job: downloads 15 archives, verifies them twice, unpacks both
+# chains, applies the full patch set and runs make-patches -Check. It only
+# changes when one of its inputs changes:
+#   docs/SOURCES.md is NOT a trigger -- the manifest rows live in
+#   scripts/fetch-vendor.ps1 (source-parity runs in the encoding job).
+#   The path filter deliberately does not match any other .github file or any
+#   build/ verifier, so a docs-only push runs only encoding.yml.
+#
+# Split out of .github/workflows/ci.yml in the same guard that the manifest
+# change added to the encoding job. The list is exhaustive on purpose:
+# fetch/unpack layout and scripts, the patch manifest and the .patch files,
+# vendor/manifest.json, and .gitattributes (it controls the eol=lf of *.patch
+# and every *text* attr). ETL with care: the encoding job must keep running on
+# every push (it is cheap and it is the canary), so it stays in its own file.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/fetch-vendor.ps1'
+      - 'scripts/unpack-vendor.ps1'
+      - 'scripts/vendor-layout.json'
+      - 'scripts/apply-patches.ps1'
+      - 'scripts/make-patches.ps1'
+      - 'patches/**'
+      - 'vendor/manifest.json'
+      - '.gitattributes'
+      - '.github/workflows/sources.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'scripts/fetch-vendor.ps1'
+      - 'scripts/unpack-vendor.ps1'
+      - 'scripts/vendor-layout.json'
+      - 'scripts/apply-patches.ps1'
+      - 'scripts/make-patches.ps1'
+      - 'patches/**'
+      - 'vendor/manifest.json'
+      - '.gitattributes'
+      - '.github/workflows/sources.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sources:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch and verify all 15 vendor archives
+        run: ./scripts/fetch-vendor.ps1
+
+      - name: Verify again without network access (idempotence)
+        run: ./scripts/fetch-vendor.ps1 -VerifyOnly
+
+      # Step 4b: unpack BOTH chains. apply-patches' precondition re-verifies the
+      # wanted components with -Chain both, so the mingw trees must exist too;
+      # make-patches -Check below additionally needs an unpatched copy of the
+      # msvc trees (PristineRoot), which is why the snapshot is taken BEFORE the
+      # patch step. Two unpacked copies is the disk cost BUILDING.md
+      # ("Why there is no CI build job") named as the design constraint.
+      - name: Unpack vendor (both chains)
+        run: ./scripts/unpack-vendor.ps1
+
+      - name: Snapshot pristine trees for make-patches -Check
+        run: |
+          $prist = Join-Path $env:RUNNER_TEMP 'winkit-pristine'
+          Copy-Item -Path build -Destination (Join-Path $prist 'build') -Recurse -Force
+          Add-Content -Path $env:GITHUB_ENV -Value "WINKIT_PRISTINE=$prist"
+          Write-Host "pristine snapshot: $prist"
+
+      # Step 4c: apply-patches -Chain msvc then -VerifyOnly asserts the trees
+      # carry exactly what patches.json declares.
+      - name: Apply patches to build/msvc/
+        run: ./scripts/apply-patches.ps1 -Chain msvc
+
+      - name: Verify patches applied correctly
+        run: ./scripts/apply-patches.ps1 -VerifyOnly -Chain msvc
+
+      # Step 4d: make-patches -Check recomputes from_sha256/sha256/patch bytes
+      # from pristine (snapshot) vs patched (repo build/msvc) and exits 1 when a
+      # computed value disagrees with patches.json -- an assertion that runs with
+      # no compiler at all.
+      - name: make-patches -Check (verify manifest consistency)
+        run: ./scripts/make-patches.ps1 -Check -Chain msvc -PristineRoot $env:WINKIT_PRISTINE
+
+      - name: Report what landed
+        run: |
+          $f = Get-ChildItem vendor -File
+          $f | Sort-Object Name | ForEach-Object { '{0,10}  {1}' -f $_.Length, $_.Name }
+          $sum = ($f | Measure-Object -Property Length -Sum).Sum
+          'total: {0:N2} MB over {1} files' -f ($sum / 1MB), @($f).Count

@@ -44,7 +44,7 @@
 # provenance claim, and the claim "the map and the manifest agree" cannot be
 # evidenced by a tool living in the gitignored scratch directory. CONTRIBUTING.md
 # ("Layout") requires the move and the link to land in one change, so
-# .github/workflows/ci.yml runs this file and scripts/check-gates-selftest.ps1
+# .github/workflows/encoding.yml runs this file and scripts/check-gates-selftest.ps1
 # carries its negative control (twelve injected defects, three of which guard the
 # "notation not understood" and "leg never ran" vacuous shapes).
 param([string]$RepoRel = '', [string]$DocRel = 'docs/SOURCES.md', [string]$ScriptRel = 'scripts/fetch-vendor.ps1')
