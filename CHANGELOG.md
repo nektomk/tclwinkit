@@ -90,7 +90,11 @@ First release. [Tag `v0.1`](https://github.com/nektomk/tclwinkit/releases/tag/v0
   `scripts/source-parity.ps1`; `sources` runs only when a vendor/patching input
   changes (see CONTRIBUTING) and runs `scripts/fetch-vendor.ps1`, then
   `-VerifyOnly`, then unpack both chains, apply, `-VerifyOnly`,
-  `make-patches -Check`. Every script exits with the number of failed
+  `make-patches -Check`. The 15 archives are cached between runs
+  (`actions/cache`, keyed on `scripts/fetch-vendor.ps1` +
+  `vendor/manifest.json`), so a manifest bump re-downloads only the moved
+  archive and the other 14 come from cache; `fetch-vendor.ps1` re-verifies
+  every entry, cached or not. Every script exits with the number of failed
   assertions, so no job parses logs.
 - **Documentation gates** (`scripts/link-audit.ps1`, `scripts/source-parity.ps1`):
   the first resolves all 218 markdown links of the tracked tree — 183 relative

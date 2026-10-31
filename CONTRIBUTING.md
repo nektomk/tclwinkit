@@ -271,16 +271,25 @@ vendor / patching inputs actually changed: `scripts/fetch-vendor.ps1`,
 `scripts/apply-patches.ps1`, `scripts/make-patches.ps1`, `patches/**`,
 `vendor/manifest.json`, or `.gitattributes`. `docs/SOURCES.md` deliberately is
 **not** a trigger — its manifest rows live in `fetch-vendor.ps1` and the parity
-check runs in the encoding job. Both jobs' scripts were executed on a real
-fresh clone of this repository before ci.yml was split — a job that has never
-run anywhere is not a guarantee, it is a promise — and the clone run is what
-exposed two defects in `fetch-vendor.ps1` and the silent-skip behaviour of the
-artifact sections:
+check runs in the encoding job. The 15 archives are cached between runs
+(`actions/cache`, keyed on `scripts/fetch-vendor.ps1` +
+`vendor/manifest.json`), so a manifest bump re-downloads only the moved
+component and the other 14 come from cache; `fetch-vendor.ps1` still
+re-verifies size/SHA-256/archive-shape of every entry, cached or not. Both
+jobs' scripts were executed on a real fresh clone of this repository before
+ci.yml was split — a job that has never run anywhere is not a guarantee, it is
+a promise — and the clone run is what exposed two defects in
+`fetch-vendor.ps1` and the silent-skip behaviour of the artifact sections:
 
 | Job | What it runs | What it proves |
 |---|---|---|
 | `encoding` | `scripts\check-gates-selftest.ps1`, then `scripts\check-encoding.ps1`, `scripts\link-audit.ps1`, `scripts\source-parity.ps1` | first that the four gates are able to fail and to name the right defect, then the three-level encoding rule (index/blob/worktree) plus the PE `TimeDateStamp` and builder-state gates when artifacts exist, then that every relative link and `#fragment` in the tracked markdown resolves, then that `docs\SOURCES.md` publishes exactly what `scripts\fetch-vendor.ps1` fetches |
-| `sources` | `scripts\fetch-vendor.ps1`, then `-VerifyOnly` | step zero: all 15 archives download from their recorded URLs and pass size, SHA-256 and archive-shape checks; the second run proves idempotence with no network |
+| `sources` | `scripts\fetch-vendor.ps1`, then `-VerifyOnly`, then `scripts\unpack-vendor.ps1` (both chains), a pristine snapshot of `build\`, then `scripts\apply-patches.ps1 -Chain msvc`, `-VerifyOnly`, and `scripts\make-patches.ps1 -Check` | step zero: all 15 archives are present and pass size, SHA-256 and archive-shape checks (the second fetch run proves idempotence with no network); step 1: the trees unpack to the fixed layout; step 2: the manifest applies cleanly; step 3: `-Check` recomputes the hashes and bytes from pristine vs patched and agrees with `patches.json` — all of it with no compiler |
+
+**What CI does not do, and why.** There is no build job, and it is no longer
+because patching was manual — the `sources` job already runs
+`unpack-vendor` → `apply-patches` → `-VerifyOnly` → `make-patches -Check`.
+The blocker is the compilers: MSVC needs an x64 Native Tools prompt,
 
 **What CI does not do, and why.** There is no build job, and it is no longer
 because patching was manual — steps 0–2 are scripted, and `sources` already holds

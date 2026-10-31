@@ -14,6 +14,16 @@ name: sources
 # vendor/manifest.json, and .gitattributes (it controls the eol=lf of *.patch
 # and every *text* attr). ETL with care: the encoding job must keep running on
 # every push (it is cheap and it is the canary), so it stays in its own file.
+#
+# The 15 archives (68 MB on disk) are cached between runs keyed on the manifest
+# bytes (scripts/fetch-vendor.ps1 rows + vendor/manifest.json). A manifest bump
+# changes the key, restore-keys falls back to the previous vendor build, and
+# only the moved component re-downloads. The other 14 are byte-identical and
+# survive from cache. The restore may overwrite the checked-out
+# vendor/manifest.json with its previous contents, but nothing in this job reads
+# it -- the rows the fetcher uses live in scripts/fetch-vendor.ps1 -- and
+# fetch-vendor.ps1 re-verifies size/SHA-256/archive-shape on every run, so a
+# stale cache entry cannot admit a bad archive into the build trees.
 
 on:
   push:
@@ -51,6 +61,22 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+
+      # Restore the 15 archives from cache. The key is the manifest bytes, so a
+      # manifest-only change (a doc row edit) produces a different key but the
+      # same content -- the job then re-downloads everything. restore-keys is
+      # what makes a real vendor bump cheap: key miss falls back to the previous
+      # vendor build, only the moved archive is re-fetched. fetch-vendor.ps1
+      # still verifies every restored entry against size/SHA-256/archive-shape,
+      # so a cache entry is never trusted blindly.
+      - name: Restore vendor cache
+        id: vendor-cache
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: vendor-${{ hashFiles('scripts/fetch-vendor.ps1', 'vendor/manifest.json') }}
+          restore-keys: |
+            vendor-
 
       - name: Fetch and verify all 15 vendor archives
         run: ./scripts/fetch-vendor.ps1
@@ -90,8 +116,22 @@ jobs:
         run: ./scripts/make-patches.ps1 -Check -Chain msvc -PristineRoot $env:WINKIT_PRISTINE
 
       - name: Report what landed
+        env:
+          CACHE_HIT: ${{ steps.vendor-cache.outputs.cache-hit }}
         run: |
           $f = Get-ChildItem vendor -File
           $f | Sort-Object Name | ForEach-Object { '{0,10}  {1}' -f $_.Length, $_.Name }
           $sum = ($f | Measure-Object -Property Length -Sum).Sum
           'total: {0:N2} MB over {1} files' -f ($sum / 1MB), @($f).Count
+          'cache hit: {0}' -f $env:CACHE_HIT
+
+      # Save the verified vendor/ back to cache. Only the bytes that survived
+      # fetch-vendor.ps1's size/SHA-256/shape verification are cached, which is
+      # exactly the trustworthy subset -- a cache write after the verify means a
+      # corrupted entry can never be cached.
+      - name: Save vendor cache
+        uses: actions/cache/save@v4
+        if: steps.vendor-cache.outputs.cache-hit != 'true'
+        with:
+          path: vendor
+          key: vendor-${{ hashFiles('scripts/fetch-vendor.ps1', 'vendor/manifest.json') }}
