@@ -36,6 +36,7 @@
 #   Usage:
 #     scripts\unpack-vendor.ps1                  # unpack what is missing
 #     scripts\unpack-vendor.ps1 -VerifyOnly      # check the trees, write nothing
+#     scripts\unpack-vendor.ps1 -Adopt           # add markers to legacy/hand-unpacked trees, after a per-file honesty check
 #     scripts\unpack-vendor.ps1 -DryRun          # print the plan, touch nothing
 #     scripts\unpack-vendor.ps1 -Force           # replace trees that exist
 #     scripts\unpack-vendor.ps1 -Chain msvc      # one toolchain only
@@ -52,9 +53,12 @@ param(
     [string[]]$Only = @(),
     [switch]$VerifyOnly,
     [switch]$DryRun,
-    [switch]$Force
+    [switch]$Force,
+    [switch]$Adopt
 )
 $ErrorActionPreference = 'Stop'
+if ($Adopt -and $VerifyOnly) { throw '-Adopt writes markers; it cannot be combined with -VerifyOnly' }
+if ($Adopt -and $Force)       { throw '-Adopt and -Force are alternatives: -Force re-unpacks, -Adopt only marks' }
 $ProgressPreference = 'SilentlyContinue'
 
 # powershell -File passes "-Only a,b,c" as ONE string, while -File-free
@@ -154,6 +158,88 @@ function Test-Dest([string]$Dest, $Entry, [string]$ArchiveSha) {
     return ''
 }
 
+
+function Test-AdoptTree([string]$Dest, $Entry, [string]$ArchiveSha) {
+    # Returns an object { ok; top; why } . ok=$true means the existing
+    # UNMARKED tree is honestly the unpack of this archive: patch differences
+    # declared in patches.json (file, and rename_file from/to both sides) and
+    # replacements declared in adopt.replaced are tolerated, and
+    # adopt.optional_missing tolerates absence of build-regenerated files
+    # (e.g. tclIndex). The archive is still extracted so "top" is the real top
+    # name the marker must record, and every other archive file is
+    # byte-compared. Patch/replace/optional paths use '/' separators like the
+    # JSON does; tree-relative paths are normalized to '/' before comparing.
+    $files = @(Get-ChildItem -LiteralPath $Dest -Recurse -File -Force -EA SilentlyContinue)
+    if ($files.Count -eq 0) { return @{ ok = $false; why = 'EMPTY (no files)' } }
+    $patch = Join-Path $Root 'patches\patches.json'
+    $set = @{}
+    $renames = @{}
+    if (Test-Path -LiteralPath $patch) {
+        $pm = Get-Content -LiteralPath $patch -Raw -Encoding UTF8 | ConvertFrom-Json
+        foreach ($en in @($pm.entries)) {
+            if ($en.component -ne $Entry.component) { continue }
+            if ($en.file) { $set[$en.file] = $true }
+            if ($en.rename_file -and $en.rename_file.to) {
+                $set[$en.rename_file.to] = $true
+                if ($en.rename_file.from) { $renames[$en.rename_file.from] = $en.rename_file.to }
+            }
+        }
+    }
+    $optional = @()
+    if ($Entry.PSObject.Properties.Name -contains 'adopt') {
+        if ($Entry.adopt.PSObject.Properties.Name -contains 'optional_missing') {
+            $optional = @($Entry.adopt.optional_missing)
+        }
+        if ($Entry.adopt.PSObject.Properties.Name -contains 'replaced') {
+            foreach ($r in @($Entry.adopt.replaced)) { $set[$r] = $true }
+        }
+    }
+    $sc = Join-Path $Scratch ('adopt-' + $Entry.component + '-' + [System.Guid]::NewGuid().ToString('N').Substring(0, 8))
+    New-Item -ItemType Directory -Force -Path $sc | Out-Null
+    try {
+        $archPath = Join-Path $Vendor $Entry.archive
+        if ($Entry.kind -eq 'zip') {
+            [System.IO.Compression.ZipFile]::ExtractToDirectory($archPath, $sc)
+        } else {
+            $flag = if ($Entry.kind -eq 'txz') { '-xJf' } else { '-xzf' }
+            & tar $flag $archPath '-C' $sc 2>&1 | Out-Null
+            if ($LASTEXITCODE -ne 0) { return @{ ok = $false; why = 'archive not extractable: ' + $Entry.archive } }
+        }
+        $tops = @(Get-ChildItem -LiteralPath $sc -Directory)
+        if ($tops.Count -ne 1) { return @{ ok = $false; why = 'archive has ' + $tops.Count + ' top-level dirs' } }
+        $whyTop = Test-TopName $Entry $tops[0].Name
+        if ($whyTop) { return @{ ok = $false; why = $whyTop } }
+        $refRoot = $tops[0].FullName
+        $refFiles = @(Get-ChildItem -LiteralPath $refRoot -Recurse -File -Force)
+        $missing = @()
+        $changed = @()
+        foreach ($rf in $refFiles) {
+            $rel = $rf.FullName.Substring($refRoot.Length).TrimStart('\', '/').Replace('\', '/')
+            $tf = Join-Path $Dest $rel
+            if (-not (Test-Path -LiteralPath $tf)) {
+                if ($renames.ContainsKey($rel)) {
+                    $tn = Join-Path $Dest ($renames[$rel].Replace('/', '\'))
+                    if (Test-Path -LiteralPath $tn) { continue }
+                }
+                if (-not ($optional -contains $rel)) { $missing += $rel }
+                continue
+            }
+            if ($set.ContainsKey($rel)) { continue }
+            $ha = (Get-FileHash -LiteralPath $rf.FullName -Algorithm SHA256).Hash
+            $hb = (Get-FileHash -LiteralPath $tf -Algorithm SHA256).Hash
+            if ($ha -ne $hb) { $changed += $rel }
+        }
+        if ($missing.Count -or $changed.Count) {
+            $why = @()
+            if ($missing.Count) { $why += 'missing ' + $missing.Count + ': ' + (($missing | Select-Object -First 5) -join ', ') }
+            if ($changed.Count) { $why += 'changed ' + $changed.Count + ': ' + (($changed | Select-Object -First 5) -join ', ') }
+            return @{ ok = $false; why = ($why -join '; ') }
+        }
+        return @{ ok = $true; top = $tops[0].Name; why = '' }
+    } finally {
+        if (Test-Path -LiteralPath $sc) { Remove-Item -LiteralPath $sc -Recurse -Force -EA SilentlyContinue }
+    }
+}
 # ---------------------------------------------------------------- the plan ---
 $plan = @()
 foreach ($e in @($Layout.entries)) {
@@ -171,7 +257,7 @@ foreach ($e in @($Layout.entries)) {
 }
 if ($plan.Count -eq 0) { throw 'the plan is empty: -Only/-Chain matched nothing in the layout map' }
 
-'mode: '    + $(if ($DryRun) { 'dry run' } elseif ($VerifyOnly) { 'verify only' } else { 'unpack' }) + $(if ($Force) { ', force' } else { '' })
+'mode: '    + $(if ($DryRun) { 'dry run' } elseif ($VerifyOnly) { 'verify only' } elseif ($Adopt) { 'adopt' } else { 'unpack' }) + $(if ($Force) { ', force' } else { '' })
 'root: '    + $Root
 'layout: '  + $LayoutPath + '  (schema ' + $Layout.schema + ', ' + @($Layout.entries).Count + ' entries)'
 'plan: '    + $plan.Count + ' tree(s)'
@@ -231,6 +317,32 @@ foreach ($p in $plan) {
     if ($VerifyOnly) {
         $failed += ($e.component + ' ' + $p.dest + ': ' + $state)
         ($tag + 'BAD  ' + $state)
+        continue
+    }
+    # -Adopt: an existing UNMARKED tree that passes the honesty check gets its
+    # marker written in place; nothing is unpacked, nothing is deleted.
+    if ($Adopt -and $state -like 'UNMARKED*') {
+        $ad = Test-AdoptTree $p.dest $e $sha
+        if ($ad.ok) {
+            $marker = [ordered]@{
+                schema    = $Layout.schema
+                component = $e.component
+                archive   = $e.archive
+                kind      = $e.kind
+                top       = $ad.top
+                sha256    = $sha
+                scope     = $e.scope
+                dir       = $e.dir
+            }
+            if ($p.chain) { $marker['chain'] = $p.chain }
+            [System.IO.File]::WriteAllText((Join-Path $p.dest $MarkerName), ($marker | ConvertTo-Json -Depth 4), $Utf8)
+            $n = @(Get-ChildItem -LiteralPath $p.dest -Recurse -File -Force).Count
+            $ok++
+            ($tag + 'adopted (' + $n + ' files, marker ' + $MarkerName + ')')
+        } else {
+            $failed += ($e.component + ' ' + $p.dest + ': adopt refused: ' + $ad.why)
+            ($tag + 'ADOPT-REFUSED ' + $ad.why)
+        }
         continue
     }
     if ($state -ne 'MISSING' -and -not $Force) {
@@ -301,3 +413,4 @@ if ($failed.Count) {
 }
 'UNPACK-VENDOR OK'
 exit 0
+
