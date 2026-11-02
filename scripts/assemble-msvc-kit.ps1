@@ -80,7 +80,7 @@ function New-VfsTree {
     Copy-Item "$Common\TclReadLine\pkgIndex.tcl"    "$Stage\kit.vfs\lib\TclReadLine\"
     Copy-Item "$Root\src\kit\vfs\lib\TclReadLine\tclreadline-win.tcl" "$Stage\kit.vfs\lib\TclReadLine\"
 
-    # rl_json 0.17.8 — statically linked into the exe (kit_register.c),
+    # rl_json 0.17.8 - statically linked into the exe (kit_register.c),
     # so pkgIndex.tcl just needs 'load {} Rl_json' (no .lib file in VFS).
     New-Item -ItemType Directory -Force "$Stage\kit.vfs\lib\rl_json0.17.8" | Out-Null
     @'
@@ -91,7 +91,7 @@ if {[package vsatisfies [package provide Tcl] 9.0-]} {
 }
 '@ | Set-Content "$Stage\kit.vfs\lib\rl_json0.17.8\pkgIndex.tcl" -Encoding UTF8
 
-    # mpexpr 1.2 — statically linked into the exe (kit_register.c),
+    # mpexpr 1.2 - statically linked into the exe (kit_register.c),
     # so pkgIndex.tcl just needs 'load {} Mpexpr' (no .lib file in VFS).
     New-Item -ItemType Directory -Force "$Stage\kit.vfs\lib\mpexpr1.2" | Out-Null
     @'
@@ -225,3 +225,4 @@ if ($PruneStats) {
     }
 }
 Write-Host '=== MSVC KIT ASSEMBLED ==='
+
