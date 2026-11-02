@@ -80,6 +80,28 @@ function New-VfsTree {
     Copy-Item "$Common\TclReadLine\pkgIndex.tcl"    "$Stage\kit.vfs\lib\TclReadLine\"
     Copy-Item "$Root\src\kit\vfs\lib\TclReadLine\tclreadline-win.tcl" "$Stage\kit.vfs\lib\TclReadLine\"
 
+    # rl_json 0.17.8 — statically linked into the exe (kit_register.c),
+    # so pkgIndex.tcl just needs 'load {} Rl_json' (no .lib file in VFS).
+    New-Item -ItemType Directory -Force "$Stage\kit.vfs\lib\rl_json0.17.8" | Out-Null
+    @'
+if {[package vsatisfies [package provide Tcl] 9.0-]} {
+    package ifneeded rl_json 0.17.8 [list load {} Rl_json]
+} else {
+    package ifneeded rl_json 0.17.8 [list load {} Rl_json]
+}
+'@ | Set-Content "$Stage\kit.vfs\lib\rl_json0.17.8\pkgIndex.tcl" -Encoding UTF8
+
+    # mpexpr 1.2 — statically linked into the exe (kit_register.c),
+    # so pkgIndex.tcl just needs 'load {} Mpexpr' (no .lib file in VFS).
+    New-Item -ItemType Directory -Force "$Stage\kit.vfs\lib\mpexpr1.2" | Out-Null
+    @'
+if {[package vsatisfies [package provide Tcl] 9.0]} {
+    package ifneeded Mpexpr 1.2 [list load {} Mpexpr]
+} else {
+    package ifneeded Mpexpr 1.2 [list load {} Mpexpr]
+}
+'@ | Set-Content "$Stage\kit.vfs\lib\mpexpr1.2\pkgIndex.tcl" -Encoding UTF8
+
     # tcllib 2.0 module tree (every module dir carries its pkgIndex.tcl)
     New-Item -ItemType Directory -Force "$Stage\kit.vfs\lib\tcllib2.0" | Out-Null
     Copy-Item -Recurse "$Common\tcllib-2.0\modules\*" "$Stage\kit.vfs\lib\tcllib2.0\"
