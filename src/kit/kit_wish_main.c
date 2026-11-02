@@ -88,7 +88,41 @@ int
 Tcl_AppInit(
     Tcl_Interp *interp)		/* Interpreter for application. */
 {
+    /*
+     * Pin tcl_library to our own VFS copy of the Tcl script library
+     * (//zipfs:/app/tcl_library, mounted by TclZipfs_AppHook before
+     * Tk_Main). Per tclInterp.c's [tclInit] search order, an explicitly
+     * set $tcl_library is authoritative: Tcl_Init will NOT consult
+     * $env(TCL_LIBRARY) or any on-disk location, so a machine with an
+     * installed Tcl (or a tampered TCL_LIBRARY) cannot inject its own
+     * init.tcl / libraries into our runtime.
+     *
+     * Additionally, strip TCL_LIBRARY from the process's OS environment
+     * block BEFORE any interpreter is asked to initialize.
+     * Tk_CreateConsoleWindow creates a second interpreter (consoleInterp)
+     * and slave interpreters (interp create) each seed their $env array
+     * from the process environment block (tclEnv.c tenviron), not from a
+     * sibling interpreter; a leftover TCL_LIBRARY would make their
+     * [tclInit] pick the external (installed/tampered) init.tcl even though
+     * THIS interp has a valid pinned $tcl_library. exec'd children inherit
+     * the same block, so a stale value would leak into them too. After
+     * Tcl_Init we re-declare $env(TCL_LIBRARY) for Tcl-level scripts:
+     * writing through the env array propagates back into the process block
+     * (EnvTraceProc), so it reads correctly and the block stays consistent
+     * for exec'd children.
+     */
+    if (!SetEnvironmentVariableW(L"TCL_LIBRARY", NULL)) {
+	return TCL_ERROR;
+    }
+    if (Tcl_SetVar(interp, "tcl_library", "//zipfs:/app/tcl_library",
+	    TCL_GLOBAL_ONLY) == NULL) {
+	return TCL_ERROR;
+    }
     if ((Tcl_Init)(interp) == TCL_ERROR) {
+	return TCL_ERROR;
+    }
+    if (Tcl_SetVar(interp, "env(TCL_LIBRARY)", "//zipfs:/app/tcl_library",
+	    TCL_GLOBAL_ONLY) == NULL) {
 	return TCL_ERROR;
     }
     if (Tk_Init(interp) == TCL_ERROR) {
@@ -107,8 +141,9 @@ Tcl_AppInit(
 	return TCL_ERROR;
     }
 
-    (void) Tcl_EvalEx(interp,
-	    "set tcl_rcFileName [file tildeexpand ~/winkitwishrc.tcl]",
-	    TCL_AUTO_LENGTH, TCL_EVAL_GLOBAL);
+    /* NOTE: no tcl_rcFileName is set here on purpose. A per-user rc file
+     * would execute untrusted script from the home directory on every
+     * interactive start, reintroducing an environment dependency that the
+     * portable runtime explicitly avoids. */
     return TCL_OK;
 }
