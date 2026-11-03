@@ -1,0 +1,117 @@
+diff --git a/tclreadline.tcl b/tclreadline.tcl
+index 1e886e9..f21f97a 100644
+--- a/tclreadline.tcl
++++ b/tclreadline.tcl
+@@ -952,27 +952,31 @@ proc TclReadLine::doExit {{code 0}} {
+     restore ;# restore "info' command -
+     lineInput
+     exec stty sane
+-    
+-    set hlist [getHistory]
+-    #
+-    # Get rid of the TclReadLine::doExit, shouldn't be more than one
+-    #
+-    set hlist [lsearch -all -not -inline $hlist "TclReadLine::doExit"]
+-    set hlistlen [llength $hlist]
+-    if {$hlistlen > 0} {
+-        set f [open $HISTFILE w]
+-        if {$hlistlen > $HISTORY_SIZE} {
+-            set hlist [lrange $hlist [expr {($hlistlen - $HISTORY_SIZE - 1)}] end]
+-        }
+-        foreach x $hlist {
+-            # Escape newlines:
+-            puts $f [string map {
+-                \n "\\n"
+-                "\\" "\\b"
+-            } $x]
+-        }
+-        close $f
+-    }
++
++    # I9/portability: do not write ~/.tclline_history. A portable runtime must
++    # not leave per-user state behind (README "nothing written next to the
++    # exe"), and writing to the home profile is skipped for the same reason
++    # ~/.tcllinerc is not read above.
++    # set hlist [getHistory]
++    # #
++    # # Get rid of the TclReadLine::doExit, shouldn't be more than one
++    # #
++    # set hlist [lsearch -all -not -inline $hlist "TclReadLine::doExit"]
++    # set hlistlen [llength $hlist]
++    # if {$hlistlen > 0} {
++    #     set f [open $HISTFILE w]
++    #     if {$hlistlen > $HISTORY_SIZE} {
++    #         set hlist [lrange $hlist [expr {($hlistlen - $HISTORY_SIZE - 1)}] end]
++    #     }
++    #     foreach x $hlist {
++    #         # Escape newlines:
++    #         puts $f [string map {
++    #             \n "\\n"
++    #             "\\" "\\b"
++    #         } $x]
++    #     }
++    #     close $f
++    # }
+     
+     exit $code
+ }
+@@ -989,9 +993,12 @@ proc TclReadLine::interact {} {
+ #    rename TclReadLine::unknown ::unknown
+     
+     variable RCFILE
+-    if {[file exists $RCFILE]} {
+-        source $RCFILE
+-    }
++    # I9/portability: do not read ~/.tcllinerc. A user rc file would run
++    # untrusted script from the home directory on interactive start, which the
++    # portable runtime explicitly avoids (same rationale as tcl_rcFileName).
++    # if {[file exists $RCFILE]} {
++    #     source $RCFILE
++    # }
+ 
+     # Load history if available:
+     # variable HISTORY
+@@ -999,23 +1006,26 @@ proc TclReadLine::interact {} {
+     variable HISTORY_SIZE
+     history keep $HISTORY_SIZE
+     
+-    if {[file exists $HISTFILE]} {
+-        set f [open $HISTFILE r]
+-        set hlist [list]
+-        foreach x [split [read $f] "\n"] {
+-            if {$x != ""} {
+-                # Undo newline escapes:
+-                lappend hlist [string map {
+-                    "\\n" \n
+-                    "\\\\" "\\"
+-                    "\\b" "\\"
+-                } $x]
+-            }
+-        }
+-        setHistory $hlist
+-        unset hlist
+-        close $f
+-    }
++    # I9/portability: do not read ~/.tclline_history. The saved history may be
++    # tampered or stale, and a portable runtime must not execute or expose data
++    # from an untrusted home profile. The REPL starts with an empty history.
++    # if {[file exists $HISTFILE]} {
++    #     set f [open $HISTFILE r]
++    #     set hlist [list]
++    #     foreach x [split [read $f] "\n"] {
++    #         if {$x != ""} {
++    #             # Undo newline escapes:
++    #             lappend hlist [string map {
++    #                 "\\n" \n
++    #                 "\\\\" "\\"
++    #                 "\\b" "\\"
++    #             } $x]
++    #         }
++    #     }
++    #     setHistory $hlist
++    #     unset hlist
++    #     close $f
++    # }
+     
+     rawInput
+     
