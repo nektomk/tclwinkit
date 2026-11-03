@@ -1,8 +1,54 @@
 diff --git a/tclreadline.tcl b/tclreadline.tcl
-index 1e886e9..f21f97a 100644
+index 1e886e9..dec812b 100644
 --- a/tclreadline.tcl
 +++ b/tclreadline.tcl
-@@ -952,27 +952,31 @@ proc TclReadLine::doExit {{code 0}} {
+@@ -38,19 +38,23 @@
+ 
+ package provide TclReadLine 1.1
+ 
+-if {[catch {
+-    # Use Expect if available:
+-    package require Expect
+-
+-    interp alias {} stty {} exp_stty
+-
+-    # Prevent sigint (ctrl-C) from killing our shell; instead interupt loop/procedure
+-    exp_trap -code {
+-        error interrupted
+-    } SIGINT
+-    # Handle terminal resize events:
+-    exp_trap ::TclReadLine::getColumns SIGWINCH
+-}]} {
++# I9/portability: do not attempt to load Expect (or Tclx). package require
++# would search \$auto_path and potentially read external pkgIndex.tcl files
++# from an untrusted environment. Expect is not bundled with the kit anyway.
++# The stty command is provided by tclreadline-win.tcl on Windows.
++# if {[catch {
++#     # Use Expect if available:
++#     package require Expect
++#
++#     interp alias {} stty {} exp_stty
++#
++#     # Prevent sigint (ctrl-C) from killing our shell; instead interupt loop/procedure
++#     exp_trap -code {
++#         error interrupted
++#     } SIGINT
++#     # Handle terminal resize events:
++#     exp_trap ::TclReadLine::getColumns SIGWINCH
++# }]} {
+ #    commented out, because Tclx interferes with some of my software
+ #    # else, fall back on Tclx:
+ #    package require Tclx
+@@ -60,7 +64,7 @@ if {[catch {
+ #    # Prevent sigint from killing our shell:
+ #    signal ignore SIGINT
+ #	interp alias {} stty stty
+-}
++# }
+ 
+ namespace eval TclReadLine {
+ 
+@@ -952,27 +956,31 @@ proc TclReadLine::doExit {{code 0}} {
      restore ;# restore "info' command -
      lineInput
      exec stty sane
@@ -55,7 +101,7 @@ index 1e886e9..f21f97a 100644
      
      exit $code
  }
-@@ -989,9 +993,12 @@ proc TclReadLine::interact {} {
+@@ -989,9 +997,12 @@ proc TclReadLine::interact {} {
  #    rename TclReadLine::unknown ::unknown
      
      variable RCFILE
@@ -71,7 +117,7 @@ index 1e886e9..f21f97a 100644
  
      # Load history if available:
      # variable HISTORY
-@@ -999,23 +1006,26 @@ proc TclReadLine::interact {} {
+@@ -999,23 +1010,26 @@ proc TclReadLine::interact {} {
      variable HISTORY_SIZE
      history keep $HISTORY_SIZE
      

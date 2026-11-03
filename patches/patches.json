@@ -217,9 +217,9 @@
       "component": "TclReadLine",
       "file": "tclreadline.tcl",
       "patch": "TclReadLine/tclreadline.tcl.patch",
-      "note": "I9/portability: portable runtime не читает ~/.tcllinerc и не читает/пишет ~/.tclline_history (untrusted home profile). В proc TclReadLine::interact закомментированы source $RCFILE и чтение из $HISTFILE; в proc TclReadLine::doExit закомментирована запись истории от exec stty sane до close $f, exit $code оставлен",
+      "note": "I9/portability: portable runtime не читает ~/.tcllinerc и не читает/пишет ~/.tclline_history (untrusted home profile). В proc TclReadLine::interact закомментированы source $RCFILE и чтение из $HISTFILE; в proc TclReadLine::doExit закомментирована запись истории от exec stty sane до close $f, exit $code оставлен. Также закомментирован блок с package require Expect (строки 41-63) — Expect не бандлится, а package require мог бы читать внешние pkgIndex.tcl из недоверенного окружения.",
       "from_sha256": "5f68c1d61571e2150db20c2cfe9c21e16a5fd1930563b2851bd3cd425322662c",
-      "sha256": "650e8de85577ce1d9ad9c499e57ba7459e4803b625d8213d886feef17a9ab04e"
+      "sha256": "7ed398e515b381060cdb42f98cdaa10513cc688a0e1d8143e0b3b2d4ef646ffa"
     }
   ]
 }
