@@ -28,8 +28,14 @@ verbose process documentation (conventions, CI, release procedure) is in
   upstream constraint, not a choice here).
 - MSVC: Visual Studio Build Tools with the C++ workload. Located
   automatically via `vswhere`.
-- MinGW: MSYS2 with the UCRT64 environment (see step 5 for the exact shell
-  invocation).
+- MinGW: MSYS2 with the UCRT64 environment (see step 4 for the exact shell
+  invocation), **plus the `zip` package** — `pacman -S zip`. Tcl's and Tk's
+  zipfs targets shell out to a `zip` program; with none on `PATH`, `configure`
+  falls back to building its own minizip, and Tk 9.0.4's `win/Makefile.in`
+  declares `MINIZIP_OBJS` with no rule for it — so Tcl builds, prints `TCL_OK`,
+  and Tk then dies in `make` with `No rule to make target 'minizip', needed by
+  libtk9.0.4.zip`, two stages away from the cause. `scripts/mingw-env.sh`
+  checks for `zip` before the first `configure` and names the remedy.
 - PowerShell 5.1+ and `git` on `PATH`.
 - Enabling Developer Mode is **not** required; neither are any admin rights.
 
