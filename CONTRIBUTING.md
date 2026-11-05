@@ -383,8 +383,16 @@ Expected numbers on a healthy build:
 | Gate | Console kit | GUI kit |
 |---|---|---|
 | `tcllib-probe` | 439 offered / 384 loaded / 55 failed, all 55 known-upstream, **0 NEW** | 571 / 508 / 63 known, **0 NEW** |
-| `smoke` | `SMOKE OK` (~35 checks) | `SMOKE OK` (adds Img PNG, tklib, Tk widgets, Itk, Iwidgets, tkdnd, Treectrl) |
+| `smoke` | `SMOKE OK` (36 checks) | `SMOKE OK` (adds Img PNG, tklib, Tk widgets, Itk, Iwidgets, tkdnd, Treectrl) |
 | `kit-license-check` | `KIT LICENSE CHECK OK` (Tk layer skipped) | `KIT LICENSE CHECK OK` (17 paths + 11 phrase probes) |
+
+One `smoke` check reports a value rather than a verdict: `tdbc odbc` drives a
+real ODBC round-trip (connect, metadata, `SELECT`, and a prepared statement with
+a bound parameter) through the file-based Text driver that client Windows
+ships. On a host without any such driver it prints
+`skipped: no ODBC text driver (drivers seen: N)` and still counts as passing,
+because `smoke.tcl` has no skip state — so read that line rather than trusting
+the `SMOKE OK` alone when the ODBC leg matters to you.
 
 Vendor suite baselines, for comparison after any change to `patches/` or to
 staging: iwidgets 3308/3308 passed, itk 100/100, Img 290/272/18 skipped,

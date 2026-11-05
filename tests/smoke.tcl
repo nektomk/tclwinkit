@@ -51,6 +51,55 @@ chk "tdbc sqlite3" {
     dict get [lindex $r 0] a
 }
 
+# tdbc::odbc round-trip. The package is linked statically and reaches the OS
+# through -lodbc32, so "package require" alone proves almost nothing: this drives
+# SQLDriverConnect, the metadata calls, a plain SELECT and a prepared statement
+# with a bound parameter. It needs a file-based driver, and the one client
+# Windows ships is the Text driver (CSV). Where that driver is absent the check
+# reports "skipped" rather than failing -- smoke.tcl has no skip mechanism, so
+# the returned value carries it, and a skipped run must not read as a passing
+# round-trip.
+chk "tdbc odbc" {
+    package require tdbc::odbc
+    set names {}
+    foreach {drvname attrs} [tdbc::odbc::drivers] { lappend names $drvname }
+    set drv [lsearch -glob -inline $names {Microsoft Access Text Driver*}]
+    if {$drv eq {}} {
+	set r "skipped: no ODBC text driver (drivers seen: [llength $names])"
+    } else {
+	set dir [file join [file normalize $::env(TEMP)] kitodbc-[pid]]
+	file delete -force $dir
+	file mkdir $dir
+	set fd [open [file join $dir kit.csv] w]
+	puts $fd "name,qty"
+	puts $fd "kit,7"
+	puts $fd "winkit,42"
+	close $fd
+	# Dbq wants a native path; variable expansion does not reprocess its
+	# backslashes, so no quoting dance is needed here.
+	tdbc::odbc::connection create db \
+	    "Driver={$drv};Dbq=[file nativename $dir];Extensions=csv;"
+	set rows [db allrows {SELECT name, qty FROM kit.csv}]
+	# Bound on the CHAR column, not on qty: the Text driver infers column
+	# types from the file, so an integer comparison would depend on that
+	# inference while a string one does not.
+	set st [db prepare {SELECT qty FROM kit.csv WHERE name = :n}]
+	set one [$st allrows [list n winkit]]
+	$st close
+	db close
+	file delete -force $dir
+	set ok [expr {[llength $rows] == 2
+		      && [string trim [dict get [lindex $rows 0] name]] eq {kit}
+		      && [string trim [dict get [lindex $rows 0] qty]] eq {7}
+		      && [string trim [dict get [lindex $rows 1] name]] eq {winkit}
+		      && [llength $one] == 1
+		      && [string trim [dict get [lindex $one 0] qty]] eq {42}}]
+	set r [expr {$ok ? "2 rows + bound param ok ($drv)" \
+			 : "mismatch: rows=$rows param=$one"}]
+    }
+    set r
+}
+
 # thread round-trip
 chk "thread create/join" {
     set t [thread::create {thread::wait}]
