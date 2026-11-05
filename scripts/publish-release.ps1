@@ -237,10 +237,24 @@ $api = 'https://api.github.com/repos/' + $Repo
 $probe = Invoke-WebRequest -Uri $api -Headers $h -UseBasicParsing -TimeoutSec 60
 $scopes = (($probe.Headers['X-OAuth-Scopes']) -join '')
 Say 'details' ("HTTP $($probe.StatusCode), scopes [$scopes]")
-if ($scopes -notmatch '(^|, )repo(,|$)') {
-    throw ("token lacks the 'repo' scope; cannot release on a private repo (scopes: $scopes)")
-}
 $repoJson = $probe.Content | ConvertFrom-Json
+# Two token shapes reach this script, and only one of them advertises its grants
+# in X-OAuth-Scopes. A classic PAT (ghp_...) or an OAuth token does; a
+# fine-grained PAT (github_pat_...) does not -- that header is simply absent,
+# because its grants are per repository rather than account-wide. So a
+# scopes-only test rejects a fine-grained token that can in fact push and
+# release. Measured on this machine against this private repository: HTTP 200,
+# permissions admin/push/pull all true, X-OAuth-Scopes absent -- and the old
+# check threw "token lacks the 'repo' scope".
+# Ask for the capability the rest of the script needs instead: either the
+# classic 'repo' scope, or push access to this repository as the API reports it
+# for the authenticated token. Both are refusals when they are really absent.
+$canPush = [bool]($repoJson.permissions -and $repoJson.permissions.push)
+if (($scopes -notmatch '(^|, )repo(,|$)') -and (-not $canPush)) {
+    throw ("token can neither show the 'repo' scope nor push to $Repo " +
+           "(scopes: $scopes; permissions.push: $canPush)")
+}
+Say 'authz' ("scopes [$scopes], permissions.push=$canPush -- accepted")
 Say 'repo' ("$($repoJson.full_name) private=$($repoJson.private) default=$($repoJson.default_branch)")
 
 # ------------------------------------------------------- 6. create release ---
