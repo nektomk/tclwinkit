@@ -87,9 +87,39 @@ if (-not (Test-Path -LiteralPath $Zip)) {
     Write-Output ('FATAL: archive not found: ' + $Zip)
     exit 1
 }
+# Resolve to an absolute path HERE. Test-Path above goes through the PowerShell
+# provider and honours the shell's location, while ZipFile::OpenRead below is a
+# .NET call that resolves a relative path against the PROCESS working directory
+# -- and PowerShell does not keep the two in sync. Measured with
+# -Zip 'dist\tclwinkit-docs-0.2.zip' from the repository root: Test-Path said
+# yes, OpenRead threw "Could not find a part of the path
+# 'C:\src\winkit\dist\tclwinkit-docs-0.2.zip'", and because
+# $ErrorActionPreference is 'Continue' the run carried on with $z null. A null
+# $z then yields a phantom one-element array -- @($null | ForEach-Object {
+# $_.FullName }) has exactly one item -- so the report claimed
+# "entries: 1 (files 1, directories 0)" and seven failures against an archive
+# that verifies clean. The size line still read 13.6 MB because that one came
+# from the provider, which is what made the output look plausible.
+$Zip = (Resolve-Path -LiteralPath $Zip).ProviderPath
 Write-Output ('archive under test: ' + $Zip)
 
-$z = [System.IO.Compression.ZipFile]::OpenRead($Zip)
+$z = $null
+try { $z = [System.IO.Compression.ZipFile]::OpenRead($Zip) }
+catch {
+    Write-Output ('FATAL: cannot open the archive: ' + $Zip)
+    Write-Output ('       ' + $_.Exception.Message)
+    exit 1
+}
+# Vacuity guard. Every check below asks whether something is present in the
+# archive, so an unopened or empty one turns them all into failures for the
+# wrong reason -- and, as the comment above records, a null handle does not even
+# produce an honest zero. Refuse loudly instead of reporting a verdict.
+if (-not $z) { Write-Output ('FATAL: the archive handle is null: ' + $Zip); exit 1 }
+if ($z.Entries.Count -eq 0) {
+    Write-Output ('FATAL: the archive has no entries: ' + $Zip)
+    $z.Dispose()
+    exit 1
+}
 $names = @($z.Entries | ForEach-Object { $_.FullName })
 $fileEntries = @($z.Entries | Where-Object { $_.FullName -notmatch '/$' })
 $dirEntries  = @($z.Entries | Where-Object { $_.FullName -match '/$' })
