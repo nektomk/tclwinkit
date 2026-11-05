@@ -184,12 +184,18 @@ C:\msys64\usr\bin\bash.exe -lc '/c/path/to/winkit/scripts/build-mingw-kit.sh'
 scripts\assemble-mingw-kit.ps1
 ```
 
-One conditional manual helper lives inside that chain: the dyncall makefile
-produces **empty** archives under MSYS2 (the `ar` rule loses the object
-list). If `build-mingw-ext.sh` finishes and the TWAPI build then fails on
-missing objects, re-archive with `scripts\repack-dyncall.sh` and rerun
-`build-mingw-ext.sh`'s TWAPI step. `build-mingw-ext.sh` does not call it, by
-design. Also: the MinGW chain must run under MSYS2 bash, **not WSL**.
+The chain repairs one known vendor defect itself. dyncall's `dynMakefile`
+builds its archives with an `ar -rv` rule that reaches `ar` with an empty
+object list under MSYS2, so all three come out 8 bytes with zero members while
+every object file compiled fine. That step still exits 0: the failure appears
+two steps later, at the kit link, as `undefined reference to dcArgChar` and
+friends — which reads like a TWAPI problem and is not one, since TWAPI builds
+and merely references the symbols. `build-mingw-ext.sh` therefore counts the
+members of each archive, calls `scripts\repack-dyncall.sh` when any is empty,
+and then asserts both the member count and the exported `dc*` symbols before
+anything is allowed to link against them. The repair is conditional on purpose:
+where the vendor rule does produce a populated archive, its bytes are left
+alone. Also: the MinGW chain must run under MSYS2 bash, **not WSL**.
 
 **Invariant after step 4:** `dist\tclwinkit-mingw.exe` and
 `dist\winkitwish-mingw.exe` exist.

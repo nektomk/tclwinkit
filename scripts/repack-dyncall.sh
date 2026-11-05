@@ -1,9 +1,10 @@
 #!/bin/bash
 # repack-dyncall.sh - dyncall 0.9 makefile on MSYS2 produces empty archives
 # (the ar rule loses the object list); objects compile fine, so just
-# re-archive them. Manual helper: build-mingw-ext.sh does NOT call it, run it
-# between the dyncall build and the twapi build when the archives come out
-# empty (see docs/COMPARISON.md).
+# re-archive them. build-mingw-ext.sh now measures the three archives right
+# after the dyncall build and calls this only when one comes out empty, so the
+# normal path needs no manual step. The script stays runnable on its own for a
+# tree that was built by hand or interrupted halfway (see docs/COMPARISON.md).
 #
 # Paths come from the shared prologue, so this works from any checkout:
 #   MSYSTEM=UCRT64 bash -lc '<repo>/scripts/repack-dyncall.sh'
