@@ -451,7 +451,8 @@ The publisher renders `src/docs/release-notes.md` (`{{PLACEHOLDER}}` tokens
 substituted from the built artifacts), requires a clean working tree, refuses
 to move a tag that a published release already points at, and with `-Force`
 replaces same-named assets. Names in the release carry version and
-architecture (`tclwinkit-0.1-msvc-x64-console.exe`); `dist/` keeps short
+architecture (`tclwinkit-<version>-msvc-x64-console.exe`, where `<version>` is
+`variable version` in `src/kit/vfs/lib/kit_init.tcl`); `dist/` keeps short
 names.
 
 To re-issue a release at a different commit, delete the release and its tag

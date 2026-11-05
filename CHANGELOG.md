@@ -9,6 +9,109 @@ The version number lives in exactly one place: `variable version` in
 release ships five artifacts — four executables (MSVC and MinGW-w64, console
 and GUI) plus the documentation archive — and a `SHA256SUMS.txt`.
 
+## [0.2] — 2026-11-05
+
+24 commits since `v0.1`. **No bundled component changed version** — the kit is
+the same Tcl 9.0.4 / Tk 9.0.4 and the same 20 packages, and the gates report the
+same numbers as 0.1 (`smoke` OK on all four executables; `tcllib-probe`
+439 offered / 384 loaded / 55 known-upstream / **0 NEW** for the console kits
+and 571 / 508 / 63 / **0 NEW** for the GUI kits; `kit-license-check`
+0 failures). What changed is how the kit behaves on a messy or hostile host,
+and how it is built.
+
+### Changed
+
+- **The kit no longer inherits anything from an externally installed Tcl.**
+  `tcl_library` is pinned to `//zipfs:/app/tcl_library` and `TCL_LIBRARY` is
+  removed from the process environment block *before* any interpreter is
+  created, so the main interpreter, the second interpreter that
+  `Tk_CreateConsoleWindow` makes for the GUI console, and every slave
+  interpreter (`interp create`) all resolve the library inside the attached
+  image. Previously the GUI kit did read an external one: each new interpreter
+  re-reads `$env` from the OS block rather than from the parent, and `[tclInit]`
+  checks `env(TCL_LIBRARY)` before the zipfs mount, so a valid external
+  `init.tcl` won even with `tcl_library` pinned. Measured with a trap copy of
+  `init.tcl` carrying a marker: the marker no longer appears from any of the
+  four interpreter kinds, and `info library` reports the VFS in each.
+- **The REPL neither reads nor writes the user's home directory.** TclReadLine
+  no longer executes `~/.tcllinerc`, no longer reads or appends
+  `~/.tclline_history`, and its `package require Expect` block is commented out —
+  that `package require` could read a `pkgIndex.tcl` from the untrusted
+  environment. The `tcl_rcFileName` hooks are gone from both mains as well
+  (`~/winkitrc.tcl` for the console kit, `~/winkitwishrc.tcl` for the GUI one),
+  so the kit behaves identically on a read-only volume and next to a hostile
+  `$HOME`. The READMEs always claimed this; it is now true, and it is what
+  makes "nothing is written next to the exe" checkable.
+- **A clean-machine rebuild has now been performed** — the item 0.1 listed as
+  not yet done. After an OS reinstall the whole chain ran from scratch: fetch,
+  unpack, patch, both compilers, both assembles, the docs artifact, and every
+  gate green, including the 87-assertion negative-control suite. Byte-for-byte
+  equality with the reference host is still not claimed (the two toolchains
+  differ by design); the versions here are MSVC 14.51.36231 and gcc 16.2.0,
+  so a rebuild is expected to differ from both 0.1 and this one.
+
+### Fixed
+
+- **`build-msvc-ext2.bat` creates the two derived junctions itself**
+  (`build\msvc\ext\itcl4.3.8` → the itcl that arrives inside the Tcl tarball,
+  `build\msvc\ext\tk9.0.4` → the Tk core tree). `vendor-layout.json` and
+  `CONTRIBUTING.md` both said the script made them, but only a comment existed,
+  so a checkout nobody had built by hand died in itk with
+  `fatal error U1050: Could not locate ITCL source directory` — and a re-unpack
+  leaves both paths as empty directories, which is what a fresh machine has.
+  The helper is idempotent, tells an existing junction from an empty directory,
+  and never deletes a populated tree.
+- **The MinGW chain now states its `zip` requirement instead of failing
+  obscurely.** Tcl and Tk shell out to a `zip` program for their zipfs targets;
+  with none on `PATH`, configure falls back to building its own minizip, and
+  Tk 9.0.4's `win/Makefile.in` declares `MINIZIP_OBJS` without a rule for it.
+  Measured: Tcl printed `TCL_OK` and Tk died in make with
+  `No rule to make target 'minizip', needed by libtk9.0.4.zip`. `mingw-env.sh`
+  checks for `zip` up front and names the remedy (`pacman -S zip`).
+- **No import libraries inside the attached image**: rl_json and mpexpr
+  packaging was putting `.lib` files into `kit.vfs`, where nothing can load
+  them and where they only cost bytes.
+- **The docs archive no longer ships a dead link.** `THIRD-PARTY-NOTICES.md`
+  is part of the archive and pointed at `BUILDING.md`, which is not;
+  `verify-docs-artifact` now reports 60 archive-relative links resolved, 4
+  repository-only by design, 0 dead. The archive's own `README.md` had also
+  grown into a 216-line duplicate of the repository documentation and is now
+  28 lines: what the archive is, where the attribution lives, and how to open a
+  man page or a demo.
+
+### Added
+
+- **Steps 0–2 of the build are scripted and machine-readable.** A vendor layout
+  map (`scripts/vendor-layout.json`) drives `unpack-vendor.ps1`, which marks
+  every tree it writes (`.winkit-unpacked.json` with the component, archive and
+  SHA-256), re-checks them with `-VerifyOnly`, and can attest a hand-unpacked
+  tree with `-Adopt`. Vendor patches became real diffs with a verifying
+  applier: `patches/patches.json` (25 entries over 6 components — 23 unified
+  diffs, 1 file rename, 1 asserted identifier rename — each declaring the
+  SHA-256 of both the pristine and the final bytes) plus the 23 derived
+  `.patch` files, applied all-or-nothing by `apply-patches.ps1` and
+  re-derivable from two trees by `make-patches.ps1 -Check`. 25 control
+  snapshots were dropped in favour of the diffs; line endings became a declared
+  operation rather than diff bytes.
+- **`docs/BUILDING.md`**: the build as an ordered sequence of steps, each
+  stating its precondition, its command and the invariant it must leave behind,
+  written so a person or an agent can follow it top to bottom. It also records
+  why dyncall is pinned at 0.9 (TWAPI 5.2.0 hardcodes that path and ships no
+  dyncall sources, so a 1.x tree there would compile against 0.9 headers and
+  link 1.x objects).
+- **CI is split in two**: `encoding.yml` runs the cheap gates on every push,
+  `sources.yml` runs the expensive vendor legs only when one of its inputs
+  changed, with the 15 archives cached on the manifest bytes.
+
+### Known limitations
+
+- Unchanged from 0.1: TWAPI is still partial (its own suite reports 380
+  failures of 3494 on the reference host), Tk's and the full tcllib/tklib
+  suites are still not run in full, `tdbc::mysql` and `tdbc::postgres` are
+  still absent, and `__FILE__` strings reachable from panic messages still
+  carry build-machine paths. That last one was announced for "the next
+  release" in 0.1 and did **not** land here; it remains open.
+
 ## [0.1] — 2026-10-27
 
 First release. [Tag `v0.1`](https://github.com/nektomk/tclwinkit/releases/tag/v0.1).
@@ -178,4 +281,5 @@ First release. [Tag `v0.1`](https://github.com/nektomk/tclwinkit/releases/tag/v0
   agree on the PE timestamp value, by design — and a clean-machine rebuild
   has not been performed yet.
 
+[0.2]: https://github.com/nektomk/tclwinkit/releases/tag/v0.2
 [0.1]: https://github.com/nektomk/tclwinkit/releases/tag/v0.1

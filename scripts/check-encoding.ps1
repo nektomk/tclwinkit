@@ -228,8 +228,8 @@ if (-not $sums) {
     # The list must name exactly the assets the release carries, and its hashes
     # must be the hashes of the files actually built. Name matching alone is not
     # possible directly: dist/ holds tclwinkit-msvc.exe while the release asset
-    # is tclwinkit-0.1-msvc-x64-console.exe, so the published name carries a
-    # version infix the working name does not. Match on structure and on
+    # is tclwinkit-<version>-msvc-x64-console.exe, so the published name carries
+    # a version infix the working name does not. Match on structure and on
     # content instead -- an earlier draft of this assertion compared published
     # names against working names and reported 0/4 on a correct file.
     $listed = @($entries | ForEach-Object { ($_ -split '\s+')[1] -replace '^\*', '' })
