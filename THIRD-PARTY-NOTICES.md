@@ -399,8 +399,8 @@ twapi, not by rl_json.
 TWAPI's makefile and configure scripts). TWAPI 5.2.0 ships only prebuilt
 `.lib`s — no dyncall sources. Upgrading dyncall requires upgrading TWAPI > 5.2,
 where dyncall is absent from master. See
-[`docs/SOURCES.md`](docs/SOURCES.md) and [`BUILDING.md`](BUILDING.md) for the
-full rationale.
+[`docs/SOURCES.md`](docs/SOURCES.md) for the full rationale and the measured
+provenance of every archived source.
 
 ### 3.4 Info-ZIP (`crypt.h`)
 

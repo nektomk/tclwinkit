@@ -48,6 +48,21 @@ if [ ! -f "$WINKIT_ROOT/src/kit/kit_main.c" ]; then
     return 2
 fi
 
+# ---- host tool: zip -----------------------------------------------------
+# Not optional, and easy to miss when provisioning a new machine: Tcl's and
+# Tk's zipfs targets shell out to a `zip` program. configure prefers one found
+# on PATH and falls back to building its own minizip -- but Tk 9.0.4's
+# win/Makefile.in defines MINIZIP_OBJS without ever giving it a rule, so the
+# fallback dies with "No rule to make target 'minizip', needed by
+# libtk9.0.4.zip" (Tcl's Makefile.in does carry the rule, which is why Tcl
+# builds either way and only Tk fails). Fail here, naming the remedy.
+if ! command -v zip >/dev/null 2>&1; then
+    echo "MINGW ENV ERROR: no zip in PATH (MSYS2 package msys/zip)"
+    echo "MINGW ENV ERROR: install it with: pacman -S zip"
+    echo "MINGW ENV ERROR: without it Tk's zipfs target fails in make, not configure"
+    return 2
+fi
+
 # ---- toolchain guard ----------------------------------------------------
 # Measured on this machine: with MSYSTEM unset, /etc/profile falls back to
 # MSYSTEM=MSYS, whose PATH has no /ucrt64/bin, so gcc is absent and every
