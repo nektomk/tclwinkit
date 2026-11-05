@@ -211,9 +211,33 @@ scripts\build-docs-artifact.ps1    # the fifth asset, from build\msvc|mingw|comm
   **never** license texts — they stay in the image by filename rule
   (`$KitLicenseNames`), so `tests\kit-license-check.tcl` can read each one out
   of the finished exe.
+- **The docs artifact names the commit it was built from.** Its `VERSIONS.txt`
+  carries `generated: <committer date of HEAD> (commit <sha>)`, both derived
+  from git rather than from a wall clock, so the archive is reproducible *at a
+  given commit* and legitimately differs at any other one. Build it **after the
+  last commit** you intend to ship: built mid-work it records a stale sha, and
+  built on a dirty tree it says so in the same line. The four executables carry
+  no builder state at all (`check-encoding.ps1` asserts zero occurrences of
+  `HEAD` in each), so re-assembling them for a fresh stamp is unnecessary —
+  measured across a rebuild: all four byte-identical, only the docs archive
+  changed.
+- `build-docs-artifact.ps1` removes a previous version's
+  `dist\tclwinkit-docs-*.zip` once the new archive is written **and verified**,
+  so a version bump cannot leave two of them side by side; `-KeepStale` opts
+  out. Two archives are not a cosmetic problem: `verify-docs-artifact.ps1`
+  refuses to run unless exactly one matches.
+- **`SHA256SUMS.txt` goes stale on every rebuild.** It lives in
+  `build\release-stage\` and lists the *published* asset names, so no build
+  script renders it — `publish-release.ps1` does, in its step 2. Re-render it
+  with `publish-release.ps1 -DryRun`, which touches neither GitHub nor any ref
+  and does its rendering **before** the clean-tree check, so it also works
+  mid-change. Without that, `check-encoding.ps1 -RequireArtifacts` (and with it
+  `check-gates-selftest.ps1`) fails with `listed hashes matching no built file`
+  plus `built files absent from the list`.
 
 **Invariant after step 5:** `LICENSES/` is up to date; `dist\` holds five
-files including `tclwinkit-docs-*.zip`.
+files including `tclwinkit-docs-*.zip`, and `build\release-stage\SHA256SUMS.txt`
+matches them — `scripts\check-encoding.ps1 -RequireArtifacts` exits 0.
 
 ## Step 6 — verify
 

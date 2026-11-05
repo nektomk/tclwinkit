@@ -17,7 +17,8 @@
 [CmdletBinding()]
 param(
     [string]$Root = '',
-    [switch]$Keep
+    [switch]$Keep,
+    [switch]$KeepStale
 )
 $ErrorActionPreference = 'Stop'
 
@@ -382,6 +383,31 @@ try {
 } finally { $check.Dispose() }
 if ($bad.Count) {
     throw "zip contains $($bad.Count) backslash entry names, e.g. $($bad[0].FullName)"
+}
+
+# ----------------------------------------------------- stale docs archives ---
+# The archive name carries the version, so a bump leaves the previous one
+# sitting in dist/ beside the new one, and two things break without naming the
+# leftover as the cause: BUILDING.md's invariant that dist/ holds exactly five
+# files, and verify-docs-artifact.ps1, which refuses to run at all unless
+# exactly one tclwinkit-docs-*.zip matches -- it prints "archives matching: 2
+# (expected exactly 1)" and then "nothing to verify", so the selftest leg goes
+# red looking like a broken archive. Measured on the 0.1 -> 0.2 bump.
+# This runs only after the new archive has been written and verified above, so
+# a failed build cannot cost the previous good artifact. It touches only this
+# script's own artifact family, only inside dist/, and prints every removal:
+# a build script that deletes quietly is how a real artifact goes missing.
+if ($KeepStale) {
+    'stale docs archives kept (-KeepStale)'
+} else {
+    $stale = @(Get-ChildItem -LiteralPath $Dist -Filter 'tclwinkit-docs-*.zip' -File -EA SilentlyContinue |
+               Where-Object { $_.Name -ne ($Name + '.zip') })
+    foreach ($s in $stale) {
+        $sz = $s.Length
+        Remove-Item -LiteralPath $s.FullName -Force
+        'removed stale docs archive: {0} ({1:N2} MB), superseded by {2}' -f $s.Name, ($sz / 1MB), ($Name + '.zip')
+    }
+    if (-not $stale.Count) { 'no stale docs archives in dist/' }
 }
 
 $zf = @(Get-ChildItem $D -Recurse -File)
