@@ -31,7 +31,7 @@ $ErrorActionPreference = 'Stop'
 # PowerShell 5.1, so the default is resolved in the body, not in param().
 if (-not $Exe) {
     $repo = Split-Path -Parent $PSScriptRoot
-    $Exe = Join-Path $repo 'dist\tclwinkit-msvc.exe'
+    $Exe = Join-Path $repo 'dist\msvc\tclwin.exe'
 }
 
 Add-Type -TypeDefinition @'

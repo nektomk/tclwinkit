@@ -22,7 +22,11 @@ $Common = "$Root\build\common"
 $Kit    = "$Root\build\msvc\kit"
 $Stage  = "$Kit\stage"
 $Dist   = "$Root\dist"
-New-Item -ItemType Directory -Force $Dist | Out-Null
+# Short, chain-agnostic exe names (tclwin.exe / tkwin.exe) are what the release
+# archive ships, so the two toolchains can no longer sit side by side in dist/:
+# each gets its own subdirectory. The docs archive stays at the dist/ root.
+$Out    = "$Dist\msvc"
+New-Item -ItemType Directory -Force $Out | Out-Null
 
 # Runtime-only staging rules: strip test suites, manuals, benchmarks and sample
 # data out of the tcllib/tklib trees (they are published in the docs artifact).
@@ -203,16 +207,16 @@ function Join-Binaries {
 # ---- console kit -------------------------------------------------------
 New-VfsTree
 New-KitZip 'kit-console.zip'
-Join-Binaries @("$Kit\tclwinkit-raw.exe", "$Stage\kit-console.zip") "$Dist\tclwinkit-msvc.exe"
-if (-not (Test-Path "$Dist\tclwinkit-msvc.exe")) { throw 'attach failed (console)' }
+Join-Binaries @("$Kit\tclwinkit-raw.exe", "$Stage\kit-console.zip") "$Out\tclwin.exe"
+if (-not (Test-Path "$Out\tclwin.exe")) { throw 'attach failed (console)' }
 
 # ---- GUI kit ------------------------------------------------------------
 New-VfsTree -WithTk
 New-KitZip 'kit-gui.zip'
-Join-Binaries @("$Kit\winkitwish-raw.exe", "$Stage\kit-gui.zip") "$Dist\winkitwish-msvc.exe"
-if (-not (Test-Path "$Dist\winkitwish-msvc.exe")) { throw 'attach failed (gui)' }
+Join-Binaries @("$Kit\winkitwish-raw.exe", "$Stage\kit-gui.zip") "$Out\tkwin.exe"
+if (-not (Test-Path "$Out\tkwin.exe")) { throw 'attach failed (gui)' }
 
-Get-ChildItem $Dist\*-msvc.exe | Select-Object Name, @{n='MB';e={[math]::Round($_.Length/1MB,2)}}
+Get-ChildItem $Out\*.exe | Select-Object Name, @{n='MB';e={[math]::Round($_.Length/1MB,2)}}
 if ($PruneStats) {
     '--- kit.vfs prune (runtime-only staging) ---'
     $seen = @{}

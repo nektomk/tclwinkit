@@ -365,14 +365,14 @@ post-flip item instead.
 Gates run against the **shipped** executables, not against a build tree:
 
 ```
-dist\tclwinkit-msvc.exe     tests\smoke.tcl               # SMOKE OK
-dist\winkitwish-msvc.exe    tests\smoke.tcl
-dist\tclwinkit-mingw.exe    tests\smoke.tcl
-dist\winkitwish-mingw.exe   tests\smoke.tcl
+dist\msvc\tclwin.exe     tests\smoke.tcl               # SMOKE OK
+dist\msvc\tkwin.exe      tests\smoke.tcl
+dist\mingw\tclwin.exe    tests\smoke.tcl
+dist\mingw\tkwin.exe     tests\smoke.tcl
 
-dist\tclwinkit-msvc.exe     tests\tcllib-probe.tcl        # PROBE OK
+dist\msvc\tclwin.exe     tests\tcllib-probe.tcl        # PROBE OK
 ... each of the four
-dist\tclwinkit-msvc.exe     tests\kit-license-check.tcl   # KIT LICENSE CHECK OK
+dist\msvc\tclwin.exe     tests\kit-license-check.tcl   # KIT LICENSE CHECK OK
 ... each of the four
 
 scripts\test-repl.ps1       # interactive REPL: key injection, history, completion
@@ -461,7 +461,8 @@ to move a tag that a published release already points at, and with `-Force`
 replaces same-named assets. Names in the release carry version and
 architecture (`tclwinkit-<version>-msvc-x64-console.exe`, where `<version>` is
 `variable version` in `src/kit/vfs/lib/kit_init.tcl`); `dist/` keeps short
-names.
+names and, because those carry no toolchain, one subdirectory per toolchain
+(`dist\msvc\tclwin.exe`, `dist\mingw\tkwin.exe`).
 
 To re-issue a release at a different commit, delete the release and its tag
 first — that is the only sanctioned way past the refusal, and it is only

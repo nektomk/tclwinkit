@@ -312,7 +312,9 @@ Copy-Item "$Src\versions.tcl" $probe -Force
 $vers = @("tclwinkit docs $Ver", ("generated: $stamp ($stampSrc)"))
 $vers += ""
 $vers += "# runtime package versions (probed from the built kits)"
-foreach ($kit in @(@('console', "$Dist\tclwinkit-msvc.exe"), @('gui', "$Dist\winkitwish-msvc.exe"))) {
+# The shipped exe names are chain-agnostic (tclwin.exe / tkwin.exe), so the tag
+# carries the toolchain instead of relying on the file name to show it.
+foreach ($kit in @(@('msvc-console', "$Dist\msvc\tclwin.exe"), @('msvc-gui', "$Dist\msvc\tkwin.exe"))) {
     $tag, $exe = $kit
     if (-not (Test-Path $exe)) { $vers += "$tag kit: MISSING ($exe)"; continue }
     # the GUI exe has no console: capture its stdout via a redirect file

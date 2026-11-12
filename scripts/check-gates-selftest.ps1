@@ -673,7 +673,7 @@ Say '=== the two encoding gates against this checkout ==='
 # Gates 3 and 4 are NOT re-run against the real repository here: encoding.yml runs each
 # of them as its own step, so doing it twice would only double the wall time of
 # the job that has to stay cheap. Their ability to fail is what this file proves.
-$hasArtifacts = (Test-Path -LiteralPath (Join-Path $Repo 'dist/tclwinkit-msvc.exe'))
+$hasArtifacts = (Test-Path -LiteralPath (Join-Path $Repo 'dist/msvc/tclwin.exe'))
 $r = Run-Gate $checker @('-Repo', $Repo)
 Chk ($r.code -eq 0) ('check-encoding on this checkout (exit ' + $r.code + $(if ($hasArtifacts) { ', artifacts present' } else { ', no artifacts' }) + ')')
 if ($hasArtifacts) {

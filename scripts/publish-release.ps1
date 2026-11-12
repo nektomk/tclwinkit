@@ -75,21 +75,23 @@ Say '=== PUBLISH' ($Repo + ' ' + $Tag + ' (from ' + $Branch + ')')
 Say 'version' $Version
 
 # ------------------------------------------------- 2. artifacts and digests ---
-# dist name -> published asset name + label shown in the release UI
+# dist path (relative to dist\) -> published asset name + release-UI label.
+# dist\ keeps one subdirectory per toolchain because the shipped exe names are
+# chain-agnostic (tclwin.exe / tkwin.exe); the docs archive stays at the root.
 $Plan = [ordered]@{}
-$Plan['tclwinkit-msvc.exe'] = @{
+$Plan['msvc\tclwin.exe'] = @{
     name = ('tclwinkit-{0}-msvc-x64-console.exe' -f $Version)
     label = 'MSVC x64 console (tclsh replacement + REPL)'
 }
-$Plan['winkitwish-msvc.exe'] = @{
+$Plan['msvc\tkwin.exe'] = @{
     name = ('tclwinkit-{0}-msvc-x64-gui.exe' -f $Version)
     label = 'MSVC x64 GUI (wish replacement)'
 }
-$Plan['tclwinkit-mingw.exe'] = @{
+$Plan['mingw\tclwin.exe'] = @{
     name = ('tclwinkit-{0}-mingw-x64-console.exe' -f $Version)
     label = 'MinGW-w64 x64 console (tclsh replacement + REPL)'
 }
-$Plan['winkitwish-mingw.exe'] = @{
+$Plan['mingw\tkwin.exe'] = @{
     name = ('tclwinkit-{0}-mingw-x64-gui.exe' -f $Version)
     label = 'MinGW-w64 x64 GUI (wish replacement)'
 }
@@ -157,8 +159,8 @@ $subst = [ordered]@{
     # the same placeholder stays correct inside a ``` fence (where a `code span`
     # would render as literal backticks) and in prose.
     '{{TAG}}' = $Tag
-    '{{CONSOLE_EXE}}' = $Plan['tclwinkit-msvc.exe'].name
-    '{{GUI_EXE}}' = $Plan['winkitwish-msvc.exe'].name
+    '{{CONSOLE_EXE}}' = $Plan['msvc\tclwin.exe'].name
+    '{{GUI_EXE}}' = $Plan['msvc\tkwin.exe'].name
     '{{DOCS_ZIP}}' = ('tclwinkit-docs-{0}.zip' -f $Version)
 }
 foreach ($k in $subst.Keys) { $notes = $notes.Replace($k, $subst[$k]) }

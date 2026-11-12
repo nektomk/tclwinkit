@@ -11,13 +11,14 @@ verbose process documentation (conventions, CI, release procedure) is in
 
 | Output | Toolchain | Subsystem |
 |---|---|---|
-| `dist\tclwinkit-msvc.exe` | MSVC, static CRT | console |
-| `dist\winkitwish-msvc.exe` | MSVC, static CRT | GUI |
-| `dist\tclwinkit-mingw.exe` | MinGW-w64, UCRT | console |
-| `dist\winkitwish-mingw.exe` | MinGW-w64, UCRT | GUI |
+| `dist\msvc\tclwin.exe` | MSVC, static CRT | console |
+| `dist\msvc\tkwin.exe` | MSVC, static CRT | GUI |
+| `dist\mingw\tclwin.exe` | MinGW-w64, UCRT | console |
+| `dist\mingw\tkwin.exe` | MinGW-w64, UCRT | GUI |
 | `dist\tclwinkit-docs-*.zip` | — | docs archive |
 
-`dist/` keeps short names; release assets carry
+The exe names carry no toolchain, so `dist/` keeps one subdirectory per
+toolchain; the docs archive stays at the `dist/` root. Release assets carry
 `tclwinkit-<version>-<toolchain>-x64-<subsystem>.exe`.
 
 ## Preconditions
@@ -161,8 +162,8 @@ scripts\assemble-msvc-kit.ps1   # stage VFS -> zip -> attach to exe -> dist\
 build-msvc-ext.bat, build-msvc-img.bat` and invokes none of them — the steps
 above are a sequence, not a retry loop.
 
-**Invariant after step 3:** `dist\tclwinkit-msvc.exe` and
-`dist\winkitwish-msvc.exe` exist.
+**Invariant after step 3:** `dist\msvc\tclwin.exe` and
+`dist\msvc\tkwin.exe` exist.
 
 ## Step 4 — MinGW chain
 
@@ -197,8 +198,8 @@ anything is allowed to link against them. The repair is conditional on purpose:
 where the vendor rule does produce a populated archive, its bytes are left
 alone. Also: the MinGW chain must run under MSYS2 bash, **not WSL**.
 
-**Invariant after step 4:** `dist\tclwinkit-mingw.exe` and
-`dist\winkitwish-mingw.exe` exist.
+**Invariant after step 4:** `dist\mingw\tclwin.exe` and
+`dist\mingw\tkwin.exe` exist.
 
 ## Step 5 — licenses and the docs artifact
 
@@ -242,15 +243,17 @@ scripts\build-docs-artifact.ps1    # the fifth asset, from build\msvc|mingw|comm
   plus `built files absent from the list`.
 
 **Invariant after step 5:** `LICENSES/` is up to date; `dist\` holds five
-files including `tclwinkit-docs-*.zip`, and `build\release-stage\SHA256SUMS.txt`
-matches them — `scripts\check-encoding.ps1 -RequireArtifacts` exits 0.
+files — four exe under `dist\msvc\` and `dist\mingw\`, plus
+`tclwinkit-docs-*.zip` at the `dist\` root — and
+`build\release-stage\SHA256SUMS.txt` matches them, so
+`scripts\check-encoding.ps1 -RequireArtifacts` exits 0.
 
 ## Step 6 — verify
 
 ```
-dist\tclwinkit-msvc.exe tests\smoke.tcl              # SMOKE OK
-dist\tclwinkit-msvc.exe tests\tcllib-probe.tcl       # PROBE OK
-dist\tclwinkit-msvc.exe tests\kit-license-check.tcl  # KIT LICENSE CHECK OK
+dist\msvc\tclwin.exe tests\smoke.tcl              # SMOKE OK
+dist\msvc\tclwin.exe tests\tcllib-probe.tcl       # PROBE OK
+dist\msvc\tclwin.exe tests\kit-license-check.tcl  # KIT LICENSE CHECK OK
 ```
 
 Run all three against **each of the four** executables. Expected numbers on a

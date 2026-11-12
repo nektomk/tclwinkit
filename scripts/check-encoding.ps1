@@ -227,7 +227,7 @@ if (-not $sums) {
     Chk ($hdr -match 'certutil -hashfile') ('  header names the documented certutil invocation: ' + ($hdr -match 'certutil -hashfile'))
     # The list must name exactly the assets the release carries, and its hashes
     # must be the hashes of the files actually built. Name matching alone is not
-    # possible directly: dist/ holds tclwinkit-msvc.exe while the release asset
+    # possible directly: dist/ holds msvc/tclwin.exe while the release asset
     # is tclwinkit-<version>-msvc-x64-console.exe, so the published name carries
     # a version infix the working name does not. Match on structure and on
     # content instead -- an earlier draft of this assertion compared published
@@ -251,7 +251,7 @@ if (-not $sums) {
     # Content identity with what is on disk, by hash set rather than by name.
     $have = @{}
     $missing = 0
-    foreach ($n in @('tclwinkit-msvc.exe', 'winkitwish-msvc.exe', 'tclwinkit-mingw.exe', 'winkitwish-mingw.exe')) {
+    foreach ($n in @('msvc/tclwin.exe', 'msvc/tkwin.exe', 'mingw/tclwin.exe', 'mingw/tkwin.exe')) {
         $fp = Join-Path $Repo ('dist/' + $n)
         if (-not (Test-Path -LiteralPath $fp)) { $missing++; continue }
         $have[(Get-FileHash -LiteralPath $fp -Algorithm SHA256).Hash.ToLower()] = $n
@@ -271,7 +271,9 @@ if (-not $sums) {
 }
 
 # --- 5/6. the shipped executables -------------------------------------------
-$exes = @('tclwinkit-msvc.exe', 'winkitwish-msvc.exe', 'tclwinkit-mingw.exe', 'winkitwish-mingw.exe')
+# Paths are relative to dist\, which keeps one subdirectory per toolchain since
+# the shipped names are chain-agnostic (tclwin.exe / tkwin.exe).
+$exes = @('msvc/tclwin.exe', 'msvc/tkwin.exe', 'mingw/tclwin.exe', 'mingw/tkwin.exe')
 $present = @()
 foreach ($f in $exes) {
     if (Test-Path -LiteralPath (Join-Path $Repo ('dist/' + $f))) { $present += $f }
@@ -279,7 +281,7 @@ foreach ($f in $exes) {
 Rule '5. PE TimeDateStamp of the shipped exes'
 if ($present.Count -eq 0) {
     if ($RequireArtifacts) { Chk $false 'no exes under dist/ (-RequireArtifacts)' }
-    else { Skip 'no built exes; sections 5 and 6 need dist/*.exe' }
+    else { Skip 'no built exes; sections 5 and 6 need dist/<chain>/*.exe' }
 } else {
     $dos = 315532800                       # 1980-01-01T00:00:00Z, the DOS epoch
     $nowTs = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
