@@ -109,7 +109,8 @@ Then, once both trees exist under `build/`:
 
 ```
 scripts\make-licenses.ps1          # regenerate LICENSES/ (or -Check to verify)
-scripts\build-docs-artifact.ps1    # the fifth asset, built from build\msvc|mingw|common
+scripts\build-docs-artifact.ps1    # the docs archive, built from build\msvc|mingw|common
+scripts\build-release-archives.ps1 # pack dist\<chain>\*.exe into the shipped archives
 ```
 
 Nothing above is pinned to a checkout location: every script derives the repo
@@ -311,7 +312,7 @@ the workflow parses no logs.
 ```
 scripts\check-gates-selftest.ps1               # negative control for the gates
 scripts\check-encoding.ps1 -RequireArtifacts   # pre-publish: skips become failures
-scripts\verify-docs-artifact.ps1               # the fifth artifact (local: needs dist/)
+scripts\verify-docs-artifact.ps1               # the docs archive (local: needs dist/)
 scripts\link-audit.ps1                         # every tracked markdown link resolves
 scripts\source-parity.ps1                      # docs\SOURCES.md == fetch-vendor.ps1
 ```
@@ -351,7 +352,7 @@ a third job.
 
 `verify-docs-artifact.ps1` is the exception to being in CI: it checks entry
 pinning, the manifest cross-check, license byte-identity and the `VERSIONS.txt`
-stamp of the fifth artifact, and on a checkout there is no archive to check. Its
+stamp of the docs archive, and on a checkout there is no archive to check. Its
 negative control is in the selftest, which builds synthetic archives instead.
 
 Both jobs are `windows-latest` only. A second OS would be the honest test of

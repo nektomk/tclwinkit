@@ -3,7 +3,7 @@
 # Used by scripts/build-docs-artifact.ps1 to write VERSIONS.txt, so the docs
 # archive records exactly which build it belongs to. Run with the console kit:
 #
-#   tclwinkit-msvc.exe versions.tcl
+#   tclwin.exe versions.tcl
 #
 # Packages that fail to load are reported as "MISSING <error>" rather than
 # aborting: the docs build must not depend on a green kit.

@@ -1,5 +1,5 @@
 /*
- * kit_wish.rc -- resource script for the winkitwish (GUI) kit executable.
+ * kit_wish.rc -- resource script for the tkwin (GUI) kit executable.
  *
  * On Windows, Tk implements the X11 cursor names ("gumby", "hand1",
  * "top_left_arrow", "trek", ...) as named CURSOR resources in the

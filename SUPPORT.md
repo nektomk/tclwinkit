@@ -18,9 +18,10 @@ costs nothing and routes the report.
 
 ## What to include in an issue
 
-1. Which file you ran: `tclwinkit-msvc`, `winkitwish-msvc`,
-   `tclwinkit-mingw`, `winkitwish-mingw`, and the version — `set winkit::version`
-   in the kit, or the `v…` tag / release asset name it came from.
+1. Which file you ran: `tclwin.exe` or `tkwin.exe`, from which archive
+   (`tclwinkit-msvc-….zip` or `tclwinkit-mingw-….zip`), and the version —
+   `set winkit::version` in the kit, or the `v…` tag / release asset name it
+   came from.
 2. `tcl_platform(osVersion)`, `tcl_platform(machine)`, and whether the
    console or GUI build.
 3. The smallest script that shows it. Tcl is happy to be reduced; a

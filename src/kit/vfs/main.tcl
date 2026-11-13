@@ -1,6 +1,6 @@
 # main.tcl --
 #
-#	tclwinkit console shell startup script (root of the attached
+#	tclwin console shell startup script (root of the attached
 #	zipfs image).
 #
 #	TclZipfs_AppHook installs //zipfs:/app/main.tcl as the Tcl
@@ -8,15 +8,15 @@
 #	command line intact: $argv0 is this file and $argv holds every
 #	user argument. This script reproduces stock tclsh behaviour:
 #
-#	  tclwinkit script.tcl ?arg ...?      run a script file
-#	  tclwinkit -encoding enc script.tcl  run with explicit encoding
-#	  ... | tclwinkit                     evaluate stdin until EOF
-#	  tclwinkit                           interactive REPL
+#	  tclwin script.tcl ?arg ...?      run a script file
+#	  tclwin -encoding enc script.tcl  run with explicit encoding
+#	  ... | tclwin                     evaluate stdin until EOF
+#	  tclwin                           interactive REPL
 #
 #	The interactive REPL uses the pure-Tcl TclReadLine package with
 #	a Win32 console shim (lib/TclReadLine/tclreadline-win.tcl) that
 #	feeds Windows key events to TclReadLine as the ANSI sequences it
-#	expects. The GUI kit (winkitwish) intentionally has no main.tcl
+#	expects. The GUI kit (tkwin) intentionally has no main.tcl
 #	and behaves exactly like stock wish.
 
 # --- tclsh-compatible return-code handling -----------------------------

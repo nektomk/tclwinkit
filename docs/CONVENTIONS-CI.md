@@ -23,7 +23,7 @@ CI разбит на два workflow (тот же коммит, что ввёл 
 | гейт | что проверяет | где живёт | в CI? |
 |---|---|---|---|
 | `scripts/check-encoding.ps1` | семь секций (ниже) | `scripts/` | джоб `encoding` |
-| `scripts/verify-docs-artifact.ps1` | пятый артефакт, docs-архив | `scripts/` | локально (нет архива на чекауте) |
+| `scripts/verify-docs-artifact.ps1` | docs-архив | `scripts/` | локально (нет архива на чекауте) |
 | `scripts/link-audit.ps1` | все ссылки и фрагменты `#…` трекингового markdown | `scripts/` | джоб `encoding` |
 | `scripts/source-parity.ps1` | паритет `docs/SOURCES.md` и манифеста `scripts/fetch-vendor.ps1` | `scripts/` | джоб `encoding` |
 

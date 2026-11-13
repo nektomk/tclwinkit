@@ -18,8 +18,9 @@ verbose process documentation (conventions, CI, release procedure) is in
 | `dist\tclwinkit-docs-*.zip` | — | docs archive |
 
 The exe names carry no toolchain, so `dist/` keeps one subdirectory per
-toolchain; the docs archive stays at the `dist/` root. Release assets carry
-`tclwinkit-<version>-<toolchain>-x64-<subsystem>.exe`.
+toolchain; the docs archive stays at the `dist/` root. Release assets are the
+archives, not these files: `tclwinkit-<toolchain>-<version>.zip`, each holding
+one top-level directory with `tclwin.exe` and `tkwin.exe` inside (step 5).
 
 ## Preconditions
 

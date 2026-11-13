@@ -12,38 +12,48 @@ run it.
 
 ## Download
 
-Pick an executable from the [latest release](https://github.com/nektomk/tclwinkit/releases/latest).
-All four ship the same kit — the toolchain is a matter of taste, not quality:
+Pick **one archive** from the [latest release](https://github.com/nektomk/tclwinkit/releases/latest).
+Both carry the same kit — the toolchain is a matter of taste, not quality:
 
-| Asset | Toolchain | Built for |
+| Asset | Toolchain | Inside |
 |---|---|---|
-| `tclwinkit-…-msvc-x64-console.exe` | MSVC, static CRT | scripts, `tclsh` replacement, REPL |
-| `tclwinkit-…-msvc-x64-gui.exe` | MSVC, static CRT | Tk applications (`wish` replacement) |
-| `tclwinkit-…-mingw-x64-console.exe` | MinGW-w64, UCRT | same, GCC-built |
-| `tclwinkit-…-mingw-x64-gui.exe` | MinGW-w64, UCRT | same, GCC-built |
+| `tclwinkit-msvc-….zip` | MSVC, static CRT | `tclwin.exe` (`tclsh` replacement + REPL) and `tkwin.exe` (`wish` replacement, Tk apps) |
+| `tclwinkit-mingw-….zip` | MinGW-w64, UCRT | the same two executables, GCC-built |
 | `tclwinkit-docs-….zip` | — | man pages, HTML docs, demos, licenses |
 
-Two independent toolchains ship the same kit, so a toolchain problem never
-becomes a distribution problem. `SHA256SUMS.txt` accompanies every release:
+Each archive unpacks into a single directory named after it and holds those two
+executables and nothing else: no installer, no DLLs to place beside them,
+nothing registered. Two independent toolchains ship the same kit, so a
+toolchain problem never becomes a distribution problem. `SHA256SUMS.txt`
+accompanies every release:
 
 ```
-certutil -hashfile tclwinkit-….exe SHA256
+certutil -hashfile tclwinkit-msvc-….zip SHA256
 sha256sum -c SHA256SUMS.txt          # on any machine with coreutils
 ```
 
 The sums are checkable against your own build: two full rebuilds on the
-reference host reproduce all five files byte for byte. See
+reference host reproduce every shipped byte for byte, and the release archives
+are reproducible in their own right — two consecutive runs of the packer over
+the same executables give identical bytes. See
 [`BUILDING.md`](BUILDING.md) and [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
+Releases up to 0.2 shipped four loose executables named
+`tclwinkit-<version>-<toolchain>-x64-<console|gui>.exe`. From 0.3 the same
+executables ship inside the two archives above, under short names
+(`tclwin.exe`, `tkwin.exe`) that need no renaming after unpacking.
 
 ## Quick start
 
+Unpack an archive, then from its directory:
+
 ```tcl
-tclwinkit-….exe script.tcl arg1      ;# drop-in tclsh: run a script
-tclwinkit-….exe                      ;# interactive REPL with history
-winkitwish-….exe app.tcl             ;# drop-in wish: a Tk application
+tclwin.exe script.tcl arg1           ;# drop-in tclsh: run a script
+tclwin.exe                           ;# interactive REPL with history
+tkwin.exe app.tcl                    ;# drop-in wish: a Tk application
 ```
 
-That is the whole story. For REPL keys and files, see
+That is the whole story. For REPL keys, see
 [Interactive REPL](#interactive-repl).
 
 ## What's inside
@@ -103,24 +113,28 @@ terminal processing (Windows 10+).
 | Ctrl-C | clear the current line (while typing) |
 | Shift-Tab | completion (commands, variables, files) |
 | Ctrl-T | toggle plain-Tab completion |
-| Ctrl-D on an empty line, `exit` | quit (history is saved) |
+| Ctrl-D on an empty line, `exit` | quit |
 
-History lives in `~/.tclline_history`, REPL config in `~/.tcllinerc`, and the
-kit's own rc file (the `tclshrc` equivalent) in `~/winkitrc.tcl` or
-`~/winkitwishrc.tcl`.
+History is kept **in memory for the session only** and is never written to
+disk, and the kit reads **no** startup file — no `~/.tcllinerc`, no
+`~/.tclline_history`, no `tclshrc`-equivalent. That is deliberate: the kit has
+to behave identically on a machine it has never seen, so nothing outside the
+executable can change what it runs. It is also what makes running from a
+read-only directory work.
 
 ## Docs archive
 
-The docs archive is the fifth release asset, because the kits carry
-**runtime only**. Inside: `man/`, `html/`, `demos/`, `docs/`, `tools/` (a
-groff-free man renderer and the iwidgets demo launcher), `LICENSES/`,
-`LICENSE`, `THIRD-PARTY-NOTICES.md`, `VERSIONS.txt`, `MANIFEST.txt`. With
-the archive unpacked next to a kit, the demos run from the same exe:
+The docs archive is a separate asset, because the kits carry **runtime only**.
+Inside: `man/`, `html/`, `demos/`, `docs/`, `tools/` (a groff-free man renderer
+and the iwidgets demo launcher), `LICENSES/`, `LICENSE`,
+`THIRD-PARTY-NOTICES.md`, `VERSIONS.txt`, `MANIFEST.txt`. With both archives
+unpacked, the demos run from the same executables (the paths below are relative
+to the docs archive):
 
 ```
-winkitwish-….exe demos\tk\widget           # Tk widget browser
-winkitwish-….exe demos\iwidgets\catalog    # iwidgets catalog
-tclwinkit-….exe  tools\man.tcl man\tcl\subst.n
+tkwin.exe demos\tk\widget                  # Tk widget browser
+tkwin.exe demos\iwidgets\catalog           # iwidgets catalog
+tclwin.exe tools\man.tcl man\tcl\subst.n   # read a man page
 ```
 
 See [`src/docs/README.md`](src/docs/README.md) for the archive's full

@@ -1,6 +1,6 @@
 # tclwinkit docs archive
 
-The fifth artifact of the tclwinkit build: the four executables carry runtime
+Shipped alongside the toolchain archives: the executables carry runtime
 only, and everything pruned out of them — license texts, manual pages, HTML
 documentation, demos and changelogs of the bundled components — is published
 here instead. Unpack it anywhere; all paths inside are relative.
@@ -12,11 +12,11 @@ trees. `MANIFEST.txt` lists every file in the archive, `VERSIONS.txt` names the
 versions it was built from.
 
 ```tcl
-tclwinkit-msvc.exe  tools\man.tcl man\tcl\subst.n   ;# read a man page
-winkitwish-msvc.exe demos\tk\widget                 ;# browse the Tk demos
+tclwin.exe tools\man.tcl man\tcl\subst.n   ;# read a man page
+tkwin.exe demos\tk\widget                  ;# browse the Tk demos
 ```
 
-The console kit (`tclwinkit`) has no Tk — use `winkitwish` for anything that
+The console kit (`tclwin.exe`) has no Tk — use `tkwin.exe` for anything that
 draws a window. Most Tk demos are pages of a browser rather than standalone
 programs, so enter through `demos\tk\widget`, `demos\iwidgets\catalog` or
 `demos\treectrl\demo.tcl`; the iwidgets demos are the exception and start

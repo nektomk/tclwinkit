@@ -21,12 +21,12 @@ demos and license texts only).
 
 ## How the kit is put together
 
-Two build flavors, four executables:
+Two build flavors, four executables, shipped as one archive per flavor:
 
-| flavor | console | GUI | C runtime |
-|---|---|---|---|
-| MSVC (Visual Studio Build Tools, x64) | `tclwinkit-msvc-x64-console.exe` | `tclwinkit-msvc-x64-gui.exe` | static |
-| MinGW-w64 (MSYS2 ucrt64, x64) | `tclwinkit-mingw-x64-console.exe` | `tclwinkit-mingw-x64-gui.exe` | static |
+| flavor | console | GUI | C runtime | release archive |
+|---|---|---|---|---|
+| MSVC (Visual Studio Build Tools, x64) | `tclwin.exe` | `tkwin.exe` | static | `tclwinkit-msvc-<version>.zip` |
+| MinGW-w64 (MSYS2 ucrt64, x64) | `tclwin.exe` | `tkwin.exe` | static | `tclwinkit-mingw-<version>.zip` |
 
 Each executable carries three layers:
 

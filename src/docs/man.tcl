@@ -4,8 +4,8 @@
 # troff source. groff is not always present on Windows, so this script gives a
 # readable plain-text rendering straight from the kit:
 #
-#   tclwinkit-msvc.exe man.tcl <page>            [-width N]   -> stdout
-#   tclwinkit-msvc.exe man.tcl <page> -o out.txt [-width N]
+#   tclwin.exe man.tcl <page>            [-width N]   -> stdout
+#   tclwin.exe man.tcl <page> -o out.txt [-width N]
 #
 # Handles the request subset Tcl/Tk/itcl/tcllib pages actually use: section
 # headings (.SH/.SS), paragraphs (.PP/.IP/.TP/.HP), indentation (.RS/.RE/.in),
@@ -16,7 +16,7 @@
 # Not a troff engine; it is a reader, best-effort by design.
 
 proc usage {} {
-    puts "usage: tclwinkit-msvc.exe \[ticket\] man.tcl <page> ?-width N? ?-o file?"
+    puts "usage: tclwin.exe man.tcl <page> ?-width N? ?-o file?"
     exit 2
 }
 

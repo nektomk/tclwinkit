@@ -5,9 +5,9 @@
 # directory by scripts/build-docs-artifact.ps1. All this wrapper adds is a
 # catalogue and a convenient way to start one demo by name:
 #
-#   winkitwish-msvc.exe iwidgets-demo.tcl <name>   -- one demo, e.g. combobox
-#   winkitwish-msvc.exe iwidgets-demo.tcl --all    -- print the catalogue
-#   winkitwish-msvc.exe iwidgets-demo.tcl          -- usage + catalogue
+#   tkwin.exe iwidgets-demo.tcl <name>   -- one demo, e.g. combobox
+#   tkwin.exe iwidgets-demo.tcl --all    -- print the catalogue
+#   tkwin.exe iwidgets-demo.tcl          -- usage + catalogue
 #
 # <name> is a demo file name without extension, as found in demos/iwidgets/.
 
@@ -38,7 +38,7 @@ proc catalogue {} {
 }
 
 if {[llength $argv] == 0} {
-    puts {usage: winkitwish-msvc.exe [file] iwidgets-demo.tcl <name>|--all}
+    puts {usage: tkwin.exe iwidgets-demo.tcl <name>|--all}
     catalogue
     exit 0
 }
