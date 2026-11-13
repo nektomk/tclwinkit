@@ -157,8 +157,7 @@ $sumsFile = Join-Path $sumsDir 'SHA256SUMS.txt'
 $hdr = @(('# tclwinkit {0} -- SHA-256 of the release assets' -f '0.1'),
          '# verify:  sha256sum -c SHA256SUMS.txt',
          '#      or:  certutil -hashfile <file> SHA256')
-$names = @('tclwinkit-0.1-msvc-x64-console.exe', 'tclwinkit-0.1-msvc-x64-gui.exe',
-           'tclwinkit-0.1-mingw-x64-console.exe', 'tclwinkit-0.1-mingw-x64-gui.exe',
+$names = @('tclwinkit-msvc-0.1.zip', 'tclwinkit-mingw-0.1.zip',
            'tclwinkit-docs-0.1.zip')
 $ent = @()
 for ($i = 0; $i -lt $names.Count; $i++) { $ent += (('{0:x64}' -f ($i + 1)) + ' *' + $names[$i]) }
@@ -182,6 +181,24 @@ Chk ($r.out -match 'blank lines inside the list: 1') '  and names the blank line
 $r = Run-Gate $checker @('-Repo', $mini)
 Chk ($r.code -ne 0) ('rejects a CRLF checksum list (exit ' + $r.code + ')')
 Chk ($r.out -match 'FAIL SHA256SUMS\.txt: CR=0') '  and the failure is attributed to the CR/BOM line, not to a coincidence'
+# The pre-0.3 shape: four loose executables plus the docs archive. A release that
+# went back to shipping binaries has to be rejected on NAME SHAPE alone, because
+# the hash cross-check skips in a mini-repo where no artifact exists -- without
+# these two cases the new structural assertions would be unexercised.
+$oldNames = @('tclwinkit-0.1-msvc-x64-console.exe', 'tclwinkit-0.1-msvc-x64-gui.exe',
+              'tclwinkit-0.1-mingw-x64-console.exe', 'tclwinkit-0.1-mingw-x64-gui.exe',
+              'tclwinkit-docs-0.1.zip')
+$oldEnt = @()
+for ($i = 0; $i -lt $oldNames.Count; $i++) { $oldEnt += (('{0:x64}' -f ($i + 1)) + ' *' + $oldNames[$i]) }
+Write-Sums @($hdr + $oldEnt)
+$r = Run-Gate $checker @('-Repo', $mini)
+Chk ($r.code -ne 0) ('rejects the pre-0.3 loose-exe checksum list (exit ' + $r.code + ')')
+Chk ($r.out -match 'listed names outside the two known families: 4') '  and names all four loose exe as outside the archive families'
+Write-Sums @($hdr + @($ent[0], $ent[2]))
+$r = Run-Gate $checker @('-Repo', $mini)
+Chk ($r.code -ne 0) ('rejects a list missing one toolchain archive (exit ' + $r.code + ')')
+Chk ($r.out -match 'listed exe archives: 1/2') '  and reports the missing toolchain count'
+Chk ($r.out -match 'toolchain archives covered exactly once \(misses: mingw=0\)') '  and names which toolchain is missing'
 Remove-Item -LiteralPath $sumsFile -Force
 [void](Remove-Item -LiteralPath $sumsDir -Recurse -Force)
 Chk (-not (Test-Path -LiteralPath $sumsFile)) 'checksum fixture removed so the tracked-file cases start clean'

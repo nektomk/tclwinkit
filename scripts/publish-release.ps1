@@ -1,20 +1,22 @@
 <#
-publish-release.ps1 -- publish the five build artifacts as a GitHub Release.
+publish-release.ps1 -- publish the release artifacts as a GitHub Release.
 
 Pipeline (each step logs one fixed-width line):
   1. read the kit version from src\kit\vfs\lib\kit_init.tcl -- that is the single
      source of truth: it is also the version compiled into the exe and the name
-     of the docs zip, so a release cannot drift from the binaries;
-  2. hash dist\* and render SHA256SUMS.txt using the PUBLISHED asset names. dist\
-     keeps its short names (the README and the assemble scripts use them); the
-     release uses versioned, arch-named files so a downloaded binary identifies
-     itself. Asset names are free-form on GitHub, so dist\ does not change;
+     of every published archive, so a release cannot drift from the binaries;
+  2. hash the artifacts and render SHA256SUMS.txt. What ships is one archive per
+     toolchain -- scripts\build-release-archives.ps1 writes those into
+     build\release-stage\ -- plus the docs archive from dist\. Inside an archive
+     the executables carry short chain-agnostic names (tclwin.exe, tkwin.exe),
+     so the toolchain and the version are named by the archive and by its single
+     top-level directory, not by each file;
   3. render the release notes from src\docs\release-notes.md by substituting
      {{PLACEHOLDER}} tokens -- the notes live in the repo (reviewable, diffable)
      instead of hiding inside this script;
   4. require a clean tree, push HEAD if it is ahead, create and push an annotated
      tag v<ver>;
-  5. create the release through the REST API, upload the six assets, then verify
+  5. create the release through the REST API, upload the four assets, then verify
      each came back state=uploaded with the local byte size.
 
 Credentials: no gh CLI and no manually stored token. Git Credential Manager
@@ -75,38 +77,35 @@ Say '=== PUBLISH' ($Repo + ' ' + $Tag + ' (from ' + $Branch + ')')
 Say 'version' $Version
 
 # ------------------------------------------------- 2. artifacts and digests ---
-# dist path (relative to dist\) -> published asset name + release-UI label.
-# dist\ keeps one subdirectory per toolchain because the shipped exe names are
-# chain-agnostic (tclwin.exe / tkwin.exe); the docs archive stays at the root.
+# published asset name -> where that file lives + the label shown in the
+# release UI. The key IS the asset name now: since 0.3 the release ships the
+# archives themselves, so there is no longer a separate short working name to
+# map from, and the two families live in different directories (exe archives in
+# build\release-stage\, the docs archive in dist\).
 $Plan = [ordered]@{}
-$Plan['msvc\tclwin.exe'] = @{
-    name = ('tclwinkit-{0}-msvc-x64-console.exe' -f $Version)
-    label = 'MSVC x64 console (tclsh replacement + REPL)'
+$Plan[('tclwinkit-msvc-{0}.zip' -f $Version)] = @{
+    path  = (Join-Path $Stage ('tclwinkit-msvc-{0}.zip' -f $Version))
+    label = 'MSVC x64, static CRT: tclwin.exe (console) + tkwin.exe (GUI)'
 }
-$Plan['msvc\tkwin.exe'] = @{
-    name = ('tclwinkit-{0}-msvc-x64-gui.exe' -f $Version)
-    label = 'MSVC x64 GUI (wish replacement)'
-}
-$Plan['mingw\tclwin.exe'] = @{
-    name = ('tclwinkit-{0}-mingw-x64-console.exe' -f $Version)
-    label = 'MinGW-w64 x64 console (tclsh replacement + REPL)'
-}
-$Plan['mingw\tkwin.exe'] = @{
-    name = ('tclwinkit-{0}-mingw-x64-gui.exe' -f $Version)
-    label = 'MinGW-w64 x64 GUI (wish replacement)'
+$Plan[('tclwinkit-mingw-{0}.zip' -f $Version)] = @{
+    path  = (Join-Path $Stage ('tclwinkit-mingw-{0}.zip' -f $Version))
+    label = 'MinGW-w64 x64, UCRT: tclwin.exe (console) + tkwin.exe (GUI)'
 }
 $Plan[('tclwinkit-docs-{0}.zip' -f $Version)] = @{
-    name = ('tclwinkit-docs-{0}.zip' -f $Version)
+    path  = (Join-Path $Dist ('tclwinkit-docs-{0}.zip' -f $Version))
     label = 'Documentation, man pages, demos, licenses'
 }
 
 $rows = @()
-foreach ($src in $Plan.Keys) {
-    $p = Join-Path $Dist $src
-    if (-not (Test-Path -LiteralPath $p)) { throw "missing artifact: $p" }
+foreach ($asset in $Plan.Keys) {
+    $p = $Plan[$asset].path
+    if (-not (Test-Path -LiteralPath $p)) {
+        throw ("missing artifact: $p -- run scripts\build-release-archives.ps1 " +
+               '(exe archives) and scripts\build-docs-artifact.ps1 (docs) first')
+    }
     $fi = Get-Item -LiteralPath $p
     $rows += [pscustomobject]@{
-        dist = $src; asset = $Plan[$src].name; label = $Plan[$src].label
+        path = $p; asset = $asset; label = $Plan[$asset].label
         bytes = $fi.Length
         sha256 = (Get-FileHash -LiteralPath $p -Algorithm SHA256).Hash.ToLower()
     }
@@ -114,6 +113,22 @@ foreach ($src in $Plan.Keys) {
 foreach ($r in $rows) { Say 'asset' ('{0,-42} {1,10} B  {2}' -f $r.asset, $r.bytes, $r.sha256) }
 $total = ($rows | Measure-Object bytes -Sum).Sum
 Say 'total' ('{0:N2} MB over {1} files' -f ($total / 1MB), $rows.Count)
+
+# Fail fast on a malformed plan rather than at upload time. Since 0.3 the
+# published asset name IS the file name, so a plan entry whose key disagrees with
+# the base name of its path means $Plan and the builders have drifted apart --
+# and without this check the drift surfaces as an opaque REST error AFTER the
+# annotated tag has already been pushed. Exercised by -DryRun, which stops at the
+# clean-tree check in step 4 and never reaches the upload loop.
+foreach ($r in $rows) {
+    $base = [System.IO.Path]::GetFileName($r.path)
+    if ($base -ne $r.asset) {
+        throw ('asset name ' + $r.asset + ' does not match its file ' + $base)
+    }
+    if (-not $r.label) { throw ('asset ' + $r.asset + ' has no release label') }
+    if ($r.bytes -le 0) { throw ('asset ' + $r.asset + ' is empty') }
+}
+Say 'plan' ("$($rows.Count) asset(s): name==filename, labelled, non-empty")
 
 # SHA256SUMS.txt lists the asset names, so `sha256sum -c` works in whatever
 # directory the user downloaded into. Leading '#' comment lines are accepted by
@@ -159,8 +174,11 @@ $subst = [ordered]@{
     # the same placeholder stays correct inside a ``` fence (where a `code span`
     # would render as literal backticks) and in prose.
     '{{TAG}}' = $Tag
-    '{{CONSOLE_EXE}}' = $Plan['msvc\tclwin.exe'].name
-    '{{GUI_EXE}}' = $Plan['msvc\tkwin.exe'].name
+    # The archive names only: inside an archive the executables carry short,
+    # chain-agnostic names (tclwin.exe, tkwin.exe), and the release notes spell
+    # those out literally, so there is no per-exe placeholder left to feed.
+    '{{MSVC_ZIP}}' = ('tclwinkit-msvc-{0}.zip' -f $Version)
+    '{{MINGW_ZIP}}' = ('tclwinkit-mingw-{0}.zip' -f $Version)
     '{{DOCS_ZIP}}' = ('tclwinkit-docs-{0}.zip' -f $Version)
 }
 foreach ($k in $subst.Keys) { $notes = $notes.Replace($k, $subst[$k]) }
@@ -299,7 +317,7 @@ if ($rel) {
 if ($rel) { $uploadBase = $rel.upload_url -replace '\{[^}]*\}$', '' }
 else { $uploadBase = ('https://uploads.github.com/repos/{0}/releases/0/assets' -f $Repo) }
 $files = @{}
-foreach ($src in $Plan.Keys) { $files[$Plan[$src].name] = (Join-Path $Dist $src) }
+foreach ($asset in $Plan.Keys) { $files[$asset] = $Plan[$asset].path }
 $files['SHA256SUMS.txt'] = $sumsPath
 $sizes = @{}
 foreach ($r in $rows) { $sizes[$r.asset] = $r.bytes }
@@ -308,8 +326,10 @@ $all = @($rows | ForEach-Object { $_.asset }) + @('SHA256SUMS.txt')
 foreach ($name in $all) {
     if ($DryRun) { Skip 'upload' $name; continue }
     $qs = '?name=' + [Uri]::EscapeDataString($name)
-    $lbl = $Plan.Values | Where-Object { $_.name -eq $name } | Select-Object -First 1
-    if ($lbl) { $qs += '&label=' + [Uri]::EscapeDataString($lbl.label) }
+    # SHA256SUMS.txt is not in $Plan, so the label lookup has to tolerate a miss.
+    if ($Plan.Keys -contains $name) {
+        $qs += '&label=' + [Uri]::EscapeDataString($Plan[$name].label)
+    }
     $up = Invoke-RestMethod -Method Put -Uri ($uploadBase + $qs) -Headers $h `
             -ContentType 'application/octet-stream' -InFile $files[$name] -TimeoutSec 900
     if ($up.state -ne 'uploaded' -or $up.size -ne $sizes[$name]) {
@@ -339,6 +359,6 @@ if ($problems.Count) {
     foreach ($p in $problems) { Say 'MISMATCH' $p }
     throw ("verification failed ($($problems.Count) problem(s))")
 }
-Say 'verified' ("all $($all.Count) assets match dist\ byte sizes, state=uploaded")
+Say 'verified' ("all $($all.Count) assets match the local byte sizes, state=uploaded")
 Say 'downloads' (($fin.assets | ForEach-Object { $_.download_count }) -join ', ')
 Say '===' ("RELEASE PUBLISHED: $($fin.html_url)")

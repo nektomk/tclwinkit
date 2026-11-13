@@ -451,18 +451,20 @@ Version numbers live in exactly one place: `variable version` in
 `src/kit/vfs/lib/kit_init.tcl`.
 
 ```
+scripts\build-release-archives.ps1    # pack dist\<chain>\*.exe into the two shipped archives
 scripts\publish-release.ps1 -DryRun   # does every local step, touches neither GitHub nor refs
-scripts\publish-release.ps1           # annotated tag + release + 5 assets + SHA256SUMS.txt
+scripts\publish-release.ps1           # annotated tag + release + 4 assets
+                                      #   (2 exe archives, docs archive, SHA256SUMS.txt)
 ```
 
 The publisher renders `src/docs/release-notes.md` (`{{PLACEHOLDER}}` tokens
 substituted from the built artifacts), requires a clean working tree, refuses
 to move a tag that a published release already points at, and with `-Force`
-replaces same-named assets. Names in the release carry version and
-architecture (`tclwinkit-<version>-msvc-x64-console.exe`, where `<version>` is
-`variable version` in `src/kit/vfs/lib/kit_init.tcl`); `dist/` keeps short
-names and, because those carry no toolchain, one subdirectory per toolchain
-(`dist\msvc\tclwin.exe`, `dist\mingw\tkwin.exe`).
+replaces same-named assets. The release assets ARE the archives, so an asset
+name is now also a file name (`tclwinkit-msvc-<version>.zip`, where `<version>`
+is `variable version` in `src/kit/vfs/lib/kit_init.tcl`); the executables inside
+carry short chain-agnostic names, which is also why `dist/` keeps one
+subdirectory per toolchain (`dist\msvc\tclwin.exe`, `dist\mingw\tkwin.exe`).
 
 To re-issue a release at a different commit, delete the release and its tag
 first — that is the only sanctioned way past the refusal, and it is only

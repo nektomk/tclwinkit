@@ -8,25 +8,30 @@ registry writes — copy one file and run it.
 
 {{ASSET_TABLE}}
 
-All four kit executables and the docs archive are built from a single source
-tree and share one version {{VERSION}}. Checksums are in `SHA256SUMS.txt`
-(`sha256sum -c SHA256SUMS.txt`, or `certutil -hashfile <file> SHA256` on
-Windows; the file ships with the release assets).
+Unpack the archive for the toolchain you want — {{MSVC_ZIP}} or {{MINGW_ZIP}}.
+Each unpacks into one directory named after the archive and holds exactly two
+files, `tclwin.exe` (console) and `tkwin.exe` (GUI): no installer, no DLLs to
+place beside them, nothing to register. Both archives and the docs archive are
+built from a single source tree and share one version {{VERSION}}. Checksums are
+in `SHA256SUMS.txt` (`sha256sum -c SHA256SUMS.txt`, or
+`certutil -hashfile <file> SHA256` on Windows; the file ships with the release
+assets).
 
 ## Running
 
 ```
-{{CONSOLE_EXE}} script.tcl arg1 arg2   ;# like tclsh: arguments, -encoding
-type cmds.tcl | {{CONSOLE_EXE}}        ;# stdin mode, like tclsh
-{{CONSOLE_EXE}}                        ;# interactive REPL: history, Ctrl+R,
-                                       ;# Tab completion (TclReadLine)
-{{GUI_EXE}} app.tcl                    ;# like wish
-{{GUI_EXE}}                            ;# GUI + Tk console widget
+tclwin.exe script.tcl arg1 arg2  ;# like tclsh: arguments, -encoding
+type cmds.tcl | tclwin.exe       ;# stdin mode, like tclsh
+tclwin.exe                       ;# interactive REPL: history, Ctrl+R,
+                                 ;# Tab completion (TclReadLine)
+tkwin.exe app.tcl                ;# like wish
+tkwin.exe                        ;# GUI + Tk console widget
 ```
 
 The console exe is a drop-in `tclsh` replacement (same argument semantics, pipe
 mode and exit codes); the GUI exe is a drop-in `wish` replacement. The msvc and
-mingw builds are interchangeable — pick the one matching your downloaded file.
+mingw builds are interchangeable — pick either archive: msvc links the static
+CRT, mingw the UCRT.
 
 ## What is inside
 
@@ -72,13 +77,14 @@ documentation but never license terms (see «Licenses» below).
 | `tools/` | 2 | `man.tcl`, `iwidgets-demo.tcl` |
 | — | 5 | `README.md`, `VERSIONS.txt`, `MANIFEST.txt`, `LICENSE`, `THIRD-PARTY-NOTICES.md` |
 
-After unpacking, the demos run with the same executables:
+After unpacking both archives, the demos run with the same executables (the
+paths below are relative to the docs archive):
 
 ```
-{{GUI_EXE}} demos\tk\widget              ;# Tk demo browser
-{{GUI_EXE}} demos\iwidgets\catalog       ;# iwidgets demo browser
-{{GUI_EXE}} demos\treectrl\demo.tcl      ;# Treectrl demo browser
-{{CONSOLE_EXE}} tools\man.tcl man\tcl\subst.n  ;# a man page as plain text
+tkwin.exe demos\tk\widget                    ;# Tk demo browser
+tkwin.exe demos\iwidgets\catalog             ;# iwidgets demo browser
+tkwin.exe demos\treectrl\demo.tcl            ;# Treectrl demo browser
+tclwin.exe tools\man.tcl man\tcl\subst.n     ;# a man page as plain text
 ```
 
 `tools\man.tcl` renders nroff to text on the kit itself — no groff needed.

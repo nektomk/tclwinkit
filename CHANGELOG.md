@@ -5,9 +5,12 @@ All notable changes to this project are documented here. The format follows
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 The version number lives in exactly one place: `variable version` in
-[`src/kit/vfs/lib/kit_init.tcl`](src/kit/vfs/lib/kit_init.tcl). Every
-release ships five artifacts — four executables (MSVC and MinGW-w64, console
-and GUI) plus the documentation archive — and a `SHA256SUMS.txt`.
+[`src/kit/vfs/lib/kit_init.tcl`](src/kit/vfs/lib/kit_init.tcl). Up to and
+including 0.2 a release shipped five artifacts — four executables (MSVC and
+MinGW-w64, console and GUI) plus the documentation archive — and a
+`SHA256SUMS.txt`. From 0.3 it ships four: one archive per toolchain, holding
+the console and GUI executables under short chain-agnostic names
+(`tclwin.exe`, `tkwin.exe`), the documentation archive, and `SHA256SUMS.txt`.
 
 ## [0.2] — 2026-11-05
 

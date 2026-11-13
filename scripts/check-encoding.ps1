@@ -177,10 +177,11 @@ Chk ($psCount -gt 0) ('ps1 file count ' + $psCount + ' (must be > 0)')
 
 # --- 4. the generated checksum list ---------------------------------------
 # publish-release.ps1 renders it into build/release-stage/ (it lists the
-# PUBLISHED asset names, which differ from the dist/ file names), so both
-# locations are searched. The draft of this gate looked only under dist/ and
-# therefore skipped the whole section in silence while reporting a clean run --
-# the vacuous-pass class this -RequireArtifacts switch exists to expose.
+# PUBLISHED asset names; since 0.3 those are the archive file names themselves,
+# so they no longer differ from what is on disk), so both locations are
+# searched. The draft of this gate looked only under dist/ and therefore skipped
+# the whole section in silence while reporting a clean run -- the vacuous-pass
+# class this -RequireArtifacts switch exists to expose.
 Rule '4. SHA256SUMS.txt'
 $sumsCandidates = @('build/release-stage/SHA256SUMS.txt', 'dist/SHA256SUMS.txt')
 $sums = $null
@@ -214,7 +215,7 @@ if (-not $sums) {
     $other = @($lines | Where-Object { ($_ -notmatch '^#') -and ($_ -notmatch '^[0-9a-f]{64} [ *]\S+$') })
     Chk ($other.Count -eq 0) ('lines that are neither a comment nor a checksum entry: ' + $other.Count)
     foreach ($o in $other) { if ($o.Trim()) { Say ('  MALFORMED: ' + $o) } }
-    Chk ($entries.Count -eq 5) ('checksum entries: ' + $entries.Count + ' (expected 5: 4 exes + docs archive)')
+    Chk ($entries.Count -eq 3) ('checksum entries: ' + $entries.Count + ' (expected 3: 2 exe archives + docs archive)')
     # -ge 1 was a vacuous floor: publish-release.ps1 lost TWO of its three header
     # lines to an -f precedence bug (see docs/CONVENTIONS.md 4.2) and this line
     # still passed, because one surviving comment satisfies ">= 1". The header is
@@ -226,47 +227,53 @@ if (-not $sums) {
     Chk ($hdr -match 'sha256sum -c SHA256SUMS\.txt') ('  header names the documented sha256sum invocation: ' + ($hdr -match 'sha256sum -c SHA256SUMS\.txt'))
     Chk ($hdr -match 'certutil -hashfile') ('  header names the documented certutil invocation: ' + ($hdr -match 'certutil -hashfile'))
     # The list must name exactly the assets the release carries, and its hashes
-    # must be the hashes of the files actually built. Name matching alone is not
-    # possible directly: dist/ holds msvc/tclwin.exe while the release asset
-    # is tclwinkit-<version>-msvc-x64-console.exe, so the published name carries
-    # a version infix the working name does not. Match on structure and on
-    # content instead -- an earlier draft of this assertion compared published
-    # names against working names and reported 0/4 on a correct file.
+    # must be the hashes of the files actually built. Since 0.3 the published
+    # asset IS the built file -- one archive per toolchain plus the docs archive
+    # -- so names could now be matched directly. The cross-check below still
+    # compares hash SETS rather than names on purpose: a stale SHA256SUMS.txt
+    # left over from an earlier build has perfectly well-formed names and wrong
+    # bytes, which is exactly the failure worth catching. (The pre-0.3 version
+    # of this comment explained why names could NOT be matched, when dist/ held
+    # short names and the release carried versioned ones.)
     $listed = @($entries | ForEach-Object { ($_ -split '\s+')[1] -replace '^\*', '' })
     $listedHashes = @($entries | ForEach-Object { ($_ -split '\s+')[0] })
     foreach ($n in $listed) { Say ('  listed: ' + $n) }
-    $exeNames = @($listed | Where-Object { $_ -match '\.exe$' })
-    $zipNames = @($listed | Where-Object { $_ -match '\.zip$' })
-    Chk ($exeNames.Count -eq 4) ('listed exe names: ' + $exeNames.Count + '/4')
-    Chk (($zipNames.Count -eq 1) -and ($zipNames[0] -match '^tclwinkit-docs-.+\.zip$')) ('listed docs archive: ' + $(if ($zipNames.Count) { $zipNames[0] } else { 'NONE' }))
+    $exeZips  = @($listed | Where-Object { $_ -match '^tclwinkit-(msvc|mingw)-.+\.zip$' })
+    $docsZips = @($listed | Where-Object { $_ -match '^tclwinkit-docs-.+\.zip$' })
+    $stray    = @($listed | Where-Object { ($_ -notin $exeZips) -and ($_ -notin $docsZips) })
+    Chk ($exeZips.Count -eq 2) ('listed exe archives: ' + $exeZips.Count + '/2')
+    Chk ($docsZips.Count -eq 1) ('listed docs archive: ' + $(if ($docsZips.Count) { $docsZips -join ', ' } else { 'NONE' }))
+    # A loose .exe here means publish-release.ps1 went back to shipping binaries
+    # instead of archives, or that the sums file was edited by hand.
+    Chk ($stray.Count -eq 0) ('listed names outside the two known families: ' + $stray.Count + $(if ($stray.Count) { ' (' + ($stray -join ', ') + ')' } else { '' }))
     $cells = @()
     foreach ($tc in @('msvc', 'mingw')) {
-        foreach ($fl in @('console', 'gui')) {
-            $hit = @($exeNames | Where-Object { $_ -match ('-' + $tc + '-') -and $_ -match ('-' + $fl + '\.exe$') })
-            if ($hit.Count -ne 1) { $cells += ($tc + '/' + $fl + '=' + $hit.Count) }
-        }
+        $hit = @($exeZips | Where-Object { $_ -match ('^tclwinkit-' + $tc + '-') })
+        if ($hit.Count -ne 1) { $cells += ($tc + '=' + $hit.Count) }
     }
-    Chk ($cells.Count -eq 0) ('toolchain x flavor cells covered exactly once (misses: ' + $(if ($cells.Count) { $cells -join ', ' } else { 'none' }) + ')')
-    Chk (@($listedHashes | Sort-Object -Unique).Count -eq 5) ('listed hashes unique: ' + @($listedHashes | Sort-Object -Unique).Count + '/5')
+    Chk ($cells.Count -eq 0) ('toolchain archives covered exactly once (misses: ' + $(if ($cells.Count) { $cells -join ', ' } else { 'none' }) + ')')
+    Chk (@($listedHashes | Sort-Object -Unique).Count -eq 3) ('listed hashes unique: ' + @($listedHashes | Sort-Object -Unique).Count + '/3')
     # Content identity with what is on disk, by hash set rather than by name.
+    # The exe archives live in build/release-stage/ (build-release-archives.ps1),
+    # the docs archive in dist/ (build-docs-artifact.ps1).
     $have = @{}
     $missing = 0
-    foreach ($n in @('msvc/tclwin.exe', 'msvc/tkwin.exe', 'mingw/tclwin.exe', 'mingw/tkwin.exe')) {
-        $fp = Join-Path $Repo ('dist/' + $n)
+    foreach ($n in $exeZips) {
+        $fp = Join-Path $Repo ('build/release-stage/' + $n)
         if (-not (Test-Path -LiteralPath $fp)) { $missing++; continue }
         $have[(Get-FileHash -LiteralPath $fp -Algorithm SHA256).Hash.ToLower()] = $n
     }
     $docsFp = @(Get-ChildItem -LiteralPath (Join-Path $Repo 'dist') -Filter 'tclwinkit-docs-*.zip' -File -ErrorAction SilentlyContinue)
     if ($docsFp.Count -eq 1) { $have[(Get-FileHash -LiteralPath $docsFp[0].FullName -Algorithm SHA256).Hash.ToLower()] = $docsFp[0].Name }
     else { $missing++ }
-    if ($missing -eq 0 -and $have.Count -eq 5) {
+    if ($missing -eq 0 -and $have.Count -eq 3) {
         $stale = @($listedHashes | Where-Object { -not $have.ContainsKey($_) })
         Chk ($stale.Count -eq 0) ('listed hashes matching no built file: ' + $stale.Count)
         $absent = @($have.Keys | Where-Object { $listedHashes -notcontains $_ })
         Chk ($absent.Count -eq 0) ('built files absent from the list: ' + $absent.Count)
         foreach ($h in ($have.Keys | Sort-Object)) { Say ('  built : ' + $h + '  ' + $have[$h]) }
     } else {
-        Skip ('hash cross-check against dist/ impossible (missing: ' + $missing + ', hashed: ' + $have.Count + '/5)')
+        Skip ('hash cross-check impossible (missing: ' + $missing + ', hashed: ' + $have.Count + '/3)')
     }
 }
 

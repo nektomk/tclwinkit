@@ -206,8 +206,9 @@ alone. Also: the MinGW chain must run under MSYS2 bash, **not WSL**.
 Once both trees exist under `build/`:
 
 ```
-scripts\make-licenses.ps1          # regenerate LICENSES/ (must run before packaging)
-scripts\build-docs-artifact.ps1    # the fifth asset, from build\msvc|mingw|common
+scripts\make-licenses.ps1            # regenerate LICENSES/ (must run before packaging)
+scripts\build-docs-artifact.ps1      # the docs archive, from build\msvc|mingw|common
+scripts\build-release-archives.ps1   # one exe archive per toolchain -> build\release-stage\
 ```
 
 - `make-licenses.ps1 -Check` re-verifies the tree against vendor sources
@@ -233,6 +234,19 @@ scripts\build-docs-artifact.ps1    # the fifth asset, from build\msvc|mingw|comm
   so a version bump cannot leave two of them side by side; `-KeepStale` opts
   out. Two archives are not a cosmetic problem: `verify-docs-artifact.ps1`
   refuses to run unless exactly one matches.
+- **The two exe archives are what actually ships.** `build-release-archives.ps1`
+  packs `dist\<chain>\*.exe` into `build\release-stage\tclwinkit-<chain>-<version>.zip`,
+  each with a single top-level directory named after the archive, so unpacking
+  both into one folder cannot silently overwrite one toolchain with the other and
+  the download folder still says which toolchain and version a file came from.
+  Entries go through `zip-entry.ps1` (pinned DOS epoch, ordinal order), so the
+  archives are byte-identical across rebuilds. The script reads each archive back
+  and asserts entry names, pinned timestamps, the single top-level directory and
+  per-file byte identity with `dist\` before accepting it; it packs only
+  allowlisted exe names and refuses to run on a missing or unexpected file, so an
+  interrupted build cannot be published under an authoritative-looking checksum.
+  A previous version's archives are removed only after the new ones verify
+  (`-KeepStale` opts out), and every removal is printed.
 - **`SHA256SUMS.txt` goes stale on every rebuild.** It lives in
   `build\release-stage\` and lists the *published* asset names, so no build
   script renders it — `publish-release.ps1` does, in its step 2. Re-render it
@@ -244,8 +258,9 @@ scripts\build-docs-artifact.ps1    # the fifth asset, from build\msvc|mingw|comm
 
 **Invariant after step 5:** `LICENSES/` is up to date; `dist\` holds five
 files — four exe under `dist\msvc\` and `dist\mingw\`, plus
-`tclwinkit-docs-*.zip` at the `dist\` root — and
-`build\release-stage\SHA256SUMS.txt` matches them, so
+`tclwinkit-docs-*.zip` at the `dist\` root — and `build\release-stage\` holds
+the two `tclwinkit-<chain>-<version>.zip` archives that actually ship.
+`build\release-stage\SHA256SUMS.txt` matches those three archives, so
 `scripts\check-encoding.ps1 -RequireArtifacts` exits 0.
 
 ## Step 6 — verify
@@ -263,8 +278,11 @@ healthy build are in CONTRIBUTING.md (_Testing_); the REPL-specific suite is
 ## Step 7 — publish (only for maintainers)
 
 ```
+scripts\build-release-archives.ps1    # pack dist\<chain>\*.exe into the two shipped archives
 scripts\publish-release.ps1 -DryRun   # every local step, touches neither GitHub nor refs
-scripts\publish-release.ps1           # annotated tag + release + 5 assets + SHA256SUMS.txt
+scripts\publish-release.ps1           # annotated tag + release + 4 assets:
+                                      #   tclwinkit-{msvc,mingw}-<ver>.zip,
+                                      #   tclwinkit-docs-<ver>.zip, SHA256SUMS.txt
 ```
 
 The publisher renders `src/docs/release-notes.md` (`{{PLACEHOLDER}}` tokens
@@ -278,14 +296,17 @@ demonstrably zero.
 
 ## Reproducibility
 
-Two full rebuilds on the reference host reproduce all five files byte for
-byte: ZIP entry times pinned to the DOS epoch (directory entries included),
-`generated:` in `VERSIONS.txt` from `HEAD`/`SOURCE_DATE_EPOCH`, and the PE
-timestamp from `-Brepro` (MSVC) or `SOURCE_DATE_EPOCH` (MinGW). No
-`Get-Date`, no `__DATE__`/`__TIME__`, no `git rev-parse` output reaches
-anything shipped. Reproducibility is measured **per toolchain**: the two
-chains differ from each other by design, and a different compiler version is
-expected to differ. The mechanisms are in CONTRIBUTING.md (_Reproducibility_).
+Two full rebuilds on the reference host reproduce every shipped byte for byte:
+the five files in `dist\` (four exe plus the docs archive) and the two release
+archives packed from them. What makes that hold: ZIP entry times pinned to the
+DOS epoch (directory entries included — in the kit images, the docs archive and
+the release archives alike), `generated:` in `VERSIONS.txt` from `HEAD` and
+`SOURCE_DATE_EPOCH`, and the PE timestamp from `-Brepro` (MSVC) or
+`SOURCE_DATE_EPOCH` (MinGW). No `Get-Date`, no `__DATE__`/`__TIME__`, no
+`git rev-parse` output reaches anything shipped. Reproducibility is measured
+**per toolchain**: the two chains differ from each other by design, and a
+different compiler version is expected to differ. The mechanisms are in
+CONTRIBUTING.md (_Reproducibility_).
 
 ## Why there is no CI build job
 
@@ -299,7 +320,7 @@ the MinGW chain an MSYS2 login shell with `MSYSTEM` set — without it the MSYS2
 profile falls back to the MSYS toolchain, which has no `gcc` — and a build job
 that ran only one of the two would prove less than the local rule does, because
 the kit is defined as the pair: a change is not done until it builds on both.
-`SOURCE_DATE_EPOCH` and `-Brepro` make the five artifacts reproducible **per
+`SOURCE_DATE_EPOCH` and `-Brepro` make the artifacts reproducible **per
 toolchain**, so the missing piece is not determinism but a second toolchain in
 CI and the wall clock to run both.
 
