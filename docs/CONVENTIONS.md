@@ -169,14 +169,16 @@ $text = ($lines -join "`n") + "`n"
 
 ## 6. Как проверить
 
-Машиночитаемая проверка — четыре гейта в `scripts/`:
+Машиночитаемая проверка — пять гейтов в `scripts/`:
 `check-encoding.ps1` (семь секций), `verify-docs-artifact.ps1` (docs-архив),
+`verify-release-archives.ps1` (exe-архивы релиза),
 `link-audit.ps1` (все ссылки и фрагменты `#…` трекингового markdown) и
 `source-parity.ps1` (паритет `docs/SOURCES.md` и манифеста
-`scripts/fetch-vendor.ps1`). Первый, третий и четвёртый запускаются в CI
-(`.github/workflows/encoding.yml`, джоб `encoding`), второй — локально, потому что на
-чекауте нечего проверять: нет собранного архива. Негативный контроль у всех
-четырёх — `scripts/check-gates-selftest.ps1`: `RESULT: failures 0`.
+`scripts/fetch-vendor.ps1`). `check-encoding`, `link-audit` и `source-parity`
+запускаются в CI (`.github/workflows/encoding.yml`, джоб `encoding`), а оба
+верификатора архивов — локально, потому что на чекауте нечего проверять: нет
+собранных архивов. Негативный контроль у всех
+пяти — `scripts/check-gates-selftest.ps1`: `RESULT: failures 0`.
 
 Актуальные числа на 2026-10-30 (сняты с проиндексированного дерева до коммита):
 

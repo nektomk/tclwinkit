@@ -1,5 +1,6 @@
-# check-gates-selftest.ps1 -- negative control for the four read-only gates in
-# scripts/: check-encoding, verify-docs-artifact, link-audit, source-parity.
+# check-gates-selftest.ps1 -- negative control for the five read-only gates in
+# scripts/: check-encoding, verify-docs-artifact, link-audit, source-parity,
+# verify-release-archives.
 #
 # Why this exists as a shipped script rather than a scratch run: the public
 # documents claim the gates have a negative control. A claim whose evidence
@@ -683,6 +684,183 @@ $r = Run-SourceParity
 Chk ($r.code -eq 0) ('the undamaged fixture passes again after all 12 injections (exit ' + $r.code + ')')
 
 # ===========================================================================
+# gate 5: scripts/verify-release-archives.ps1
+# ===========================================================================
+# This verifier reads a whole tree (-Repo), not a single zip, so its fixture is
+# a miniature repository: a version source, dist\<chain>\ executables, the two
+# archives, and a SHA256SUMS.txt that describes them. Every case rebuilds that
+# tree from scratch and then breaks exactly one thing. Cases that rebuild an
+# archive also rewrite the checksum list afterwards, so the case is not reported
+# as failing for a second, unintended reason -- the same discipline the docs
+# fixture above documents.
+$raGate = Join-Path $Repo 'scripts/verify-release-archives.ps1'
+if (-not (Test-Path -LiteralPath $raGate)) { Say ('FATAL: gate not found: ' + $raGate); exit 1 }
+# Add-ZipDir / Add-ZipFile pin entry timestamps to the DOS epoch; a fixture
+# built with the raw .NET API instead would fail the pinning assertion in the
+# baseline and every case would then report the same finding.
+. (Join-Path $Repo 'scripts\zip-entry.ps1')
+
+$raVer    = '9.9'
+$raChains = @('msvc', 'mingw')
+$raDir    = Join-Path $scratch 'relarch'
+
+function Write-RelArchZip([string]$raRoot, [string]$chain, [string[]]$exeNames, [string]$mode) {
+    $name = 'tclwinkit-' + $chain + '-' + $raVer
+    $path = Join-Path $raRoot ('build\release-stage\' + $name + '.zip')
+    if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Force }
+    $srcDir = Join-Path $raRoot ('dist\' + $chain)
+    $za = [System.IO.Compression.ZipFile]::Open($path, 'Create')
+    try {
+        if ($mode -ne 'NoTopDir') { Add-ZipDir -Zip $za -Name ($name + '/') }
+        foreach ($exe in ($exeNames | Sort-Object)) {
+            $entryName = ($name + '/' + $exe)
+            if ($mode -eq 'NoTopDir') { $entryName = $exe }
+            if ($mode -eq 'Backslash') { $entryName = ($name + '\' + $exe) }
+            $src = Join-Path $srcDir $exe
+            if (-not (Test-Path -LiteralPath $src)) {
+                # An entry whose source is NOT in dist: the ExtraFile case. The
+                # blob is written under release-stage rather than dist, so it
+                # cannot be mistaken for a shipped executable.
+                $src = Join-Path $raRoot ('build\release-stage\extra-' + $exe)
+                [System.IO.File]::WriteAllBytes($src, $enc.GetBytes("not shipped in dist $chain`n"))
+            }
+            if ($mode -eq 'BadTime') {
+                $e = $za.CreateEntry($entryName, [System.IO.Compression.CompressionLevel]::Optimal)
+                # deliberately left unstamped: CreateEntry takes the current
+                # time, which is the drift the pinning assertion exists to catch
+                $in = [System.IO.File]::OpenRead($src)
+                try {
+                    $o = $e.Open()
+                    try { $in.CopyTo($o) } finally { $o.Dispose() }
+                } finally { $in.Dispose() }
+            } else {
+                Add-ZipFile -Zip $za -Source $src -Name $entryName
+            }
+        }
+    } finally { $za.Dispose() }
+}
+
+function Write-RelArchSum([string]$raRoot) {
+    $stage = Join-Path $raRoot 'build\release-stage'
+    $lines = New-Object System.Collections.Generic.List[string]
+    $lines.Add('# SHA256SUMS.txt -- tclwinkit ' + $raVer)
+    $lines.Add('# fixture for gate 5 of check-gates-selftest')
+    $lines.Add("# lines are '<sha256> *<asset>'")
+    foreach ($ch in $raChains) {
+        $n = 'tclwinkit-' + $ch + '-' + $raVer + '.zip'
+        $p = Join-Path $stage $n
+        if (Test-Path -LiteralPath $p) {
+            $lines.Add(((Get-FileHash -LiteralPath $p -Algorithm SHA256).Hash.ToLower() + ' *' + $n))
+        }
+    }
+    [System.IO.File]::WriteAllText((Join-Path $stage 'SHA256SUMS.txt'), (($lines -join "`n") + "`n"), $enc)
+}
+
+function New-RelArchFixture([string]$raRoot) {
+    if (Test-Path -LiteralPath $raRoot) { Remove-Item -LiteralPath $raRoot -Recurse -Force }
+    foreach ($d in @('src\kit\vfs\lib', 'dist\msvc', 'dist\mingw', 'build\release-stage')) {
+        [void](New-Item -ItemType Directory -Force -Path (Join-Path $raRoot $d))
+    }
+    [System.IO.File]::WriteAllText((Join-Path $raRoot 'src\kit\vfs\lib\kit_init.tcl'),
+        ("namespace eval ::winkit {`n    variable version " + $raVer + "`n}`n"), $enc)
+    # Distinct bytes per chain and per flavour: identical blobs would let a
+    # cross-chain mix-up pass as byte-identical content.
+    foreach ($ch in $raChains) {
+        foreach ($exe in @('tclwin.exe', 'tkwin.exe')) {
+            [System.IO.File]::WriteAllBytes((Join-Path $raRoot ('dist\' + $ch + '\' + $exe)),
+                $enc.GetBytes(('fixture ' + $ch + ' ' + $exe + "`n" + ('x' * 2048))))
+        }
+    }
+    foreach ($ch in $raChains) {
+        Write-RelArchZip $raRoot $ch @('tclwin.exe', 'tkwin.exe') ''
+    }
+    Write-RelArchSum $raRoot
+}
+
+Say ''
+Say '=== gate 5: scripts/verify-release-archives.ps1 ==='
+New-RelArchFixture $raDir
+$r = Run-Gate $raGate @('-Repo', $raDir)
+Chk ($r.code -eq 0) ('valid synthetic tree passes (exit ' + $r.code + ')')
+if ($r.code -ne 0) {
+    @($r.out -split "`r?`n" | Where-Object { $_ -match 'FAIL' }) | Select-Object -First 6 | ForEach-Object { '      ' + $_.Trim() }
+}
+
+$raCases = @(
+    @{ n = 'checksum list lies about an archive'; needle = 'SHA256SUMS.txt entry matches the file on disk'; mut = {
+        param($raRoot)
+        # (?m) matters: without it ^ anchors only at the start of the whole
+        # string and the replacement silently does nothing, which would turn
+        # this case into a vacuous pass.
+        $p = Join-Path $raRoot 'build\release-stage\SHA256SUMS.txt'
+        $t = [System.IO.File]::ReadAllText($p)
+        $t = $t -replace '(?m)^[0-9a-f]{64}( \*tclwinkit-msvc-)', (('0' * 64) + '$1')
+        [System.IO.File]::WriteAllText($p, $t, $enc)
+    } },
+    @{ n = 'checksum list has no entry for an archive'; needle = 'has no entry for'; mut = {
+        param($raRoot)
+        $p = Join-Path $raRoot 'build\release-stage\SHA256SUMS.txt'
+        $keep = @([System.IO.File]::ReadAllLines($p) | Where-Object { $_ -notmatch 'tclwinkit-mingw-' })
+        [System.IO.File]::WriteAllText($p, (($keep -join "`n") + "`n"), $enc)
+    } },
+    @{ n = 'one archive is missing'; needle = 'expected archive present'; mut = {
+        param($raRoot)
+        Remove-Item -LiteralPath (Join-Path $raRoot 'build\release-stage\tclwinkit-mingw-9.9.zip') -Force
+    } },
+    @{ n = 'an archive of another version left beside them'; needle = 'unexpected archive of another version'; mut = {
+        param($raRoot)
+        Copy-Item -LiteralPath (Join-Path $raRoot 'build\release-stage\tclwinkit-msvc-9.9.zip') `
+                  -Destination (Join-Path $raRoot 'build\release-stage\tclwinkit-msvc-9.8.zip')
+    } },
+    @{ n = 'no top-level directory in the archive'; needle = 'directory entries: 0'; mut = {
+        param($raRoot)
+        Write-RelArchZip $raRoot 'msvc' @('tclwin.exe', 'tkwin.exe') 'NoTopDir'
+        Write-RelArchSum $raRoot
+    } },
+    @{ n = 'entry timestamps not pinned'; needle = 'not pinned to 1980-01-01'; mut = {
+        param($raRoot)
+        Write-RelArchZip $raRoot 'msvc' @('tclwin.exe', 'tkwin.exe') 'BadTime'
+        Write-RelArchSum $raRoot
+    } },
+    @{ n = 'backslash in an entry name'; needle = 'backslash entry names'; mut = {
+        param($raRoot)
+        Write-RelArchZip $raRoot 'msvc' @('tclwin.exe', 'tkwin.exe') 'Backslash'
+        Write-RelArchSum $raRoot
+    } },
+    @{ n = 'an executable dropped from the archive'; needle = 'dist files absent from the archive'; mut = {
+        param($raRoot)
+        Write-RelArchZip $raRoot 'msvc' @('tclwin.exe') ''
+        Write-RelArchSum $raRoot
+    } },
+    @{ n = 'archive carries a file that is not in dist'; needle = 'archive entries with no dist source'; mut = {
+        param($raRoot)
+        Write-RelArchZip $raRoot 'msvc' @('tclwin.exe', 'tkwin.exe', 'tksafe.exe') ''
+        Write-RelArchSum $raRoot
+    } },
+    @{ n = 'dist holds a file outside the allowlist'; needle = 'outside the allowlist'; mut = {
+        param($raRoot)
+        # One stray file trips two assertions on purpose: it is not on the
+        # allowlist AND it is not packed. Both describe the same defect, so the
+        # case still names it; this is not a second unrelated failure.
+        [System.IO.File]::WriteAllBytes((Join-Path $raRoot 'dist\mingw\leftover.exe'), $enc.GetBytes("stray`n"))
+    } },
+    @{ n = 'dist lost an executable the archive still carries'; needle = 'holds 1 file(s)'; mut = {
+        param($raRoot)
+        Remove-Item -LiteralPath (Join-Path $raRoot 'dist\msvc\tkwin.exe') -Force
+    } }
+)
+foreach ($c in $raCases) {
+    New-RelArchFixture $raDir
+    & ($c.mut) $raDir
+    $r = Run-Gate $raGate @('-Repo', $raDir)
+    Chk ($r.code -ne 0) ('  rejects: ' + $c.n + ' (exit ' + $r.code + ')')
+    Chk ($r.out -match [regex]::Escape($c.needle)) ('    and names it (' + $c.needle + ')')
+}
+New-RelArchFixture $raDir
+$r = Run-Gate $raGate @('-Repo', $raDir)
+Chk ($r.code -eq 0) ('the undamaged fixture passes again after all ' + $raCases.Count + ' injections (exit ' + $r.code + ')')
+
+# ===========================================================================
 # the encoding gates, against the real repository and the real artifacts
 # ===========================================================================
 Say ''
@@ -698,8 +876,18 @@ if ($hasArtifacts) {
     Chk ($r2.code -eq 0) ('check-encoding -RequireArtifacts with artifacts present (exit ' + $r2.code + ')')
     $r3 = Run-Gate $verifier @()
     Chk ($r3.code -eq 0) ('verify-docs-artifact on the real dist/ archive (exit ' + $r3.code + ')')
+    # The release archives are built by a separate step, so they may be absent
+    # even when dist/ is populated. Skip loudly rather than report a green run
+    # that never looked at them.
+    $raReal = @(Get-ChildItem -LiteralPath (Join-Path $Repo 'build\release-stage') -Filter 'tclwinkit-*.zip' -File -ErrorAction SilentlyContinue)
+    if ($raReal.Count -ge 1) {
+        $r4 = Run-Gate $raGate @('-Repo', $Repo)
+        Chk ($r4.code -eq 0) ('verify-release-archives on the real build/release-stage archives (exit ' + $r4.code + ')')
+    } else {
+        Say '  skip  no release archives in build/release-stage; run build-release-archives.ps1 to exercise that leg'
+    }
 } else {
-    Say '  skip  no built exes in dist/; the -RequireArtifacts leg and the real-archive leg need them'
+    Say '  skip  no built exes in dist/; the -RequireArtifacts leg and the real-archive legs need them'
 }
 
 Say ''

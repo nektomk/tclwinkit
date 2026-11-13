@@ -313,6 +313,7 @@ the workflow parses no logs.
 scripts\check-gates-selftest.ps1               # negative control for the gates
 scripts\check-encoding.ps1 -RequireArtifacts   # pre-publish: skips become failures
 scripts\verify-docs-artifact.ps1               # the docs archive (local: needs dist/)
+scripts\verify-release-archives.ps1            # the exe archives (local: needs build\release-stage\)
 scripts\link-audit.ps1                         # every tracked markdown link resolves
 scripts\source-parity.ps1                      # docs\SOURCES.md == fetch-vendor.ps1
 ```
@@ -350,10 +351,17 @@ is not evidence — a reader cannot re-run it, and whoever edits
 which is why they are two more steps of the existing `encoding` job rather than
 a third job.
 
-`verify-docs-artifact.ps1` is the exception to being in CI: it checks entry
-pinning, the manifest cross-check, license byte-identity and the `VERSIONS.txt`
-stamp of the docs archive, and on a checkout there is no archive to check. Its
-negative control is in the selftest, which builds synthetic archives instead.
+The two artifact verifiers are the exception to being in CI, for the same
+reason: on a checkout there is no archive to check. `verify-docs-artifact.ps1`
+checks entry pinning, the manifest cross-check, license byte-identity and the
+`VERSIONS.txt` stamp of the docs archive; `verify-release-archives.ps1` checks
+that exactly one archive per toolchain exists for the current version, that each
+carries a single top-level directory with forward-slash, epoch-pinned entries,
+that every packed file is byte-identical to its source in `dist\<chain>\`, and
+that `SHA256SUMS.txt` agrees with the bytes on disk. Their negative controls are
+in the selftest, which builds synthetic archives instead; the selftest also runs
+each verifier for real when the artifacts happen to be present, and says so
+loudly when they are not.
 
 Both jobs are `windows-latest` only. A second OS would be the honest test of
 the `.gitattributes` normalization, but the reference machine has no Linux, no
