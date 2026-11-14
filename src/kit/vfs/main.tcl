@@ -131,18 +131,42 @@ proc ::winkit::repl {} {
     exit 0
 }
 
+# --- command-line parsing ------------------------------------------------
+
+# Parse the command line ONCE, for both the normal and the safe kit, so the two
+# cannot drift apart. Returns a dict:
+#   script    the script file to run, or "" when there is none
+#   encoding  the -encoding value, or ""
+#   rest      arguments after the script name (become the script's argv)
+#
+# Mirrors stock tclsh: a leading dash that is not a recognised -encoding form
+# is not consumed here -- the caller falls through to stdin/interactive mode
+# with argv untouched.
+proc ::winkit::parse_argv {argv} {
+    set n [llength $argv]
+    if {$n == 0} {
+	return [dict create script "" encoding "" rest {}]
+    }
+    set a0 [lindex $argv 0]
+    if {$a0 eq "-encoding" && $n >= 3
+	    && ![string match -* [lindex $argv 2]]} {
+	return [dict create script [lindex $argv 2] \
+		encoding [lindex $argv 1] rest [lrange $argv 3 end]]
+    }
+    if {![string match -* $a0]} {
+	return [dict create script $a0 encoding "" rest [lrange $argv 1 end]]
+    }
+    return [dict create script "" encoding "" rest {}]
+}
+
 # --- dispatch -----------------------------------------------------------
 
-if {$argc > 0} {
-    set a0 [lindex $argv 0]
-    if {$a0 eq "-encoding" && $argc >= 3
-	    && ![string match -* [lindex $argv 2]]} {
-	::winkit::run_script [lindex $argv 2] [lindex $argv 1] [lrange $argv 3 end]
-    } elseif {![string match -* $a0]} {
-	::winkit::run_script $a0 "" [lrange $argv 1 end]
-    }
-    ;# leading-dash args (that are not -encoding): like tclsh, fall
-    ;# through to stdin/interactive mode with argv untouched
+set ::winkit::parsed [::winkit::parse_argv $argv]
+if {[dict get $::winkit::parsed script] ne ""} {
+    ::winkit::run_script [dict get $::winkit::parsed script] \
+	    [dict get $::winkit::parsed encoding] \
+	    [dict get $::winkit::parsed rest]
+    ;# run_script does not return: it exits via finish_script
 }
 
 if {[::winkit::have_console]} {
