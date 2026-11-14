@@ -143,15 +143,19 @@ proc ::winkit::safe::eval_in_child {child script} {
 # ----------------------------------------------------------------------
 #  setup_aliases -- create safe aliases in the child
 #
-#  Provides: pwd, ::tcl::file::readable, exit
+#  Provides: pwd, ::tcl::file::readable (restricted to accessPath), exit
 # ----------------------------------------------------------------------
 proc ::winkit::safe::setup_aliases {child} {
+    variable accessPath
+
     # pwd alias: returns current working directory (master's cwd)
     interp alias $child pwd {} ::winkit::safe::alias_pwd
 
     # file readable alias: restricted to accessPath
+    # The child sees token paths ($p(:0:), etc.), so we must translate
+    # and verify against the accessPath list.
     interp alias $child ::tcl::file::readable {} \
-	::winkit::safe::alias_file_readable $child
+	::winkit::safe::alias_file_readable $child $accessPath
 
     # exit alias: real process exit
     interp alias $child exit {} ::winkit::safe::alias_exit
@@ -167,15 +171,25 @@ proc ::winkit::safe::alias_pwd {} {
 # ----------------------------------------------------------------------
 #  alias_file_readable -- implementation of file readable alias
 #
-#  Checks if path is within accessPath and readable.
+#  Checks if the path (translated from tokens) is within accessPath
+#  and is readable. Uses safe.tcl's TranslatePath for token resolution.
 # ----------------------------------------------------------------------
-proc ::winkit::safe::alias_file_readable {child path} {
-    # Resolve path relative to accessPath tokens
-    # For now, simple check: path must exist and be readable in master
-    if {[file exists $path] && [file readable $path]} {
-	return 1
+proc ::winkit::safe::alias_file_readable {child accessPath path} {
+    # safe.tcl provides TranslatePath to convert tokens to real paths
+    # It will throw an error if the path is not in accessPath
+    try {
+	set real_path [::safe::TranslatePath $child $path]
+	# Double-check with FileInAccessPath for security
+	::safe::FileInAccessPath $child $real_path
+	# Now check actual file existence and readability
+	if {[file exists $real_path] && [file readable $real_path]} {
+	    return 1
+	}
+	return 0
+    } on error msg {
+	# Path translation failed (not in accessPath, invalid token, etc.)
+	return 0
     }
-    return 0
 }
 
 # ----------------------------------------------------------------------
