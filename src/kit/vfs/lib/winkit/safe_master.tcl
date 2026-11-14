@@ -5,7 +5,7 @@
 #
 #	Responsibilities:
 #	  * load safe.tcl / safetk.tcl (parent provides API)
-#	  * build accessPath (recursive walk of //zipfs:/app)
+#	  * build accessPath (VFS walk + script dir + cwd)
 #	  * create safe child interp with -accessPath
 #	  * share stdin/stdout/stderr channels
 #	  * provide aliases: pwd, file readable, exit
@@ -13,7 +13,11 @@
 #	  * REPL and script execution live here; eval goes to child
 #
 #	Usage (called from main.tcl in safe mode):
-#	  ::winkit::safe::init $argv
+#	  set child [::winkit::safe::init $scriptPath $mode]
+#	where $scriptPath is the ALREADY RESOLVED script file ("" when there is
+#	none, i.e. stdin and REPL modes) and $mode is "script" or "repl".
+#	main.tcl owns argv parsing -- it already handles -encoding and the
+#	"first non-dash argument" rule -- so this file never looks at argv.
 #
 
 namespace eval ::winkit::safe {
@@ -34,9 +38,11 @@ namespace eval ::winkit::safe {
 #  init -- main entry point
 #
 #  Called from main.tcl when safe mode is active.
-#  Args: argv (original command line), mode ("script" | "repl")
+#  Args: scriptPath -- resolved script file, or "" when there is none
+#                     (stdin and REPL modes)
+#        mode       -- "script" | "repl"
 # ----------------------------------------------------------------------
-proc ::winkit::safe::init {argv {mode script}} {
+proc ::winkit::safe::init {scriptPath {mode script}} {
     variable child
     variable accessPath
 
@@ -64,8 +70,9 @@ proc ::winkit::safe::init {argv {mode script}} {
     # 2. Enable sync mode (auto_path in child = opaque tokens)
     ::safe::setSyncMode 1
 
-    # 3. Build accessPath (recursive walk of //zipfs:/app)
-    set accessPath [build_access_path //zipfs:/app]
+    # 3. Build accessPath: the VFS walk, then the script's own directory and
+    #    the process cwd (plan decisions 12 and 14).
+    set accessPath [build_access_path //zipfs:/app $scriptPath]
 
     # 4. Create the safe child interpreter
     set child [create_child $accessPath]
@@ -95,7 +102,7 @@ proc ::winkit::safe::init {argv {mode script}} {
 }
 
 # ----------------------------------------------------------------------
-#  build_access_path -- recursive walk of the VFS root
+#  build_access_path -- VFS walk plus the real-filesystem directories
 #
 #  Returns every directory under $root (//zipfs:/app) plus $root itself,
 #  with tcl_library FIRST: safe.tcl makes accessPath(0) the child's
@@ -106,12 +113,23 @@ proc ::winkit::safe::init {argv {mode script}} {
 #  default tclPkgUnknown finds //zipfs:/app/lib/pkgIndex.tcl from there
 #  (see lib/kit_init.tcl). Dropping the root would make the child's
 #  package discovery depend on lib/ happening to be listed separately.
+#
+#  After the VFS come the real directories from extra_dirs: the script's
+#  own directory (decision 12 -- `source sibling.tcl` must work) and the
+#  process cwd (decision 14). They go last so the kit's own packages win
+#  the child's auto_path lookup.
 # ----------------------------------------------------------------------
-proc ::winkit::safe::build_access_path {root} {
+proc ::winkit::safe::build_access_path {root {scriptPath ""}} {
     set tcl_lib [file join $root tcl_library]
 
     set result [list $root]
     collect_dirs $root result
+
+    foreach d [extra_dirs $scriptPath] {
+	if {[lsearch -exact $result $d] < 0} {
+	    lappend result $d
+	}
+    }
 
     set idx [lsearch -exact $result $tcl_lib]
     if {$idx < 0} {
@@ -119,6 +137,36 @@ proc ::winkit::safe::build_access_path {root} {
     }
     set result [lreplace $result $idx $idx]
     return [linsert $result 0 $tcl_lib]
+}
+
+# ----------------------------------------------------------------------
+#  extra_dirs -- real-filesystem directories to add to the accessPath
+#
+#  Decisions 12 and 14: the script's directory and the process cwd both go
+#  in. Paths are normalized so a relative script name yields the cwd
+#  rather than "." (which would then be added twice), and only existing
+#  directories are returned -- safe.tcl tokenizes what it is given, and a
+#  bogus entry would surface later as a confusing lookup failure.
+#
+#  A script path that does not exist contributes nothing here; reporting
+#  that is the caller's job, exactly as it is for stock tclsh.
+# ----------------------------------------------------------------------
+proc ::winkit::safe::extra_dirs {scriptPath} {
+    set out {}
+
+    if {$scriptPath ne ""} {
+	set scriptDir [file normalize [file dirname $scriptPath]]
+	if {[file isdirectory $scriptDir]} {
+	    lappend out $scriptDir
+	}
+    }
+
+    set cwd [file normalize [pwd]]
+    if {[file isdirectory $cwd]} {
+	lappend out $cwd
+    }
+
+    return $out
 }
 
 # ----------------------------------------------------------------------
