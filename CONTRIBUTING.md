@@ -385,6 +385,8 @@ dist\msvc\tclwin.exe     tests\kit-license-check.tcl   # KIT LICENSE CHECK OK
 ... each of the four
 
 scripts\test-repl.ps1       # interactive REPL: key injection, history, completion
+                            #   needs a REAL console; from a shell with redirected
+                            #   stdout launch it via cmd /c start /wait (see header)
 ```
 
 Expected numbers on a healthy build:
