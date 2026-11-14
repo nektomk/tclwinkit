@@ -7,7 +7,7 @@
 #	  * load safe.tcl / safetk.tcl (parent provides API)
 #	  * build accessPath (VFS walk + script dir + cwd)
 #	  * create safe child interp with -accessPath
-#	  * share stdin/stdout/stderr channels
+#	  * share the channels this mode allows (stdin only for "script")
 #	  * provide aliases: pwd, file readable, exit
 #	  * mirror argv0/argv/argc/tcl_interactive into the child
 #	  * enforce limits (command/time) and handle trips
@@ -16,7 +16,13 @@
 #	Usage (called from main.tcl in safe mode):
 #	  set child [::winkit::safe::init $scriptPath $mode]
 #	where $scriptPath is the ALREADY RESOLVED script file ("" when there is
-#	none, i.e. stdin and REPL modes) and $mode is "script" or "repl".
+#	none) and $mode is one of three values, matching the three rows of the
+#	stdin policy table in plan §2.11 (decision 18):
+#	  script -- script read from a FILE; stdin IS shared with the child
+#	  stdin  -- script read from standard input; stdin is NOT shared, the
+#	          master is consuming it
+#	  repl   -- interactive loop; stdin is NOT shared, the master owns the
+#	          console in raw mode (see plan §2.12)
 #	main.tcl owns argv parsing -- it already handles -encoding and the
 #	"first non-dash argument" rule -- so this file never looks at argv.
 #
@@ -32,6 +38,11 @@ namespace eval ::winkit::safe {
     # AccessPath list (populated by build_access_path)
     variable accessPath {}
 
+    # Recognised run modes, one per row of the stdin policy table in plan
+    # §2.11 (decision 18). "script" and "stdin" differ ONLY in whether the
+    # child gets stdin -- they share the same limits.
+    variable modes {script stdin repl}
+
     # Limit configuration (defaults, overridden by CLI flags)
     variable limit_time_script   300      ;# seconds (absolute deadline)
     variable limit_cmd_script    2000000000 ;# 2·10⁹ commands
@@ -45,11 +56,19 @@ namespace eval ::winkit::safe {
 #  Called from main.tcl when safe mode is active.
 #  Args: scriptPath -- resolved script file, or "" when there is none
 #                     (stdin and REPL modes)
-#        mode       -- "script" | "repl"
+#        mode       -- "script" | "stdin" | "repl" (see the file header)
 # ----------------------------------------------------------------------
 proc ::winkit::safe::init {scriptPath {mode script}} {
     variable child
     variable accessPath
+    variable modes
+
+    # 0. Reject an unknown mode before creating anything. The mode drives both
+    #    the stdin policy (step 5) and the limits (step 8), so a typo must not
+    #    get as far as handing back a mis-configured child.
+    if {$mode ni $modes} {
+	error "unknown mode \"$mode\": expected [join $modes |]"
+    }
 
     # 1. Load safe.tcl and safetk.tcl from the VFS
     #
@@ -82,19 +101,31 @@ proc ::winkit::safe::init {scriptPath {mode script}} {
     # 4. Create the safe child interpreter
     set child [create_child $accessPath]
 
-    # 5. Share standard channels
+    # 5. Share the channels this mode allows
     #
     # stdout/stderr always: the child prints to the master's console.
-    # stdin is NEVER shared here. Plan §2.11 (decision 18) splits script
-    # mode in two, and only the argv dispatch in main.tcl tells them apart:
-    #   script from a file -> share (CI/agents pipe data into the script)
-    #   script from stdin  -> do not share (the master is consuming it)
-    #   interactive REPL   -> do not share (the master owns the console in
-    #                         raw mode, and a child `gets stdin` blocks past
-    #                         every limit -- §2.12)
-    # main.tcl (B1.5/B3) shares stdin itself in the one case that wants it.
+    # stdin only in mode "script", i.e. a script read from a FILE. Plan §2.11
+    # (decision 18) has exactly three rows, and they are the three modes:
+    #   script from a file -> share; the master never reads the console, and
+    #                         CI/agents pipe data into the script
+    #   script from stdin  -> do not share; the master is consuming stdin
+    #   interactive REPL   -> do not share; the master owns the console in raw
+    #                         mode (TclReadLine + the twapi shim), and a child
+    #                         `gets stdin` would block past every limit (§2.12)
+    # The child cannot `fconfigure` stdin -- it is hidden -- but it CAN `close`
+    # it, and that is harmless to the master: `interp share` refcounts the
+    # channel, so a child's close drops only the child's own reference.
+    # Measured in tmp/b15c-close-probe.tcl: with data still pending, after the
+    # child closed stdin the master read the next line normally, and a NEW child
+    # could share the same channel and read the one after that. Only the
+    # master's own close destroys the channel. Plan §2.11 finding 3 claims the
+    # master is left without input; that measurement was confounded (the stream
+    # was already at EOF before the close was tried) and is corrected there.
     interp share {} stdout $child
     interp share {} stderr $child
+    if {$mode eq "script"} {
+	interp share {} stdin $child
+    }
 
     # 6. Set up aliases in the child
     setup_aliases $child
@@ -310,7 +341,9 @@ proc ::winkit::safe::alias_exit {{code 0}} {
 # ----------------------------------------------------------------------
 #  apply_limits -- set command/time limits on the child
 #
-#  mode: "script"  -> 300 s / 2·10⁹ commands (CI/agent)
+#  mode: "script"  -> 300 s / 2·10⁹ commands (CI/agent, script from a file)
+#        "stdin"   -> same numbers; the only difference from "script" is that
+#                     the child gets no stdin (see init step 5)
 #        "repl"    -> 60 s / 5·10⁸ commands per line; the REPL loop calls
 #                     this again before each line to re-arm
 #
@@ -325,9 +358,11 @@ proc ::winkit::safe::apply_limits {child mode} {
     variable limit_cmd_script
     variable limit_time_repl
     variable limit_cmd_repl
+    variable modes
 
     switch -- $mode {
-	script {
+	script -
+	stdin {
 	    set seconds      $limit_time_script
 	    set maxcommands  $limit_cmd_script
 	}
@@ -336,7 +371,7 @@ proc ::winkit::safe::apply_limits {child mode} {
 	    set maxcommands  $limit_cmd_repl
 	}
 	default {
-	    error "unknown limit mode \"$mode\": expected script|repl"
+	    error "unknown limit mode \"$mode\": expected [join $modes |]"
 	}
     }
 
