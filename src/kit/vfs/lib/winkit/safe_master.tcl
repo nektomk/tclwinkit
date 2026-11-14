@@ -9,6 +9,7 @@
 #	  * create safe child interp with -accessPath
 #	  * share stdin/stdout/stderr channels
 #	  * provide aliases: pwd, file readable, exit
+#	  * mirror argv0/argv/argc/tcl_interactive into the child
 #	  * enforce limits (command/time) and handle trips
 #	  * REPL and script execution live here; eval goes to child
 #
@@ -18,6 +19,10 @@
 #	none, i.e. stdin and REPL modes) and $mode is "script" or "repl".
 #	main.tcl owns argv parsing -- it already handles -encoding and the
 #	"first non-dash argument" rule -- so this file never looks at argv.
+#
+#	Contract: the caller must have set the master's ::argv0, ::argv, ::argc
+#	and ::tcl_interactive BEFORE calling init, because step 7 copies them
+#	into the child as they stand. main.tcl already sets them per mode.
 #
 
 namespace eval ::winkit::safe {
@@ -94,10 +99,15 @@ proc ::winkit::safe::init {scriptPath {mode script}} {
     # 6. Set up aliases in the child
     setup_aliases $child
 
-    # 7. Apply limits (mode from caller: script/repl)
+    # 7. Mirror the master's startup globals into the child. The caller must
+    #    have set them first -- main.tcl does that per mode before calling
+    #    init (see copy_startup_vars).
+    copy_startup_vars $child
+
+    # 8. Apply limits (mode from caller: script/repl)
     apply_limits $child $mode
 
-    # 8. Return child handle to caller (main.tcl continues with REPL/script)
+    # 9. Return child handle to caller (main.tcl continues with REPL/script)
     return $child
 }
 
@@ -200,6 +210,40 @@ proc ::winkit::safe::create_child {accessPath} {
 # ----------------------------------------------------------------------
 proc ::winkit::safe::eval_in_child {child script} {
     return [interp eval $child $script]
+}
+
+# ----------------------------------------------------------------------
+#  copy_startup_vars -- mirror the master's startup globals into the child
+#
+#  A safe child starts with argv0/argv/argc unset and tcl_interactive at 0
+#  (measured in tmp/b15b-argv-probe.tcl), so a script running inside it
+#  cannot see its own command line. Copy what the master already has:
+#  main.tcl sets those globals per mode before calling init -- run_script
+#  sets argv0 to the script and argv/argc to the remaining arguments, repl
+#  sets argv0 to [info nameofexecutable] and tcl_interactive to 1, and
+#  stdin_loop leaves them as Tcl_Main set them. Copying instead of
+#  re-deriving keeps that per-mode logic in exactly one place.
+#
+#  argv0 crosses over as the real path the user typed, not a $p(:N:) token.
+#  The pwd alias already discloses the real cwd (decision 13, ruled
+#  2026-11-14 to keep it), and nothing here reveals a path the child could
+#  not already read.
+#
+#  Each variable needs its own [list set ...]: packing several `set`
+#  commands into one list would hand interp eval a single command with far
+#  too many arguments. The list form also preserves argv elements that
+#  contain spaces, e.g. {two words}.
+#
+#  Nothing in Tcl enforces argc == [llength argv] -- a child happily reports
+#  argc 99 beside a three-element argv -- so the invariant is inherited from
+#  the master rather than recomputed here.
+# ----------------------------------------------------------------------
+proc ::winkit::safe::copy_startup_vars {child} {
+    interp eval $child [list set ::argv0 $::argv0]
+    interp eval $child [list set ::argv $::argv]
+    interp eval $child [list set ::argc $::argc]
+    interp eval $child [list set ::tcl_interactive $::tcl_interactive]
+    return
 }
 
 # ----------------------------------------------------------------------
