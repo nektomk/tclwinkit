@@ -34,9 +34,9 @@ namespace eval ::winkit::safe {
 #  init -- main entry point
 #
 #  Called from main.tcl when safe mode is active.
-#  Args: argv (original command line)
+#  Args: argv (original command line), mode ("script" | "repl")
 # ----------------------------------------------------------------------
-proc ::winkit::safe::init {argv} {
+proc ::winkit::safe::init {argv {mode script}} {
     variable child
     variable accessPath
 
@@ -63,72 +63,78 @@ proc ::winkit::safe::init {argv} {
     set child [create_child $accessPath]
 
     # 5. Share standard channels
+    #
+    # stdout/stderr always: the child prints to the master's console.
+    # stdin is NEVER shared here. Plan §2.11 (decision 18) splits script
+    # mode in two, and only the argv dispatch in main.tcl tells them apart:
+    #   script from a file -> share (CI/agents pipe data into the script)
+    #   script from stdin  -> do not share (the master is consuming it)
+    #   interactive REPL   -> do not share (the master owns the console in
+    #                         raw mode, and a child `gets stdin` blocks past
+    #                         every limit -- §2.12)
+    # main.tcl (B1.5/B3) shares stdin itself in the one case that wants it.
     interp share {} stdout $child
     interp share {} stderr $child
-    # stdin is shared only in script mode (caller decides)
 
     # 6. Set up aliases in the child
     setup_aliases $child
 
-    # 7. Return child handle to caller (main.tcl continues with REPL/script)
+    # 7. Apply limits (mode from caller: script/repl)
+    apply_limits $child $mode
+
+    # 8. Return child handle to caller (main.tcl continues with REPL/script)
     return $child
 }
 
 # ----------------------------------------------------------------------
-#  build_access_path -- recursive walk of VFS root
+#  build_access_path -- recursive walk of the VFS root
 #
-#  Returns a list of all directories under $root (zipfs://app),
-#  with tcl_library FIRST (required by safe.tcl for init.tcl).
-#  Uses depth-first traversal to capture nested package trees.
+#  Returns every directory under $root (//zipfs:/app) plus $root itself,
+#  with tcl_library FIRST: safe.tcl makes accessPath(0) the child's
+#  tcl_library and interpCreate fails when it holds no init.tcl.
+#
+#  $root is included deliberately -- init.tcl puts [file dirname
+#  $tcl_library] (= //zipfs:/app) on a normal interp's auto_path, and the
+#  default tclPkgUnknown finds //zipfs:/app/lib/pkgIndex.tcl from there
+#  (see lib/kit_init.tcl). Dropping the root would make the child's
+#  package discovery depend on lib/ happening to be listed separately.
 # ----------------------------------------------------------------------
 proc ::winkit::safe::build_access_path {root} {
-    set result [list]
-    set tcl_lib $root/tcl_library
+    set tcl_lib [file join $root tcl_library]
 
-    # Recursive helper: collect all subdirectories
-    proc collect_dirs {dir accVar} {
-	upvar 1 $accVar acc
-	# glob -types d returns directories only
-	foreach sub [glob -nocomplain -directory $dir -types d *] {
-	    lappend acc $sub
-	    # Recurse into subdirectory
-	    collect_dirs $sub acc
-	}
-    }
-
+    set result [list $root]
     collect_dirs $root result
 
-    # tcl_library MUST be first (safe.tcl uses it as tcl_library in child)
     set idx [lsearch -exact $result $tcl_lib]
     if {$idx < 0} {
 	error "tcl_library not found at $tcl_lib"
     }
-    if {$idx > 0} {
-	set result [lreplace $result $idx $idx]
-	set result [linsert $result 0 $tcl_lib]
-    }
+    set result [lreplace $result $idx $idx]
+    return [linsert $result 0 $tcl_lib]
+}
 
-    return $result
+# ----------------------------------------------------------------------
+#  collect_dirs -- depth-first directory walk
+#
+#  Appends every subdirectory of $dir to the variable named by $accVar.
+# ----------------------------------------------------------------------
+proc ::winkit::safe::collect_dirs {dir accVar} {
+    upvar 1 $accVar acc
+    foreach sub [glob -nocomplain -directory $dir -types d *] {
+	lappend acc $sub
+	collect_dirs $sub acc
+    }
+    return
 }
 
 # ----------------------------------------------------------------------
 #  create_child -- create safe interpreter with accessPath
 #
-#  Returns the child interpreter name.
-#  Shares stdout/stderr with the child (stdin NOT shared by default).
+#  Returns the child interpreter name. Channel sharing deliberately does
+#  NOT happen here: init owns the channel policy (step 5, plan §2.11).
 # ----------------------------------------------------------------------
 proc ::winkit::safe::create_child {accessPath} {
-    # Create the safe child with full accessPath
-    set child [::safe::interpCreate -accessPath $accessPath]
-
-    # Share stdout and stderr (child can print to master's console)
-    interp share {} stdout $child
-    interp share {} stderr $child
-
-    # stdin is NOT shared here — caller decides based on mode
-    # (script mode: share; REPL mode: do not share — see §2.11)
-
-    return $child
+    return [::safe::interpCreate -accessPath $accessPath]
 }
 
 # ----------------------------------------------------------------------
@@ -199,4 +205,72 @@ proc ::winkit::safe::alias_file_readable {child accessPath path} {
 # ----------------------------------------------------------------------
 proc ::winkit::safe::alias_exit {{code 0}} {
     exit $code
+}
+
+# ----------------------------------------------------------------------
+#  apply_limits -- set command/time limits on the child
+#
+#  mode: "script"  -> 300 s / 2·10⁹ commands (CI/agent)
+#        "repl"    -> 60 s / 5·10⁸ commands per line; the REPL loop calls
+#                     this again before each line to re-arm
+#
+#  Time limit is an ABSOLUTE deadline (clock seconds + N), NOT "in N
+#  seconds": -milliseconds alone would set a 1970 deadline and trip
+#  instantly (see plan §2.8). The -command script runs in the MASTER at
+#  trip time and does NOT re-arm -- see limit_handler for the measured
+#  reason.
+# ----------------------------------------------------------------------
+proc ::winkit::safe::apply_limits {child mode} {
+    variable limit_time_script
+    variable limit_cmd_script
+    variable limit_time_repl
+    variable limit_cmd_repl
+
+    switch -- $mode {
+	script {
+	    set seconds      $limit_time_script
+	    set maxcommands  $limit_cmd_script
+	}
+	repl {
+	    set seconds      $limit_time_repl
+	    set maxcommands  $limit_cmd_repl
+	}
+	default {
+	    error "unknown limit mode \"$mode\": expected script|repl"
+	}
+    }
+
+    # Command limit
+    interp limit $child commands -value $maxcommands
+
+    # Time limit: absolute deadline
+    interp limit $child time \
+	-seconds [expr {[clock seconds] + $seconds}] \
+	-milliseconds 0
+
+    # Handler fires in the master when either limit trips
+    set handler [list ::winkit::safe::limit_handler $child $mode]
+    interp limit $child commands -command $handler
+    interp limit $child time -command $handler
+
+    return
+}
+
+# ----------------------------------------------------------------------
+#  limit_handler -- runs in the MASTER when a limit trips
+#
+#  Reports the trip and deliberately does NOT re-arm. doc/interp.n:
+#  "If those callbacks increase or remove the limit, execution within the
+#  (previously) limited interpreter continues" -- measured in
+#  tmp/b14-limit-probe.tcl: a re-arming handler fired 5 trips out of a
+#  single `interp eval`, so a runaway loop would never stop. Leaving the
+#  limit in force makes the error propagate to the master's interp eval,
+#  which reports it; the child stays usable afterwards (probe case D).
+#
+#  Re-arming for the REPL is the per-line loop's job: call apply_limits
+#  with mode "repl" before evaluating each line.
+# ----------------------------------------------------------------------
+proc ::winkit::safe::limit_handler {child mode} {
+    puts stderr "safe: $mode limit exceeded in child \"$child\""
+    return
 }
