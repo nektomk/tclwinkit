@@ -77,28 +77,35 @@ proc ::winkit::safe::init {argv} {
 # ----------------------------------------------------------------------
 #  build_access_path -- recursive walk of VFS root
 #
-#  Returns a list of all directories under $root, with $root first.
-#  tcl_library must be first for init.tcl to load in the child.
+#  Returns a list of all directories under $root (zipfs://app),
+#  with tcl_library FIRST (required by safe.tcl for init.tcl).
+#  Uses depth-first traversal to capture nested package trees.
 # ----------------------------------------------------------------------
 proc ::winkit::safe::build_access_path {root} {
     set result [list]
-    lappend result $root
-
-    # Recursive walk: collect all directories
-    foreach dir [glob -nocomplain -directory $root -type d *] {
-	lappend result $dir
-    }
-
-    # Ensure tcl_library is first (it's a direct child of root)
     set tcl_lib $root/tcl_library
-    if {$tcl_lib ni $result} {
-	lappend result $tcl_lib
+
+    # Recursive helper: collect all subdirectories
+    proc collect_dirs {dir accVar} {
+	upvar 1 $accVar acc
+	# glob -types d returns directories only
+	foreach sub [glob -nocomplain -directory $dir -types d *] {
+	    lappend acc $sub
+	    # Recurse into subdirectory
+	    collect_dirs $sub acc
+	}
     }
-    # Move tcl_library to position 1 (after root)
+
+    collect_dirs $root result
+
+    # tcl_library MUST be first (safe.tcl uses it as tcl_library in child)
     set idx [lsearch -exact $result $tcl_lib]
-    if {$idx > 1} {
+    if {$idx < 0} {
+	error "tcl_library not found at $tcl_lib"
+    }
+    if {$idx > 0} {
 	set result [lreplace $result $idx $idx]
-	lset result 1 $tcl_lib
+	set result [linsert $result 0 $tcl_lib]
     }
 
     return $result
@@ -108,10 +115,19 @@ proc ::winkit::safe::build_access_path {root} {
 #  create_child -- create safe interpreter with accessPath
 #
 #  Returns the child interpreter name.
+#  Shares stdout/stderr with the child (stdin NOT shared by default).
 # ----------------------------------------------------------------------
 proc ::winkit::safe::create_child {accessPath} {
-    # ::safe::interpCreate -accessPath $accessPath
+    # Create the safe child with full accessPath
     set child [::safe::interpCreate -accessPath $accessPath]
+
+    # Share stdout and stderr (child can print to master's console)
+    interp share {} stdout $child
+    interp share {} stderr $child
+
+    # stdin is NOT shared here — caller decides based on mode
+    # (script mode: share; REPL mode: do not share — see §2.11)
+
     return $child
 }
 
