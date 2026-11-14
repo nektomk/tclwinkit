@@ -41,16 +41,24 @@ proc ::winkit::safe::init {argv {mode script}} {
     variable accessPath
 
     # 1. Load safe.tcl and safetk.tcl from the VFS
-    set safe_tcl    //zipfs:/app/tcl_library/safe.tcl
-    set safetk_tcl  //zipfs:/app/tcl_library/safetk.tcl
+    #
+    # Guarded, because re-sourcing safe.tcl is destructive: its tail runs
+    # `variable AutoPathSync 0`, so a second `init` would reset sync mode and
+    # then fail on `setSyncMode 1` with "cannot set new value while Safe Base
+    # child interpreters exist" whenever a child from the first call is still
+    # registered. Measured in tmp/b15a-accesspath-probe.tcl section E.
+    if {[llength [info commands ::safe::interpCreate]] == 0} {
+	set safe_tcl    //zipfs:/app/tcl_library/safe.tcl
+	set safetk_tcl  //zipfs:/app/tcl_library/safetk.tcl
 
-    if {![file exists $safe_tcl]} {
-	error "safe.tcl not found at $safe_tcl"
-    }
-    source $safe_tcl
+	if {![file exists $safe_tcl]} {
+	    error "safe.tcl not found at $safe_tcl"
+	}
+	source $safe_tcl
 
-    if {[file exists $safetk_tcl]} {
-	source $safetk_tcl
+	if {[file exists $safetk_tcl]} {
+	    source $safetk_tcl
+	}
     }
 
     # 2. Enable sync mode (auto_path in child = opaque tokens)
