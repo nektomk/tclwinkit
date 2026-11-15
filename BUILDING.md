@@ -1,6 +1,6 @@
 # Building tclwinkit from source
 
-Builds the four executables and the docs archive on Windows x64. This file is
+Builds five executables and the docs archive on Windows x64. This file is
 written so an agent or a person can follow it top to bottom: every step states
 its precondition, the command, and the invariant it must leave behind. The
 verbose process documentation (conventions, CI, release procedure) is in
@@ -12,6 +12,7 @@ verbose process documentation (conventions, CI, release procedure) is in
 | Output | Toolchain | Subsystem |
 |---|---|---|
 | `dist\msvc\tclwin.exe` | MSVC, static CRT | console |
+| `dist\msvc\tclsafe.exe` | MSVC, static CRT | console |
 | `dist\msvc\tkwin.exe` | MSVC, static CRT | GUI |
 | `dist\mingw\tclwin.exe` | MinGW-w64, UCRT | console |
 | `dist\mingw\tkwin.exe` | MinGW-w64, UCRT | GUI |
@@ -20,7 +21,19 @@ verbose process documentation (conventions, CI, release procedure) is in
 The exe names carry no toolchain, so `dist/` keeps one subdirectory per
 toolchain; the docs archive stays at the `dist/` root. Release assets are the
 archives, not these files: `tclwinkit-<toolchain>-<version>.zip`, each holding
-one top-level directory with `tclwin.exe` and `tkwin.exe` inside (step 5).
+one top-level directory with that chain's executables inside (step 5) —
+`tclwin.exe` and `tkwin.exe` for MinGW, and those two plus `tclsafe.exe` for
+MSVC.
+
+`tclsafe.exe` is the safe-interpreter console kit. It carries the same VFS
+image as `tclwin.exe` byte for byte — measured as one 6790837-byte zip, sha256
+`CB146BBD893F229A7D83A9462BDFA6BE717BB76D70E34F43E95C7EDF76A95602`, attached
+to two different stubs — and differs only in its C entry point
+`src/kit/kit_safe_main.c`, which publishes `::winkit::safe_mode` from
+`Tcl_AppInit` so the shared `main.tcl` evaluates user code in a safe child
+interpreter instead of in the master. It is MSVC-only — the MinGW chain builds
+no counterpart — and `build-release-archives.ps1` treats the safe names as
+allowed-but-not-required, so a chain without them is not an error.
 
 ## Preconditions
 
@@ -163,8 +176,8 @@ scripts\assemble-msvc-kit.ps1   # stage VFS -> zip -> attach to exe -> dist\
 build-msvc-ext.bat, build-msvc-img.bat` and invokes none of them — the steps
 above are a sequence, not a retry loop.
 
-**Invariant after step 3:** `dist\msvc\tclwin.exe` and
-`dist\msvc\tkwin.exe` exist.
+**Invariant after step 3:** `dist\msvc\tclwin.exe`, `dist\msvc\tclsafe.exe`
+and `dist\msvc\tkwin.exe` exist.
 
 ## Step 4 — MinGW chain
 
@@ -225,11 +238,12 @@ scripts\build-release-archives.ps1   # one exe archive per toolchain -> build\re
   from git rather than from a wall clock, so the archive is reproducible *at a
   given commit* and legitimately differs at any other one. Build it **after the
   last commit** you intend to ship: built mid-work it records a stale sha, and
-  built on a dirty tree it says so in the same line. The four executables carry
+  built on a dirty tree it says so in the same line. The executables carry
   no builder state at all (`check-encoding.ps1` asserts zero occurrences of
   `HEAD` in each), so re-assembling them for a fresh stamp is unnecessary —
-  measured across a rebuild: all four byte-identical, only the docs archive
-  changed.
+  measured across a rebuild of the original four: all byte-identical, only the
+  docs archive changed. Re-assembling with `tclsafe.exe` present likewise
+  reproduced all three MSVC dist exes and all three raw stubs byte for byte.
 - `build-docs-artifact.ps1` removes a previous version's
   `dist\tclwinkit-docs-*.zip` once the new archive is written **and verified**,
   so a version bump cannot leave two of them side by side; `-KeepStale` opts
@@ -257,8 +271,8 @@ scripts\build-release-archives.ps1   # one exe archive per toolchain -> build\re
   `check-gates-selftest.ps1`) fails with `listed hashes matching no built file`
   plus `built files absent from the list`.
 
-**Invariant after step 5:** `LICENSES/` is up to date; `dist\` holds five
-files — four exe under `dist\msvc\` and `dist\mingw\`, plus
+**Invariant after step 5:** `LICENSES/` is up to date; `dist\` holds six
+files — five exe (three under `dist\msvc\`, two under `dist\mingw\`), plus
 `tclwinkit-docs-*.zip` at the `dist\` root — and `build\release-stage\` holds
 the two `tclwinkit-<chain>-<version>.zip` archives that actually ship.
 `build\release-stage\SHA256SUMS.txt` matches those three archives, so
@@ -272,9 +286,16 @@ dist\msvc\tclwin.exe tests\tcllib-probe.tcl       # PROBE OK
 dist\msvc\tclwin.exe tests\kit-license-check.tcl  # KIT LICENSE CHECK OK
 ```
 
-Run all three against **each of the four** executables. Expected numbers on a
-healthy build are in CONTRIBUTING.md (_Testing_); the REPL-specific suite is
-`scripts\test-repl.ps1`.
+Run all three against **each of the four** `tclwin.exe` / `tkwin.exe`
+executables — not against `tclsafe.exe`. These tests assume an unsandboxed
+interpreter, and on the safe kit they legitimately fail: measured there, all
+three exit 1 — `smoke.tcl` with 26 failures (`file isdirectory` /
+`file normalize` refused, native `load` reporting `no <pkg>_SafeInit procedure`,
+no `thread::create`, `registry` or `::env`), and the other two on
+`not allowed to invoke subcommand normalize|exists of file`. A failure there is
+expected, not a regression; the safe kit needs its own suite. Expected numbers
+on a healthy build are in CONTRIBUTING.md (_Testing_); the REPL-specific suite
+is `scripts\test-repl.ps1`.
 
 ## Step 7 — publish (only for maintainers)
 
@@ -298,10 +319,14 @@ demonstrably zero.
 ## Reproducibility
 
 Two full rebuilds on the reference host reproduce every shipped byte for byte:
-the five files in `dist\` (four exe plus the docs archive) and the two release
-archives packed from them. What makes that hold: ZIP entry times pinned to the
-DOS epoch (directory entries included — in the kit images, the docs archive and
-the release archives alike), `generated:` in `VERSIONS.txt` from `HEAD` and
+everything in `dist\` (the executables and the docs archive) and the two release
+archives packed from them. That comparison was measured with the original four
+executables; `tclsafe.exe` is covered by the same mechanisms, and
+`check-encoding.ps1` asserts the two that apply to it — its MSVC PE timestamp is
+an image hash under `-Brepro`, and it carries no `HEAD` occurrence. What makes
+that hold: ZIP entry times pinned to the DOS epoch (directory entries included —
+in the kit images, the docs archive and the release archives alike),
+`generated:` in `VERSIONS.txt` from `HEAD` and
 `SOURCE_DATE_EPOCH`, and the PE timestamp from `-Brepro` (MSVC) or
 `SOURCE_DATE_EPOCH` (MinGW). No `Get-Date`, no `__DATE__`/`__TIME__`, no
 `git rev-parse` output reaches anything shipped. Reproducibility is measured

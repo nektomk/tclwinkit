@@ -41,7 +41,7 @@ forward it and track the release that fixes it.
 - **Acknowledgement**: we try within 5 business days. This is an unpaid
   hobby project with one maintainer; please do not assume an SLA.
 - **Fix path for upstream defects**: a bundled component is updated to an
-  upstream release that contains the fix, then all four executables and the
+  upstream release that contains the fix, then all five executables and the
   docs archive are rebuilt and republished. There is no patch pipeline into
   vendor code beyond the small, indexed set in [`patches/README.md`](patches/README.md),
   and no intention to grow it.

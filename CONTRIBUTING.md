@@ -384,6 +384,14 @@ dist\msvc\tclwin.exe     tests\tcllib-probe.tcl        # PROBE OK
 dist\msvc\tclwin.exe     tests\kit-license-check.tcl   # KIT LICENSE CHECK OK
 ... each of the four
 
+# "The four" are the unsandboxed executables. Do NOT run these three against
+# dist\msvc\tclsafe.exe -- they assume an unsandboxed interpreter and exit 1
+# there by design. Measured on the safe kit: smoke.tcl reports 26 failures
+# (file isdirectory / file normalize refused, native load answering
+# "no <pkg>_SafeInit procedure", no thread::create, registry or ::env), and the
+# other two die on "not allowed to invoke subcommand normalize|exists of file".
+# BUILDING.md step 6 carries the detail; the safe kit needs its own suite.
+
 scripts\test-repl.ps1       # interactive REPL: key injection, history, completion
                             #   needs a REAL console; from a shell with redirected
                             #   stdout launch it via cmd /c start /wait (see header)
@@ -485,7 +493,10 @@ acceptable while downloads are demonstrably zero.
 
 - State what problem the change solves and which gate proves it.
 - Two toolchains, four executables: a change that only builds on one is not
-  ready.
+  ready. The one deliberate exception is the safe kit: `tclsafe.exe` is MSVC-only
+  for now and has no MinGW counterpart, so a change confined to it cannot fail
+  the MinGW chain by construction. That exception covers the safe-kit target
+  alone — `tclwin.exe` and `tkwin.exe` still have to build on both.
 - Do not reformat vendor files, do not sort `LICENSES/`, do not "clean up"
   generated trees — the diffs are unreadable and `-Check` will fight you.
 - New documentation belongs in the language of its neighbourhood: process

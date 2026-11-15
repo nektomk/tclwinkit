@@ -157,6 +157,14 @@ if {[package vsatisfies [package provide Tcl] 9.0]} {
         # Console startup script: tclsh semantics + TclReadLine REPL.
         # The GUI kit intentionally has NO main.tcl (stock wish behaviour).
         Copy-Item "$Root\src\kit\vfs\main.tcl" "$Stage\kit.vfs\"
+
+        # Safe-interpreter bootstrap. main.tcl sources it only when the C entry
+        # point published ::winkit::safe_mode, so tclwin.exe carries the file
+        # and never reads it -- one shared image for both console exes is what
+        # keeps their main.tcl from drifting apart. (The GUI safe kit gets its
+        # own copy when the B7 target adds main.tcl to the GUI image.)
+        New-Item -ItemType Directory -Force "$Stage\kit.vfs\lib\winkit" | Out-Null
+        Copy-Item "$Root\src\kit\vfs\lib\winkit\*.tcl" "$Stage\kit.vfs\lib\winkit\"
     }
 }
 
@@ -209,6 +217,14 @@ New-VfsTree
 New-KitZip 'kit-console.zip'
 Join-Binaries @("$Kit\tclwinkit-raw.exe", "$Stage\kit-console.zip") "$Out\tclwin.exe"
 if (-not (Test-Path "$Out\tclwin.exe")) { throw 'attach failed (console)' }
+
+# ---- safe console kit ---------------------------------------------------
+# Attaches the SAME image to the safe stub: safe mode lives in the exe
+# (kit_safe_main.c publishes ::winkit::safe_mode), not in the zip, so the two
+# console kits are byte-identical apart from their stubs. Must run before the
+# GUI pass below, which wipes $Stage.
+Join-Binaries @("$Kit\tclsafe-raw.exe", "$Stage\kit-console.zip") "$Out\tclsafe.exe"
+if (-not (Test-Path "$Out\tclsafe.exe")) { throw 'attach failed (safe console)' }
 
 # ---- GUI kit ------------------------------------------------------------
 New-VfsTree -WithTk

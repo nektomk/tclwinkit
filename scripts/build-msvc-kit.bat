@@ -66,6 +66,12 @@ cl %CFLAGS% %KITPKGS% %TCLINC% "%KITSRC%\kit_register.c" /Fo%KITOUT%\kit_registe
 rem GUI flavor (with Img)
 cl %CFLAGS% %KITPKGS% %KITGUIS% %TKINC% "%KITSRC%\kit_register.c" /Fo%KITOUT%\kit_register_g.obj || exit /b 1
 cl %CFLAGS% %KITPKGS% %TCLINC% "%KITSRC%\kit_main.c" /Fo%KITOUT%\kit_main.obj || exit /b 1
+rem safe console flavor. Same compile flags and same libraries as kit_main.c:
+rem the ONLY difference between the two is that its Tcl_AppInit publishes
+rem ::winkit::safe_mode, which main.tcl branches on. Both flavors therefore
+rem share one VFS image (see assemble-msvc-kit.ps1).
+rem The safe GUI flavor (kit_safe_wish_main.c) is built by the B7 target.
+cl %CFLAGS% %KITPKGS% %TCLINC% "%KITSRC%\kit_safe_main.c" /Fo%KITOUT%\kit_safe_main.obj || exit /b 1
 cl %CFLAGS% %KITPKGS% %KITGUIS% %TKINC% "%KITSRC%\kit_wish_main.c" /Fo%KITOUT%\kit_wish_main.obj || exit /b 1
 
 rem ---- Tk resources for the GUI kit (X11 cursor names, tk icon, dialogs) --
@@ -85,6 +91,14 @@ rem ---- link console kit ----------------------------------------------------
 echo === Linking tclwinkit-raw.exe (console) ===
 link %LFLAGS% -subsystem:console -out:%KITOUT%\tclwinkit-raw.exe %KITOUT%\kit_main.obj %KITOUT%\kit_register_c.obj %CORELIBS% %PKGLIBS% %TWAPILIBS% %EXT2LIBS% %TCSYS% || exit /b 1
 for %%m in ("%TCLOUT%\tclsh90sx.exe.manifest" "%TCLOUT%\tclsh90s.exe.manifest") do if exist %%m mt -nologo -manifest %%m -outputresource:%KITOUT%\tclwinkit-raw.exe;1
+
+rem ---- link safe console kit ------------------------------------------------
+rem Same subsystem and the same library list as tclwinkit-raw.exe; only the
+rem stub object differs. The tclsh manifest is reused verbatim -- the safe kit
+rem is the same program with a sandboxed script path, not another application.
+echo === Linking tclsafe-raw.exe (console, safe) ===
+link %LFLAGS% -subsystem:console -out:%KITOUT%\tclsafe-raw.exe %KITOUT%\kit_safe_main.obj %KITOUT%\kit_register_c.obj %CORELIBS% %PKGLIBS% %TWAPILIBS% %EXT2LIBS% %TCSYS% || exit /b 1
+for %%m in ("%TCLOUT%\tclsh90sx.exe.manifest" "%TCLOUT%\tclsh90s.exe.manifest") do if exist %%m mt -nologo -manifest %%m -outputresource:%KITOUT%\tclsafe-raw.exe;1
 
 rem ---- link GUI kit ---------------------------------------------------------
 echo === Linking winkitwish-raw.exe (GUI) ===

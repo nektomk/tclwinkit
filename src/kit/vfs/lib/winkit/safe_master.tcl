@@ -375,19 +375,88 @@ proc ::winkit::safe::apply_limits {child mode} {
 	}
     }
 
-    # Command limit
-    interp limit $child commands -value $maxcommands
+    # Apply each limit, or remove it when its configured value is 0.
+    #
+    # 0 MUST become the empty string, not a literal 0. doc/interp.n says both
+    # -seconds and -value accept "" to mean "not set", while a numeric 0 means
+    # something entirely different: -seconds 0 is an ABSOLUTE deadline at the
+    # 1970 epoch and -value 0 is a command budget of zero, so either one trips
+    # on the first limit check. Measured in tmp/b3-limit-zero-probe.tcl: under
+    # `-seconds 0 -milliseconds 0` a ~3M-iteration loop died with `time limit
+    # exceeded` after 0 ms, and `-value 0` gave `command count limit exceeded`
+    # on a trivial eval, while `-seconds {}` let ~2 s of work finish (rc=0).
+    # Passing 0 through would therefore make `-safetime 0` / `-safecmds 0`
+    # (documented in plan §4 as "disabled") kill the script instantly -- the
+    # exact opposite of what was asked for.
+    #
+    # A trivial eval under `-seconds 0` does NOT trip, because time limits are
+    # only checked every -granularity points; that is why the first version of
+    # this measurement looked like "0 means disabled". See
+    # tmp/b3-limit-off-probe.tcl section A for the misleading case.
+    if {$maxcommands > 0} {
+	interp limit $child commands -value $maxcommands
+    } else {
+	interp limit $child commands -value {}
+    }
 
-    # Time limit: absolute deadline
-    interp limit $child time \
-	-seconds [expr {[clock seconds] + $seconds}] \
-	-milliseconds 0
+    if {$seconds > 0} {
+	interp limit $child time \
+	    -seconds [expr {[clock seconds] + $seconds}] \
+	    -milliseconds 0
+    } else {
+	interp limit $child time -seconds {}
+    }
 
-    # Handler fires in the master when either limit trips
+    # Handler fires in the master when either limit trips. Installed for both
+    # types even when one is disabled: re-arming later (REPL per line, or a
+    # future limit change) must not leave a type without its handler.
     set handler [list ::winkit::safe::limit_handler $child $mode]
     interp limit $child commands -command $handler
     interp limit $child time -command $handler
 
+    return
+}
+
+# ----------------------------------------------------------------------
+#  set_limits -- override the defaults from the command line
+#
+#  Called by main.tcl for -safetime / -safecmds BEFORE init, so the values
+#  are already in place when apply_limits runs. Both apply to every mode:
+#  an operator who passes -safetime 60 means "60 seconds" whether this ends
+#  up being a script run or a REPL line, and guessing per mode would make
+#  the flag mean two different things.
+#
+#  A value of 0 means DISABLED and is stored as 0; apply_limits turns it
+#  into the empty string that interp limit wants (see the comment there --
+#  a literal 0 is an epoch deadline, not "no limit").
+#
+#  Negative or non-integer values are rejected here rather than reaching
+#  interp limit, because the value arrives from a user's command line.
+# ----------------------------------------------------------------------
+proc ::winkit::safe::set_limits {{seconds {}} {commands {}}} {
+    variable limit_time_script
+    variable limit_cmd_script
+    variable limit_time_repl
+    variable limit_cmd_repl
+
+    foreach {val name} [list $seconds -safetime $commands -safecmds] {
+	if {$val eq ""} {
+	    continue
+	}
+	if {![string is integer -strict $val] || $val < 0} {
+	    error "invalid $name value \"$val\": expected a non-negative integer\
+		    (0 disables the limit)"
+	}
+    }
+
+    if {$seconds ne ""} {
+	set limit_time_script $seconds
+	set limit_time_repl   $seconds
+    }
+    if {$commands ne ""} {
+	set limit_cmd_script $commands
+	set limit_cmd_repl   $commands
+    }
     return
 }
 
