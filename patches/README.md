@@ -21,7 +21,7 @@ scripts\apply-patches.ps1     # pristine-деревья -> пропатченн�
 не пишется руками, а `-Check` валит манифест, разошедшийся с исходниками. Править
 `.patch` вручную бессмысленно: следующее `-Write` перезапишет его с деревьев.
 
-Всего: **23 патча, 897 строк, 44 хунка, 31 447 байт, +360 −100, ноль CR, ноль
+Всего: **23 патча, 919 строк, 45 ханков, 32 772 байта, +374 −101, ноль CR, ноль
 BOM**. Объявленных операций 26 на 25 записях (23 диффа + 2 `rename_token` +
 1 `rename_file`): расхождение в одну запись даёт `rl_json/generic/rl_json.c`,
 который несёт и токен, и дифф. Числа — замер по всем `.patch` дерева: строка
@@ -170,6 +170,7 @@ Pure-Tcl пакет; дерево `build/common/TclReadLine/` одно на об
 |---|---|
 | I9/portability | (1) закомментирован блок `package require Expect` (pristine-строки 41-63): Expect не бандлится, а `package require` искал бы `pkgIndex.tcl` по `$auto_path`, то есть читал чужие файлы из недоверенного окружения; `stty` на Windows предоставляет `tclreadline-win.tcl`; (2) `interact` не читает `~/.tcllinerc` и не читает `~/.tclline_history`, `doExit` не пишет историю (закомментировано от `set hlist [getHistory]` до `close $f`) — `exec stty sane` и `exit $code` сохранены; (3) `HISTFILE`/`RCFILE` вынесены под guard `info exists ::env(HOME)` с пустым значением в ветке else |
 | B4/safe-kit | добавлены `variable TARGET` и пять target-aware обёрток — `targetEval`, `targetInfoVars`, `targetArrayNames`, `targetInfoCommands`, `targetArrayExists`; через них теперь ходят все обращения к интерпретатору в `handleCompletionBase` (три хунка) и вычисление строки в главном цикле `tclline` |
+| B4/safe-kit, `exit` | добавлен `variable RUN_LOCAL`: строка, переписанная через таблицу `ALIASES` (сегодня это только `exit` → `TclReadLine::doExit`), выполняется в интерпретаторе REPL, а не в `TARGET`. Подстановка алиаса в главном цикле идёт **до** вычисления строки, поэтому без флага `exit` уходил в safe-ребёнка, где такой команды нет (замер в ребёнке: `info commands TclReadLine::*` → `{}`), и сессия не завершалась — тест ждал 8 с и убивал процесс с кодом −1. Обойти `doExit` и положиться на алиас `exit` из `safe_master.tcl` нельзя: именно `doExit` делает `restore`/`lineInput`/`exec stty sane`, возвращая консоль из raw-режима, а консольный exe, запущенный из `cmd`, делит её с родителем |
 
 Пункт (3) слоя I9 — не только про safe-режим. Подстановка `$::env(HOME)`
 исполняется в момент `package require`, поэтому REPL падал до первой строки ввода

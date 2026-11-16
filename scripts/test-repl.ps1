@@ -127,6 +127,19 @@ public static class ConDrv {
         public ushort wAttributes; public SMALL_RECT srWindow;
         public COORD dwMaximumWindowSize;
     }
+    [StructLayout(LayoutKind.Sequential, CharSet=CharSet.Unicode)]
+    public struct STARTUPINFOW {
+        public uint cb;
+        public string lpReserved, lpDesktop, lpTitle;
+        public uint dwX, dwY, dwXSize, dwYSize, dwXCountChars, dwYCountChars, dwFillAttribute, dwFlags;
+        public ushort wShowWindow, cbReserved2;
+        public IntPtr lpReserved2, hStdInput, hStdOutput, hStdError;
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    public struct PROCESS_INFORMATION {
+        public IntPtr hProcess, hThread;
+        public uint dwProcessId, dwThreadId;
+    }
 
     [DllImport("kernel32.dll", SetLastError=true)] public static extern bool FreeConsole();
     [DllImport("kernel32.dll", SetLastError=true)] public static extern bool AttachConsole(uint pid);
@@ -140,7 +153,15 @@ public static class ConDrv {
     public static extern bool GetConsoleScreenBufferInfo(IntPtr h, out CONSOLE_SCREEN_BUFFER_INFO info);
     [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern short VkKeyScanW(char c);
     [DllImport("user32.dll")] public static extern uint MapVirtualKeyW(uint vk, uint type);
+    [DllImport("kernel32.dll", SetLastError=true, CharSet=CharSet.Unicode)]
+    public static extern bool CreateProcessW(string app, string cmdline, IntPtr pa, IntPtr ta,
+        bool inherit, uint flags, IntPtr env, string dir, ref STARTUPINFOW si, out PROCESS_INFORMATION pi);
+    [DllImport("kernel32.dll", SetLastError=true)] public static extern uint WaitForSingleObject(IntPtr h, uint ms);
+    [DllImport("kernel32.dll", SetLastError=true)] public static extern bool GetExitCodeProcess(IntPtr h, out uint code);
+    [DllImport("kernel32.dll")] public static extern bool CloseHandle(IntPtr h);
+    [DllImport("kernel32.dll", SetLastError=true)] public static extern bool TerminateProcess(IntPtr h, uint code);
 
+    const uint CREATE_NEW_CONSOLE = 0x10;
     const uint GENERIC_WRITE = 0x40000000, GENERIC_READ = 0x80000000;
     const uint FILE_SHARE_READ = 1, FILE_SHARE_WRITE = 2;
     const uint OPEN_EXISTING = 3;
@@ -151,6 +172,22 @@ public static class ConDrv {
     public static void Attach(uint pid) {
         FreeConsole();
         if (!AttachConsole(pid)) throw new Exception("AttachConsole failed: " + Marshal.GetLastWin32Error());
+    }
+
+    // Start-Process cannot be used here: it goes through ShellExecuteEx, which
+    // raises a consent dialog for a raw kit exe, and it cannot pass
+    // CREATE_NEW_CONSOLE. The kit needs its own console -- sharing the caller's
+    // stdin is not an option (a blocking stdin read is not interruptible from
+    // the safe interp), so inherit=false + CREATE_NEW_CONSOLE it is.
+    public static KitProc LaunchKit(string exe, string workdir) {
+        STARTUPINFOW si = new STARTUPINFOW();
+        si.cb = (uint)Marshal.SizeOf(typeof(STARTUPINFOW));
+        PROCESS_INFORMATION pi;
+        if (!CreateProcessW(exe, '"' + exe + '"', IntPtr.Zero, IntPtr.Zero, false,
+                            CREATE_NEW_CONSOLE, IntPtr.Zero, workdir, ref si, out pi))
+            throw new Exception("CreateProcess failed: " + Marshal.GetLastWin32Error());
+        CloseHandle(pi.hThread);
+        return new KitProc(pi.hProcess, unchecked((int)pi.dwProcessId));
     }
 
     static INPUT_RECORD Rec(ushort vk, char c, uint ctrl, ushort scan) {
@@ -242,6 +279,22 @@ public static class ConDrv {
         return sb.ToString().TrimEnd();
     }
 }
+
+// Minimal stand-in for System.Diagnostics.Process exposing exactly the members
+// this script uses (Id, HasExited, ExitCode, WaitForExit, Kill), backed by the
+// process handle from CreateProcessW.
+public class KitProc {
+    const uint WAIT_OBJECT_0 = 0, INFINITE = 0xFFFFFFFF;
+    IntPtr h; readonly int pid;
+    public KitProc(IntPtr handle, int p) { h = handle; pid = p; }
+    public int Id { get { return pid; } }
+    public bool HasExited { get { return ConDrv.WaitForSingleObject(h, 0) == WAIT_OBJECT_0; } }
+    public int ExitCode { get { uint c; ConDrv.GetExitCodeProcess(h, out c); return unchecked((int)c); } }
+    public bool WaitForExit(int ms) {
+        return ConDrv.WaitForSingleObject(h, ms < 0 ? INFINITE : (uint)ms) == WAIT_OBJECT_0;
+    }
+    public void Kill() { ConDrv.TerminateProcess(h, 1); }
+}
 '@
 
 # --- private working directory and probe files -------------------------------
@@ -268,7 +321,7 @@ Write-Output ('workdir : ' + $Work)
 Write-Output ('probe A : ' + $nameA + ' -> ' + $tokA)
 Write-Output ('probe B : ' + $nameB + ' -> ' + $tokB)
 
-$proc = Start-Process -FilePath $Exe -WorkingDirectory $Work -PassThru
+$proc = [ConDrv]::LaunchKit($Exe, $Work)
 Write-Output ('launched pid ' + $proc.Id)
 Start-Sleep -Milliseconds 2500
 
@@ -323,7 +376,16 @@ try {
         [ConDrv]::SendSeq('source wkpnomatch@STAB@')
         Start-Sleep -Milliseconds 900
         $s6 = [ConDrv]::CaptureScreen()
-        Chk ($s6.Contains("couldn't read file")) 'an unmatched prefix stays uncompleted and fails at source'
+        # Kit-independent markers, deliberately. The two kits fail the same
+        # `source` through different code and word it differently: the normal
+        # kit reports `couldn't read file "X": no such file or directory`, while
+        # the safe kit goes through ::safe::AliasSource, whose CheckFileName
+        # raises the bare POSIX text `no such file or directory`. Both contain
+        # the second string. `No match found.` comes from the completion code,
+        # which always runs in the master, so it is identical in both. The pair
+        # still proves "did not complete, then failed at source" without
+        # encoding which kit is under test.
+        Chk ($s6.Contains('No match found.') -and $s6.Contains('no such file or directory')) 'an unmatched prefix is reported by completion and then fails at source'
 
         $screen = $s6
         [ConDrv]::SendSeq('exit')
@@ -331,7 +393,7 @@ try {
 
     if (-not $proc.WaitForExit(8000)) {
         Write-Output 'WARN: process did not exit after the exit command - killing it'
-        try { $proc | Stop-Process -Force } catch { }
+        try { $proc.Kill() } catch { }
         $exitCode = -1
     } else {
         $exitCode = $proc.ExitCode

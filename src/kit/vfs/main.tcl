@@ -300,13 +300,47 @@ proc ::winkit::safe_main {argv} {
     }
 
     if {[::winkit::have_console]} {
-	# Deferred to B4: the safe REPL needs the TclReadLine eval/completion
-	# TARGET patch (plan §2.12) before a line can run in the child. Fail
-	# loudly rather than fall through to ::winkit::repl, which would hand
-	# the user the MASTER's unsandboxed REPL from a kit named "safe".
-	puts stderr "safe mode: the interactive REPL is not implemented yet (B4)."
-	puts stderr "Run a script (tclsafe script.tcl) or pipe commands in instead."
-	exit 1
+	# B4: the safe REPL. The master owns the console -- TclReadLine and its
+	# twapi shim cannot exist in a safe interp -- while the child runs the
+	# user's code: tclreadline.tcl's TARGET wrappers send both the eval and
+	# every completion lookup there.
+	#
+	# init copies argv0/argv/argc/tcl_interactive into the child as they
+	# stand, so they are set first, per safe_master.tcl's contract; skip
+	# that and every script in the child runs with tcl_interactive 0.
+	#
+	# tcl_rcFileName is deliberately NOT sourced here. An rc file would run
+	# as the master, i.e. outside the sandbox, which is exactly what safe
+	# mode exists to prevent; ::winkit::repl honours it only because that
+	# kit has no sandbox.
+	#
+	# Limits are armed once, by init, for mode "repl". Per-line re-arming is
+	# B6; until it lands the deadline is absolute, so a session that
+	# outlives -safetime trips the limit and every later line fails on it.
+	global argv0 tcl_interactive
+	set argv0 [info nameofexecutable]
+	set tcl_interactive 1
+
+	set child [::winkit::safe::init "" repl]
+
+	package require TclReadLine
+	set shim [file join $::winkit::libdir TclReadLine tclreadline-win.tcl]
+	if {[file exists $shim]} {
+	    if {[catch {uplevel #0 [list source $shim]} err]} {
+		puts stderr "warning: TclReadLine win32 shim failed: $err"
+	    }
+	}
+
+	puts "tclsafe — Tcl [info patchlevel] safe interactive shell\
+		(sandboxed: [llength [interp eval $child {package names}]] packages)"
+	puts "Tab-completion: Shift-Tab always; Ctrl-t toggles plain Tab.\
+		Type \"exit\" or Ctrl-d on an empty line to quit."
+
+	set ::TclReadLine::TARGET $child
+	set ::TclReadLine::PROMPT {winkit% }
+
+	::TclReadLine::interact
+	exit 0
     }
 
     ::winkit::safe_stdin_loop
