@@ -12,17 +12,25 @@
 #	  * mirror argv0/argv/argc/tcl_interactive into the child
 #	  * enforce limits (command/time) and handle trips
 #	  * REPL and script execution live here; eval goes to child
+#	  * "gui" mode only: create the safe-Tk host window for the child
 #
 #	Usage (called from main.tcl in safe mode):
-#	  set child [::winkit::safe::init $scriptPath $mode]
+#	  set child [::winkit::safe::init $scriptPath $mode ?$geometry?]
 #	where $scriptPath is the ALREADY RESOLVED script file ("" when there is
-#	none) and $mode is one of three values, matching the three rows of the
-#	stdin policy table in plan §2.11 (decision 18):
+#	none) and $mode is one of four values. The first three match the three
+#	rows of the stdin policy table in plan §2.11 (decision 18):
 #	  script -- script read from a FILE; stdin IS shared with the child
 #	  stdin  -- script read from standard input; stdin is NOT shared, the
 #	          master is consuming it
 #	  repl   -- interactive loop; stdin is NOT shared, the master owns the
 #	          console in raw mode (see plan §2.12)
+#	The fourth stands outside that table because a GUI applet never reads
+#	the console:
+#	  gui    -- safe-Tk host window for an applet; stdin is NOT shared and
+#	          no resource limit is armed (plan §1 decisions 19, 20)
+#	$geometry is read by "gui" only and ignored by every other mode; it
+#	carries the -geometry value the C entry point intercepted before Tk
+#	consumed it (see create_gui_host for why it cannot be recovered later).
 #	main.tcl owns argv parsing -- it already handles -encoding and the
 #	"first non-dash argument" rule -- so this file never looks at argv.
 #
@@ -38,16 +46,32 @@ namespace eval ::winkit::safe {
     # AccessPath list (populated by build_access_path)
     variable accessPath {}
 
-    # Recognised run modes, one per row of the stdin policy table in plan
-    # §2.11 (decision 18). "script" and "stdin" differ ONLY in whether the
-    # child gets stdin -- they share the same limits.
-    variable modes {script stdin repl}
+    # Recognised run modes. The first three are one per row of the stdin
+    # policy table in plan §2.11 (decision 18); "script" and "stdin" differ
+    # ONLY in whether the child gets stdin -- they share the same limits.
+    # "gui" is the fourth mode, added in B5 for the safe-Tk host: it shares
+    # nothing with the stdin table because a GUI applet never reads the
+    # console, so stdin is not shared (see step 5).
+    variable modes {script stdin repl gui}
 
     # Limit configuration (defaults, overridden by CLI flags)
     variable limit_time_script   300      ;# seconds (absolute deadline)
     variable limit_cmd_script    2000000000 ;# 2·10⁹ commands
     variable limit_time_repl     60       ;# seconds per line
     variable limit_cmd_repl      500000000 ;# 5·10⁸ commands per line
+
+    # B5: the GUI mode gets NO resource limit (user decision 2026-11-16). A
+    # safe-Tk child sits in an event loop, and plan §4 records that the time
+    # limit fires inside `vwait` as well as in a busy loop, so any absolute
+    # deadline would kill a legitimate applet while it is merely open. The
+    # command counter is left off too: an idling applet executes almost no
+    # commands, and the user can always close the host window -- the SafeTk
+    # toplevel carries its own Delete button -- or kill the process.
+    # 0 means "disabled" here and apply_limits turns it into the empty string
+    # that `interp limit` wants; a literal 0 would instead mean a 1970
+    # deadline and a zero-command budget (see the comment in apply_limits).
+    variable limit_time_gui      0        ;# 0 = no time limit
+    variable limit_cmd_gui       0        ;# 0 = no command limit
 }
 
 # ----------------------------------------------------------------------
@@ -55,10 +79,15 @@ namespace eval ::winkit::safe {
 #
 #  Called from main.tcl when safe mode is active.
 #  Args: scriptPath -- resolved script file, or "" when there is none
-#                     (stdin and REPL modes)
-#        mode       -- "script" | "stdin" | "repl" (see the file header)
+#                     (stdin, REPL and GUI modes)
+#        mode       -- "script" | "stdin" | "repl" | "gui" (see file header)
+#        geometry   -- the -geometry value the C entry point intercepted,
+#                     used only by "gui" to size the host window and ignored
+#                     by every other mode. Tk consumes its own -X options and
+#                     empties argv before main.tcl runs at all, so the request
+#                     cannot be recovered here and must be passed in.
 # ----------------------------------------------------------------------
-proc ::winkit::safe::init {scriptPath {mode script}} {
+proc ::winkit::safe::init {scriptPath {mode script} {geometry {}}} {
     variable child
     variable accessPath
     variable modes
@@ -105,13 +134,24 @@ proc ::winkit::safe::init {scriptPath {mode script}} {
     #
     # stdout/stderr always: the child prints to the master's console.
     # stdin only in mode "script", i.e. a script read from a FILE. Plan §2.11
-    # (decision 18) has exactly three rows, and they are the three modes:
+    # (decision 18) has exactly three rows, and the three console modes are
+    # those rows:
     #   script from a file -> share; the master never reads the console, and
     #                         CI/agents pipe data into the script
     #   script from stdin  -> do not share; the master is consuming stdin
     #   interactive REPL   -> do not share; the master owns the console in raw
     #                         mode (TclReadLine + the twapi shim), and a child
     #                         `gets stdin` would block past every limit (§2.12)
+    # The fourth mode, "gui", is not a row of that table at all: an applet
+    # draws its own windows and never reads the console, so stdin is not
+    # shared either -- for absence of a reader, not because the master is
+    # holding the channel. stdout/stderr are still shared, but whether they
+    # reach anyone is up to how the process was launched: tksafe.exe is a
+    # windows-subsystem executable with its console suppressed, so it writes
+    # into an inherited handle when a shell started it and into nothing at all
+    # when it was double-clicked (NO-CONSOLE block in kit_safe_wish_main.c).
+    # Sharing costs nothing and is the only route an applet's `puts` has.
+    #
     # The child cannot `fconfigure` stdin -- it is hidden -- but it CAN `close`
     # it, and that is harmless to the master: `interp share` refcounts the
     # channel, so a child's close drops only the child's own reference.
@@ -135,11 +175,88 @@ proc ::winkit::safe::init {scriptPath {mode script}} {
     #    init (see copy_startup_vars).
     copy_startup_vars $child
 
-    # 8. Apply limits (mode from caller: script/repl)
+    # 8. Apply limits (mode from caller: script/stdin/repl/gui)
     apply_limits $child $mode
 
-    # 9. Return child handle to caller (main.tcl continues with REPL/script)
+    # 9. GUI mode only: hand the child its host toplevel. Done AFTER the
+    #    limits so a trip cannot land between Tk's initialisation and the
+    #    window existing, and after copy_startup_vars because the child's Tk
+    #    initialisation reads what the master published there.
+    if {$mode eq "gui"} {
+        create_gui_host $child $geometry
+    }
+
+    # 10. Return child handle to caller (main.tcl continues with REPL/script)
     return $child
+}
+
+# ----------------------------------------------------------------------
+#  create_gui_host -- give a safe child its Tk host window (B5)
+#
+#  ::safe::loadTk creates the decorated host toplevel itself -- a toplevel
+#  with class SafeTk, title "Untrusted Tcl applet (<child>)" and a warning
+#  bar carrying a Delete button -- embeds the child's "." inside it and then
+#  returns the CHILD handle, not the window name. The host is therefore found
+#  by diffing `winfo children .` across the call instead of guessing
+#  ".safe1" (safetk names hosts from an internal counter) or reading
+#  ::safe's private state, and the candidate is then confirmed by its window
+#  class so a false match cannot pass silently.
+#
+#  $geometry is the -geometry value the C entry point intercepted (B5.2):
+#  Tk applies -geometry to the MASTER's "." and empties argv before main.tcl
+#  runs at all, so the request cannot be recovered here and has to arrive
+#  through this argument. The child's "." ends up shorter than the request by
+#  the height of the host's warning bar -- plan section 2.5 measured 500x400
+#  on the host giving 500x367 in the child.
+#
+#  The master's own "." is withdrawn: it holds no user code, everything the
+#  applet owns lives in the host, and leaving it mapped would put a second,
+#  empty window next to the real one (decision 2026-11-16).
+#
+#  The title is deliberately NOT set. Plan decision 17 keeps Tk's own
+#  "Untrusted Tcl applet (<child>)" so the user always sees that the code is
+#  sandboxed; overriding it from a user-supplied -name would remove exactly
+#  that warning.
+# ----------------------------------------------------------------------
+proc ::winkit::safe::create_gui_host {child geometry} {
+    if {![winfo exists .]} {
+        error "gui mode needs a Tk master: \".\" does not exist"
+    }
+    if {[llength [info commands ::safe::loadTk]] == 0} {
+        error "gui mode needs safetk.tcl: ::safe::loadTk is not defined\
+                (see step 1 -- it ships in tk_library, not tcl_library)"
+    }
+
+    set before [winfo children .]
+    ::safe::loadTk $child
+    set added {}
+    foreach w [winfo children .] {
+        if {$w ni $before} {
+            lappend added $w
+        }
+    }
+    if {[llength $added] != 1} {
+        error "::safe::loadTk created [llength $added] host window(s):\
+                expected exactly 1 (added: $added)"
+    }
+    set host [lindex $added 0]
+
+    # Confirm this really is the SafeTk host and not an unrelated toplevel
+    # that happened to appear during the call.
+    if {[winfo class $host] ne "SafeTk"} {
+        error "host window $host has class \"[winfo class $host]\",\
+                expected \"SafeTk\""
+    }
+
+    if {$geometry ne ""} {
+        wm geometry $host $geometry
+    }
+
+    # The master's "." carries no user code; hide it so the applet's host is
+    # the only window on screen.
+    wm withdraw .
+
+    return $host
 }
 
 # ----------------------------------------------------------------------
@@ -358,6 +475,8 @@ proc ::winkit::safe::apply_limits {child mode} {
     variable limit_cmd_script
     variable limit_time_repl
     variable limit_cmd_repl
+    variable limit_time_gui
+    variable limit_cmd_gui
     variable modes
 
     switch -- $mode {
@@ -369,6 +488,19 @@ proc ::winkit::safe::apply_limits {child mode} {
 	repl {
 	    set seconds      $limit_time_repl
 	    set maxcommands  $limit_cmd_repl
+	}
+	gui {
+	    # B5: no resource limit for a GUI applet (user decision
+	    # 2026-11-16). Both stay 0, which the block below turns into the
+	    # empty string that `interp limit` reads as "not set". An absolute
+	    # time deadline cannot work here at all: plan §4 records that the
+	    # time limit fires inside `vwait` as well as in a busy loop, so any
+	    # finite value would kill a legitimate applet while it is merely
+	    # open and idle. The command counter is left off too -- an idling
+	    # applet runs almost no commands, and the SafeTk host carries its
+	    # own Delete button for the case where it does.
+	    set seconds      $limit_time_gui
+	    set maxcommands  $limit_cmd_gui
 	}
 	default {
 	    error "unknown limit mode \"$mode\": expected [join $modes |]"
@@ -438,6 +570,8 @@ proc ::winkit::safe::set_limits {{seconds {}} {commands {}}} {
     variable limit_cmd_script
     variable limit_time_repl
     variable limit_cmd_repl
+    variable limit_time_gui
+    variable limit_cmd_gui
 
     foreach {val name} [list $seconds -safetime $commands -safecmds] {
 	if {$val eq ""} {
@@ -452,10 +586,12 @@ proc ::winkit::safe::set_limits {{seconds {}} {commands {}}} {
     if {$seconds ne ""} {
 	set limit_time_script $seconds
 	set limit_time_repl   $seconds
+	set limit_time_gui    $seconds
     }
     if {$commands ne ""} {
 	set limit_cmd_script $commands
 	set limit_cmd_repl   $commands
+	set limit_cmd_gui     $commands
     }
     return
 }
