@@ -1,5 +1,5 @@
 diff --git a/tclreadline.tcl b/tclreadline.tcl
-index 1e886e9..dec812b 100644
+index 1e886e9..97aa486 100644
 --- a/tclreadline.tcl
 +++ b/tclreadline.tcl
 @@ -38,19 +38,23 @@
@@ -48,11 +48,119 @@ index 1e886e9..dec812b 100644
  
  namespace eval TclReadLine {
  
-@@ -952,27 +956,31 @@ proc TclReadLine::doExit {{code 0}} {
-     restore ;# restore "info' command -
+@@ -98,8 +102,56 @@ namespace eval TclReadLine {
+     # Resource and history files:
+     variable HISTORY_SIZE 100
+     variable HISTORY_LEVEL 0
+-    variable HISTFILE $::env(HOME)/.tclline_history
+-    variable  RCFILE $::env(HOME)/.tcllinerc
++    # B4/portability: guard the HOME substitution itself. Every use of these
++    # two paths is disabled by the portability patch below, but the
++    # substitution runs at `package require` time, so a machine without HOME --
++    # or a safe interp, where env is unset -- aborted the REPL before it
++    # started.
++    if {[info exists ::env(HOME)]} {
++        variable HISTFILE $::env(HOME)/.tclline_history
++        variable  RCFILE $::env(HOME)/.tcllinerc
++    } else {
++        variable HISTFILE ""
++        variable  RCFILE ""
++    }
++
++    # B4/safe-kit: the interp in which a REPL line is evaluated and against
++    # which completion is resolved. The safe kit's main.tcl sets it to the
++    # sandboxed child; empty means "the interp that is running the REPL".
++    variable TARGET ""
++}
++
++# B4/safe-kit: TARGET-aware wrappers. With TARGET empty each one behaves as
++# the code it replaces did, so the normal kit is untouched; with TARGET naming
++# a safe child the lookup or the eval happens there instead.
++proc TclReadLine::targetEval {script} {
++    variable TARGET
++    if {$TARGET eq ""} { return [uplevel #0 $script] }
++    return [interp eval $TARGET $script]
++}
++proc TclReadLine::targetInfoVars {pattern} {
++    variable TARGET
++    if {$TARGET eq ""} { return [uplevel #0 [list info vars $pattern]] }
++    return [interp eval $TARGET [list info vars $pattern]]
++}
++proc TclReadLine::targetArrayNames {arrayvar pattern} {
++    variable TARGET
++    if {$TARGET eq ""} { return [uplevel #0 [list array names $arrayvar $pattern]] }
++    return [interp eval $TARGET [list array names $arrayvar $pattern]]
++}
++proc TclReadLine::targetInfoCommands {pattern} {
++    variable TARGET
++    if {$TARGET eq ""} {
++        if {$pattern eq "*"} { return [info commands] }
++        return [info commands $pattern]
++    }
++    if {$pattern eq "*"} { return [interp eval $TARGET {info commands}] }
++    return [interp eval $TARGET [list info commands $pattern]]
++}
++proc TclReadLine::targetArrayExists {arrayvar} {
++    variable TARGET
++    if {$TARGET eq ""} { return [uplevel #0 [list array exists $arrayvar]] }
++    return [interp eval $TARGET [list array exists $arrayvar]]
+ }
+ 
+ # debugging help procs
+@@ -734,11 +786,11 @@ proc TclReadLine::handleCompletionBase {} {
+             incr x
+             set word [string range $word $x end]
+             incr wordstart $x
+-            if {[uplevel \#0 "array exists $v"]} {
+-                set vars [uplevel \#0 "array names $v $word*"]
++            if {[TclReadLine::targetArrayExists $v]} {
++                set vars [TclReadLine::targetArrayNames $v $word*]
+             }
+         } else {
+-            foreach x [uplevel \#0 {info vars}] {
++            foreach x [TclReadLine::targetInfoVars "*"] {
+                 if {[string match $word* $x]} {
+                     lappend vars $x
+                 }
+@@ -773,15 +825,15 @@ proc TclReadLine::handleCompletionBase {} {
+                         }
+                     }
+                 }
+-                # Check commands:
+-                foreach x [info commands] {
++                # Check commands (target-aware):
++                foreach x [TclReadLine::targetInfoCommands "*"] {
+                     if {[string match $word* $x]} {
+                         lappend cmds $x
+                     }
+                 }
+             } else {
+-                # Check commands anyway:
+-                foreach x [info commands] {
++                # Check commands anyway (target-aware):
++                foreach x [TclReadLine::targetInfoCommands "*"] {
+                     if {[string match $word* $x]} {
+                         lappend cmds $x
+                     }
+@@ -796,11 +848,11 @@ proc TclReadLine::handleCompletionBase {} {
+                 incr x
+                 set word [string range $word $x end]
+                 incr wordstart $x
+-                if {[uplevel \#0 "array exists $v"]} {
+-                    set vars [uplevel \#0 "array names $v $word*"]
++                if {[TclReadLine::targetArrayExists $v]} {
++                    set vars [TclReadLine::targetArrayNames $v $word*]
+                 }
+             } else {
+-                foreach x [uplevel \#0 {info vars}] {
++                foreach x [TclReadLine::targetInfoVars "*"] {
+                     if {[string match $word* $x]} {
+                         lappend vars $x
+                     }
+@@ -953,26 +1005,30 @@ proc TclReadLine::doExit {{code 0}} {
      lineInput
      exec stty sane
--    
+     
 -    set hlist [getHistory]
 -    #
 -    # Get rid of the TclReadLine::doExit, shouldn't be more than one
@@ -73,7 +181,6 @@ index 1e886e9..dec812b 100644
 -        }
 -        close $f
 -    }
-+
 +    # I9/portability: do not write ~/.tclline_history. A portable runtime must
 +    # not leave per-user state behind (README "nothing written next to the
 +    # exe"), and writing to the home profile is skipped for the same reason
@@ -101,7 +208,7 @@ index 1e886e9..dec812b 100644
      
      exit $code
  }
-@@ -989,9 +997,12 @@ proc TclReadLine::interact {} {
+@@ -989,9 +1045,12 @@ proc TclReadLine::interact {} {
  #    rename TclReadLine::unknown ::unknown
      
      variable RCFILE
@@ -117,7 +224,7 @@ index 1e886e9..dec812b 100644
  
      # Load history if available:
      # variable HISTORY
-@@ -999,23 +1010,26 @@ proc TclReadLine::interact {} {
+@@ -999,23 +1058,26 @@ proc TclReadLine::interact {} {
      variable HISTORY_SIZE
      history keep $HISTORY_SIZE
      
@@ -161,3 +268,16 @@ index 1e886e9..dec812b 100644
      
      rawInput
      
+@@ -1206,8 +1268,10 @@ proc TclReadLine::tclline {} {
+                         unset TclReadLine::CMDLINE_PARTIAL
+                     }
+                     
+-                    # Run the command:
+-                    set code [catch $cmdline res]
++                    # Run the command. B4/safe-kit: targetEval sends it to
++                    # TARGET when the safe kit set one, and evaluates it here
++                    # otherwise.
++                    set code [catch {TclReadLine::targetEval $cmdline} res]
+                     rename ::info TclReadLine::localInfo
+                     rename ::_info ::info
+                     if {$code == 1} {

@@ -217,9 +217,9 @@
       "component": "TclReadLine",
       "file": "tclreadline.tcl",
       "patch": "TclReadLine/tclreadline.tcl.patch",
-      "note": "I9/portability: portable runtime не читает ~/.tcllinerc и не читает/пишет ~/.tclline_history (untrusted home profile). В proc TclReadLine::interact закомментированы source $RCFILE и чтение из $HISTFILE; в proc TclReadLine::doExit закомментирована запись истории от exec stty sane до close $f, exit $code оставлен. Также закомментирован блок с package require Expect (строки 41-63) — Expect не бандлится, а package require мог бы читать внешние pkgIndex.tcl из недоверенного окружения.",
+      "note": "I9/portability: portable runtime не читает ~/.tcllinerc и не читает/пишет ~/.tclline_history (untrusted home profile). В proc TclReadLine::interact закомментированы source $RCFILE и чтение из $HISTFILE; в proc TclReadLine::doExit закомментирована запись истории от exec stty sane до close $f, exit $code оставлен. Также закомментирован блок с package require Expect (строки 41-63 pristine) — Expect не бандлится, а package require мог бы читать внешние pkgIndex.tcl из недоверенного окружения. B4/safe-kit: (1) HISTFILE и RCFILE вынесены под guard info exists ::env(HOME) с пустым значением в else — подстановка env(HOME) исполняется в момент package require, поэтому машина без HOME и safe-interp, где env снят, роняли REPL ещё до старта; (2) добавлены variable TARGET и пять target-aware обёрток (targetEval, targetInfoVars, targetArrayNames, targetInfoCommands, targetArrayExists), через которые теперь ходят handleCompletionBase и главный цикл tclline: при непустом TARGET строка вычисляется и дополнение резолвится в TARGET, а не в интерпретаторе, где живёт REPL. При пустом TARGET каждая обёртка повторяет прежний код (uplevel #0 и info commands), поэтому обычный кит патч не задевает. TARGET выставляет ветка safe_main в main.tcl — мастер владеет консолью, потому что twapi-шим tclreadline-win.tcl в safe-interp недоступен в принципе.",
       "from_sha256": "5f68c1d61571e2150db20c2cfe9c21e16a5fd1930563b2851bd3cd425322662c",
-      "sha256": "7ed398e515b381060cdb42f98cdaa10513cc688a0e1d8143e0b3b2d4ef646ffa"
+      "sha256": "e6bbd9bf72f0fb6bd2cc54027824817a9fbcca3cc7b31039c7fa24e33abbf417"
     }
   ]
 }
