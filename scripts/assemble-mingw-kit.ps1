@@ -46,6 +46,18 @@ function New-VfsTree {
     Copy-Item "$Root\src\kit\vfs\lib\kit_init.tcl" "$Stage\kit.vfs\lib\"
     Copy-Item "$Root\src\kit\vfs\lib\pkgIndex.tcl" "$Stage\kit.vfs\lib\"
 
+    # NOTE: lib/winkit (the safe-interpreter bootstrap) is deliberately NOT
+    # staged here, in either pass. This chain builds no safe kit at all --
+    # scripts\build-mingw-kit.sh links only kit_main.o and kit_wish_main.o, so
+    # there is no tclsafe.exe and no tksafe.exe to read those files, and nothing
+    # else in the image ever opens them (TclZipfs_AppHook promotes /main.tcl
+    # only, and lib/winkit carries no pkgIndex.tcl). Staging ~39 KB with zero
+    # consumers would be dead weight in both mingw exes. The MSVC chain stages
+    # it in both passes because it does build both safe flavors; see
+    # assemble-msvc-kit.ps1. Whether mingw ever gets a safe kit is the open
+    # decision recorded in CONTRIBUTING.md as a deliberate exception to the
+    # "two chains" rule -- revisit this note if that changes.
+
     # Tcl sides of mixed packages
     New-Item -ItemType Directory -Force "$Stage\kit.vfs\lib\tdbc" | Out-Null
     Copy-Item "$Pkgs\tdbc1.1.13\library\tdbc.tcl"               "$Stage\kit.vfs\lib\tdbc\"

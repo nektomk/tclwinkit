@@ -50,6 +50,29 @@ function New-VfsTree {
     Copy-Item "$Root\src\kit\vfs\lib\kit_init.tcl" "$Stage\kit.vfs\lib\"
     Copy-Item "$Root\src\kit\vfs\lib\pkgIndex.tcl" "$Stage\kit.vfs\lib\"
 
+    # Safe-interpreter bootstrap, staged for BOTH passes (B5.4).
+    #
+    # Console: main.tcl sources safe_master.tcl only when the C entry point
+    # published ::winkit::safe_mode, so tclwin.exe carries the file and never
+    # reads it -- one shared image for both console exes is what keeps their
+    # main.tcl from drifting apart.
+    #
+    # GUI: kit_safe_wish_main.c points Tcl_SetStartupScript at
+    # lib/winkit/safe_main_gui.tcl (its SAFE-STARTUP block), and that script in
+    # turn sources safe_master.tcl. tkwin.exe never reads either file, and two
+    # independent mechanisms guarantee it: nothing promotes a file under
+    # lib/winkit/ to a startup script (TclZipfs_AppHook promotes /main.tcl only,
+    # tclZipfs.c:6637-6641), and lib/winkit carries no pkgIndex.tcl, so the
+    # default tclPkgUnknown scan of auto_path children does not pick it up as a
+    # package either.
+    #
+    # So this is dead weight in tkwin.exe, exactly as safe_master.tcl already is
+    # in tclwin.exe -- the accepted price of one image per flavor pair. Plan
+    # section 3.1 costs the alternative: a third GUI-safe image would add ~18 MB
+    # per chain to dist for ~39 KB of real difference (the two files here).
+    New-Item -ItemType Directory -Force "$Stage\kit.vfs\lib\winkit" | Out-Null
+    Copy-Item "$Root\src\kit\vfs\lib\winkit\*.tcl" "$Stage\kit.vfs\lib\winkit\"
+
     # Tcl sides of mixed packages (C parts are linked into the exe)
     New-Item -ItemType Directory -Force "$Stage\kit.vfs\lib\tdbc" | Out-Null
     Copy-Item "$Pkgs\tdbc1.1.13\library\tdbc.tcl"               "$Stage\kit.vfs\lib\tdbc\"
@@ -155,16 +178,13 @@ if {[package vsatisfies [package provide Tcl] 9.0]} {
         Copy-Item "$Ext\tktreectrl-2.5.1\library\*.tcl" "$Stage\kit.vfs\lib\treectrl2.5.2\"
     } else {
         # Console startup script: tclsh semantics + TclReadLine REPL.
-        # The GUI kit intentionally has NO main.tcl (stock wish behaviour).
+        # The GUI kit intentionally has NO main.tcl, so that tkwin.exe keeps
+        # stock wish behaviour (TclZipfs_AppHook would otherwise promote it and
+        # Tk_MainEx would stop treating argv[1] as the user's script). Its safe
+        # flavor is routed by kit_safe_wish_main.c straight to
+        # lib/winkit/safe_main_gui.tcl instead -- plan section 3.1, decision 20.
+        # lib/winkit itself is staged above, for both passes.
         Copy-Item "$Root\src\kit\vfs\main.tcl" "$Stage\kit.vfs\"
-
-        # Safe-interpreter bootstrap. main.tcl sources it only when the C entry
-        # point published ::winkit::safe_mode, so tclwin.exe carries the file
-        # and never reads it -- one shared image for both console exes is what
-        # keeps their main.tcl from drifting apart. (The GUI safe kit gets its
-        # own copy when the B7 target adds main.tcl to the GUI image.)
-        New-Item -ItemType Directory -Force "$Stage\kit.vfs\lib\winkit" | Out-Null
-        Copy-Item "$Root\src\kit\vfs\lib\winkit\*.tcl" "$Stage\kit.vfs\lib\winkit\"
     }
 }
 
