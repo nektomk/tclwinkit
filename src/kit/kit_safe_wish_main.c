@@ -2,22 +2,23 @@
  * kit_safe_wish_main.c --
  *
  *	GUI (wish-style) main for the SAFE variant of tclwinkit (tksafe.exe).
- *	A deliberate copy of kit_wish_main.c differing in two respects, both
- *	marked below: Tcl_AppInit publishes ::winkit::safe_mode so the VFS
- *	startup script routes execution into a safe child interpreter, and no
- *	console window is created.
+ *	A deliberate copy of kit_wish_main.c differing in three respects, all
+ *	marked below: Tcl_AppInit publishes ::winkit::safe_mode so the startup
+ *	script routes execution into a safe child interpreter; no console
+ *	window is created; and the startup script is set explicitly to the GUI
+ *	safe bootstrap rather than left to command-line processing.
  *
  *	Why a copy rather than a #ifdef in kit_wish_main.c: the two executables
  *	are linked from separate objects by scripts/build-msvc-kit.bat, and
  *	keeping the shipped GUI kit byte-identical means a defect in the safe
  *	variant cannot regress tkwin.exe. The cost is that a fix to the shared
  *	initialisation sequence has to be applied to both files; the divergences
- *	are confined to the blocks marked SAFE-MODE and NO-CONSOLE so they stay
- *	greppable.
+ *	are confined to the blocks marked SAFE-MODE, SAFE-STARTUP and
+ *	NO-CONSOLE so they stay greppable.
  *
- *	DEVIATION FROM THE PLAN, on evidence. plans/V0_3-PLAN.md section 3.1
- *	asks for Tk_MainEx(argc, argv, appInit, NULL, NULL) here "instead of
- *	Tk_Main", on the stated grounds that Tk_Main reaches
+ *	DEVIATION FROM THE PLAN, on evidence. plans/V0_3-PLAN.md section 2.7
+ *	(last bullet) asks for Tk_MainEx(argc, argv, appInit, NULL, NULL) here
+ *	"instead of Tk_Main", on the stated grounds that Tk_Main reaches
  *	Tk_CreateConsoleWindow via Tk_MainEx -> TkCreateMainWindow. That chain
  *	does not exist in Tk 9.0.4:
  *
@@ -43,7 +44,8 @@
  *
  *	The master interpreter stays fully privileged on purpose; isolation
  *	comes from safe::interpCreate in lib/winkit/safe_master.tcl. See
- *	plans/V0_3-PLAN.md section 2.6.
+ *	plans/V0_3-PLAN.md section 3 (the bullet "the master stays a full
+ *	kit -- deliberately").
  */
 
 #undef USE_TCL_STUBS
@@ -71,17 +73,22 @@ int Tcl_AppInit(Tcl_Interp *interp);	/* defined below */
 
 /* ---- NO-CONSOLE (differs from kit_wish_main.c, which uses TRUE) --------
  *
- * plans/V0_3-PLAN.md section 3.1 specifies no console window for the safe
- * GUI kit, so that launching tksafe.exe does not pop a window that takes
- * focus away from the GUI the user asked for.
+ * The safe GUI kit gets no console window, so that launching tksafe.exe does
+ * not pop one that takes focus away from the GUI the user asked for. The plan
+ * carries no dedicated section for this choice; it is recorded through its
+ * consequence in plans/V0_3-PLAN.md section 1 decision 21 -- tksafe.exe run
+ * without a script name shows usage in a MessageBox precisely because there
+ * is no console left to print it to.
  *
  * Consequence, stated plainly because it is not free: this is a
  * windows-subsystem executable, so with the console suppressed there is no
  * stdout/stderr sink and no interactive REPL for tksafe.exe. Script mode is
- * unaffected -- a Tk script draws its own windows -- but an interactive safe
- * shell on Windows is a GUI-only experience until B5 provides the host window
- * (.safe1). Flip this to TRUE to get tkwin.exe's behaviour back; it is the
- * single point of control and nothing else in this file depends on it.
+ * unaffected -- a Tk script draws its own windows, and B5 gives the safe
+ * child its SafeTk host -- but an interactive safe shell on Windows would
+ * need a REPL living in a window instead. That is deferred and tracked in
+ * plans/V0_3-PLAN.md section 7. Flip this to TRUE to get tkwin.exe's
+ * behaviour back; it is the single point of control and nothing else in this
+ * file depends on it.
  */
 static BOOL consoleRequired = FALSE;
 
@@ -202,17 +209,17 @@ Tcl_AppInit(
 	return TCL_ERROR;
     }
 
-    /* ---- SAFE-MODE (the other difference from kit_wish_main.c) --------
+    /* ---- SAFE-MODE (one of the differences from kit_wish_main.c) ------
      *
-     * Publish the flag main.tcl branches on. Tcl_AppInit runs before
-     * Tk_Main evaluates the VFS startup script, so main.tcl sees this from
-     * its first line.
+     * Publish the flag the startup script branches on. Tcl_AppInit runs
+     * before Tk_MainEx evaluates the startup script, so the script sees this
+     * from its first line.
      *
      * A fully qualified name is used because Tcl_SetVar resolves it through
      * TclLookupVar, which creates the intermediate namespace: ::winkit need
-     * not exist yet, and main.tcl need not have run. Measured rather than
-     * assumed -- tmp/b2-flagvar-probe.tcl shows `namespace exists` going
-     * 0 -> 1 across such a set, and shows the consumer guard
+     * not exist yet, and the startup script need not have run. Measured
+     * rather than assumed -- tmp/b2-flagvar-probe.tcl shows `namespace exists`
+     * going 0 -> 1 across such a set, and shows the consumer guard
      * [info exists ::ns::flag] && $::ns::flag taking the normal branch when
      * the flag was never set. That second half is what keeps tkwin.exe
      * (built from kit_wish_main.c, which does not set this) on its existing
@@ -222,6 +229,47 @@ Tcl_AppInit(
 	    TCL_GLOBAL_ONLY) == NULL) {
 	return TCL_ERROR;
     }
+
+    /* ---- SAFE-STARTUP (the third difference from kit_wish_main.c) -----
+     *
+     * Take over the startup script. Without this call Tk_MainEx would treat
+     * argv[1] as the script to run and evaluate it HERE, in the fully
+     * privileged master -- the exact opposite of what a kit called "safe"
+     * must do. Setting the startup script to our own bootstrap means
+     * Tk_MainEx evaluates that instead, and the bootstrap decides what
+     * happens to the user's script (plan section 3.1, decision 20).
+     *
+     * Why this works, and why it is safe to do from here:
+     *
+     *   - Tk_MainEx parses argv[1] into the startup script slot ONLY when
+     *     nothing is set yet (tkMain.c:245-267), and it does so BEFORE
+     *     calling appInitProc -- so by the time we run, $argv0/$argc/$argv
+     *     already carry the user's command line, script name in $argv0.
+     *   - It then re-fetches the slot after appInitProc returns, with the
+     *     comment "Must fetch it again, as the appInitProc might have reset
+     *     it" (tkMain.c:317-322). Overriding it here is the documented
+     *     extension point, not a race.
+     *
+     * The target is deliberately NOT <image>/main.tcl. TclZipfs_AppHook
+     * promotes /main.tcl to the startup script for ANY exe carrying the
+     * image (tclZipfs.c:6637-6641), and the GUI image is shared with
+     * tkwin.exe, which must keep behaving exactly like stock wish. Living
+     * under lib/winkit/ keeps it invisible to that mechanism: only this file
+     * ever asks for it.
+     *
+     * Existence is deliberately NOT checked. If the file is missing the
+     * bootstrap fails in Tcl_FSEvalFileEx, Tk_MainEx reports "Error in
+     * startup script" and exits 1 -- loudly, on every run. Gating on
+     * Tcl_FSAccess and falling through when absent would instead hand the
+     * user's script to the unsandboxed master, i.e. turn a broken build into
+     * a silent sandbox bypass. A missing file must be a hard failure.
+     *
+     * Tcl_SetStartupScript takes its own reference (tclMain.c:152-158: it
+     * IncrRefCount's the new path and releases the previous one), so the
+     * object is handed over rather than freed here.
+     */
+    Tcl_SetStartupScript(Tcl_NewStringObj(
+	    "//zipfs:/app/lib/winkit/safe_main_gui.tcl", TCL_INDEX_NONE), NULL);
 
     /* NOTE: no tcl_rcFileName is set here on purpose. A per-user rc file
      * would execute untrusted script from the home directory on every

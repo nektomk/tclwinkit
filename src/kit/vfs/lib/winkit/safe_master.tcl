@@ -28,9 +28,9 @@
 #	the console:
 #	  gui    -- safe-Tk host window for an applet; stdin is NOT shared and
 #	          no resource limit is armed (plan §1 decisions 19, 20)
-#	$geometry is read by "gui" only and ignored by every other mode; it
-#	carries the -geometry value the C entry point intercepted before Tk
-#	consumed it (see create_gui_host for why it cannot be recovered later).
+#	$geometry is read by "gui" only and ignored by every other mode; the
+#	caller passes the -geometry string the user asked for, which Tk has
+#	already published in the master's ::geometry (see create_gui_host).
 #	main.tcl owns argv parsing -- it already handles -encoding and the
 #	"first non-dash argument" rule -- so this file never looks at argv.
 #
@@ -77,15 +77,16 @@ namespace eval ::winkit::safe {
 # ----------------------------------------------------------------------
 #  init -- main entry point
 #
-#  Called from main.tcl when safe mode is active.
+#  Called from main.tcl in the console kit and from safe_main_gui.tcl in the
+#  GUI kit, in both cases when safe mode is active.
 #  Args: scriptPath -- resolved script file, or "" when there is none
 #                     (stdin, REPL and GUI modes)
 #        mode       -- "script" | "stdin" | "repl" | "gui" (see file header)
-#        geometry   -- the -geometry value the C entry point intercepted,
-#                     used only by "gui" to size the host window and ignored
-#                     by every other mode. Tk consumes its own -X options and
-#                     empties argv before main.tcl runs at all, so the request
-#                     cannot be recovered here and must be passed in.
+#        geometry   -- the -geometry string the user asked for, used only by
+#                     "gui" to size the host window and ignored by every other
+#                     mode. The caller reads it from the master's ::geometry,
+#                     which Tk itself sets while parsing its -X options (see
+#                     create_gui_host for the measurement behind this).
 # ----------------------------------------------------------------------
 proc ::winkit::safe::init {scriptPath {mode script} {geometry {}}} {
     variable child
@@ -202,12 +203,32 @@ proc ::winkit::safe::init {scriptPath {mode script} {geometry {}}} {
 #  ::safe's private state, and the candidate is then confirmed by its window
 #  class so a false match cannot pass silently.
 #
-#  $geometry is the -geometry value the C entry point intercepted (B5.2):
-#  Tk applies -geometry to the MASTER's "." and empties argv before main.tcl
-#  runs at all, so the request cannot be recovered here and has to arrive
-#  through this argument. The child's "." ends up shorter than the request by
+#  $geometry is the -geometry string the user asked for, which the CALLER
+#  supplies rather than this proc reading it out of a global. Tk empties argv
+#  while consuming its -X options, so by the time the startup script runs the
+#  request is gone from $argv -- but Initialize() first stores the string
+#  verbatim in the master's ::geometry (tkWindow.c:3441-3451:
+#  Tcl_SetVar2Ex(interp, "geometry", ...) immediately before applying
+#  `wm geometry . $geometryObj`). Measured on dist/mingw/tkwin.exe with
+#  tmp/b52-geometry-var-probe.tcl: `-geometry 600x400+40+40` leaves argc=0,
+#  argv={} and ::geometry = 600x400+40+40, and the abbreviated form
+#  `-g 300x200+10+10` works the same way because Tcl_ParseArgsObj matches
+#  options by unique prefix. Reading Tk's own variable beats intercepting
+#  argv in C, which would have to reimplement that prefix matching to accept
+#  `-g` at all (plan §2.7.1).
+#
+#  Taking it as an argument keeps this file free of any dependency on that
+#  Tk-internal variable name and on Tk being loaded at all, which is what
+#  lets the console-side probe exercise apply_limits and the mode table
+#  without a Tk master. The child's "." ends up shorter than the request by
 #  the height of the host's warning bar -- plan section 2.5 measured 500x400
 #  on the host giving 500x367 in the child.
+#
+#  The child cannot compete for this value: the safe branch of Initialize()
+#  takes its Tk arguments from the parent's ::safe::TkInit result, not from
+#  the master's argv (tkWindow.c:3303), so with no -use/-display passed to
+#  ::safe::loadTk the child's geometryObj stays NULL and it sets no ::geometry
+#  of its own.
 #
 #  The master's own "." is withdrawn: it holds no user code, everything the
 #  applet owns lives in the host, and leaving it mapped would put a second,
