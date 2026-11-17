@@ -492,11 +492,21 @@ acceptable while downloads are demonstrably zero.
 ## Pull requests
 
 - State what problem the change solves and which gate proves it.
-- Two toolchains, four executables: a change that only builds on one is not
-  ready. The one deliberate exception is the safe kit: `tclsafe.exe` is MSVC-only
-  for now and has no MinGW counterpart, so a change confined to it cannot fail
-  the MinGW chain by construction. That exception covers the safe-kit target
-  alone — `tclwin.exe` and `tkwin.exe` still have to build on both.
+- Two toolchains, five executables: a change that only builds on one is not
+  ready. The split is uneven — `dist\msvc\` ships `tclwin.exe`, `tclsafe.exe` and
+  `tkwin.exe`, `dist\mingw\` ships `tclwin.exe` and `tkwin.exe` — because the safe
+  kit is the one deliberate exception: `tclsafe.exe` is MSVC-only for now and has
+  no MinGW counterpart, so a change confined to it cannot fail the MinGW chain by
+  construction. That exception covers the safe-kit target alone — `tclwin.exe`
+  and `tkwin.exe` still have to build on both. A safe GUI flavor (`tksafe.exe`)
+  is planned as MSVC-only too, which would make it six. The `$exes` array in
+  `scripts\check-encoding.ps1` is the list of record, and adding a shipped exe
+  there belongs in the same commit that starts producing it. The asymmetry is
+  worth knowing: both sections iterate `$present` (what exists on disk), but
+  section 5 closes with the assertion `$stamped -eq $exes.Count` while section 6
+  has no count assertion at all. So a listed exe that is never built **fails**
+  the gate, whereas a newly built exe that is not listed is never checked by
+  either section — neither its PE stamp nor its builder state.
 - Do not reformat vendor files, do not sort `LICENSES/`, do not "clean up"
   generated trees — the diffs are unreadable and `-Check` will fight you.
 - New documentation belongs in the language of its neighbourhood: process
