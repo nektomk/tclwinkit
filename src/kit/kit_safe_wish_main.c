@@ -13,8 +13,8 @@
  *	keeping the shipped GUI kit byte-identical means a defect in the safe
  *	variant cannot regress tkwin.exe. The cost is that a fix to the shared
  *	initialisation sequence has to be applied to both files; the divergences
- *	are confined to the blocks marked SAFE-MODE, SAFE-STARTUP and
- *	NO-CONSOLE so they stay greppable.
+ *	are confined to the blocks marked SAFE-MODE, SAFE-STARTUP (with its
+ *	SAFE-HANDOVER half), and NO-CONSOLE so they stay greppable.
  *
  *	DEVIATION FROM THE PLAN, on evidence. plans/V0_3-PLAN.md section 2.7
  *	(last bullet) asks for Tk_MainEx(argc, argv, appInit, NULL, NULL) here
@@ -267,7 +267,59 @@ Tcl_AppInit(
      * Tcl_SetStartupScript takes its own reference (tclMain.c:152-158: it
      * IncrRefCount's the new path and releases the previous one), so the
      * object is handed over rather than freed here.
+     *
+     * What the slot held a moment earlier is the user's own script, and it is
+     * captured first -- see SAFE-HANDOVER below.
      */
+
+    /* ---- SAFE-HANDOVER (part of the SAFE-STARTUP divergence) ----------
+     *
+     * Publish what Tk_MainEx already parsed, before overwriting the slot.
+     *
+     * Tk_MainEx puts argv[1] -- or the FILENAME of `-encoding E FILENAME` --
+     * into the startup-script slot BEFORE calling appInitProc, and derives
+     * argv0/argc/argv from it (tkMain.c:246-267, then 272). So right here the
+     * slot is the only place in the process that knows BOTH halves of
+     * `-encoding E FILENAME`: the script path and the encoding the user asked
+     * for. argv no longer holds either (they were consumed) and Initialize()
+     * never sees the encoding, so overwriting the slot with a NULL encoding
+     * would drop it silently and the applet would be read in the default
+     * encoding instead.
+     *
+     * Publishing BEFORE the overwrite is an ownership requirement, not a
+     * stylistic one (tclMain.c:141-206): Tcl_SetStartupScript releases the
+     * previous path and frees the object backing the (const char *) that
+     * Tcl_GetStartupScript handed us, so that pointer dangles as soon as the
+     * call below returns. Tcl_SetVar copies the bytes it is given, so calling
+     * it first is what keeps both values alive. Tcl_GetStartupScript returns a
+     * borrowed reference (tclMain.c:188-206), which is why nothing here
+     * increments or decrements a count.
+     *
+     * gui_script is "" when the user named no script. The GUI image carries no
+     * /main.tcl for TclZipfs_AppHook to promote (tclZipfs.c:6637-6641), so the
+     * slot is genuinely empty then, and lib/winkit/safe_main_gui.tcl reads ""
+     * as decision 21's usage-and-exit case instead of inferring it by
+     * comparing argv0 against [info nameofexecutable] -- argv0 is argv[0] with
+     * its backslashes rewritten to slashes by _tWinMain, while
+     * nameofexecutable comes from GetModuleFileName, so the two are not
+     * directly comparable.
+     */
+    {
+	const char *userEncoding = NULL;
+	Tcl_Obj *userScript = Tcl_GetStartupScript(&userEncoding);
+
+	if (Tcl_SetVar(interp, "::winkit::gui_script",
+		userScript != NULL ? Tcl_GetString(userScript) : "",
+		TCL_GLOBAL_ONLY) == NULL) {
+	    return TCL_ERROR;
+	}
+	if (Tcl_SetVar(interp, "::winkit::gui_encoding",
+		userEncoding != NULL ? userEncoding : "",
+		TCL_GLOBAL_ONLY) == NULL) {
+	    return TCL_ERROR;
+	}
+    }
+
     Tcl_SetStartupScript(Tcl_NewStringObj(
 	    "//zipfs:/app/lib/winkit/safe_main_gui.tcl", TCL_INDEX_NONE), NULL);
 
