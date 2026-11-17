@@ -109,7 +109,27 @@ proc ::winkit::safe::init {scriptPath {mode script} {geometry {}}} {
     # registered. Measured in tmp/b15a-accesspath-probe.tcl section E.
     if {[llength [info commands ::safe::interpCreate]] == 0} {
 	set safe_tcl    //zipfs:/app/tcl_library/safe.tcl
-	set safetk_tcl  //zipfs:/app/tcl_library/safetk.tcl
+
+	# safe.tcl ships in tcl_library and safetk.tcl in tk_library: they are
+	# NOT neighbours, and looking for safetk.tcl beside safe.tcl silently
+	# finds nothing, because the guard below is an [file exists]. Measured
+	# inside a shipped GUI image (tmp/b53-safetk-probe.tcl run on a copy of
+	# dist/mingw/tkwin.exe outside the workspace):
+	#   //zipfs:/app/tcl_library/safe.tcl    exists=1
+	#   //zipfs:/app/tcl_library/safetk.tcl  exists=0
+	#   //zipfs:/app/tk_library/safetk.tcl   exists=1
+	#   ::safe::loadTk defined before any source = 0, after sourcing the
+	#   tk_library copy = 1
+	# safe.tcl contains no occurrence of "loadTk" at all; safetk.tcl defines
+	# it (lines 62 and 64 of the Tk 9.0.4 copy). Nothing auto-loads it --
+	# it is not a package.
+	#
+	# The guard stays [file exists] rather than becoming an error: the
+	# CONSOLE image has no tk_library at all (assemble-*-kit.ps1 copies it
+	# only in the -WithTk pass), and the three console modes never need
+	# ::safe::loadTk. A missing safetk.tcl in gui mode is still reported, by
+	# create_gui_host, which cannot proceed without it and names it.
+	set safetk_tcl  //zipfs:/app/tk_library/safetk.tcl
 
 	if {![file exists $safe_tcl]} {
 	    error "safe.tcl not found at $safe_tcl"
