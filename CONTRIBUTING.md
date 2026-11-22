@@ -385,7 +385,8 @@ dist\msvc\tclwin.exe     tests\kit-license-check.tcl   # KIT LICENSE CHECK OK
 ... each of the four
 
 # "The four" are the unsandboxed executables. Do NOT run these three against
-# dist\msvc\tclsafe.exe -- they assume an unsandboxed interpreter and exit 1
+# the safe kits (dist\msvc\tclsafe.exe, dist\msvc\tksafe.exe) -- they assume
+# an unsandboxed interpreter and exit 1
 # there by design. Measured on the safe kit: smoke.tcl reports 26 failures
 # (file isdirectory / file normalize refused, native load answering
 # "no <pkg>_SafeInit procedure", no thread::create, registry or ::env), and the
@@ -492,14 +493,16 @@ acceptable while downloads are demonstrably zero.
 ## Pull requests
 
 - State what problem the change solves and which gate proves it.
-- Two toolchains, five executables: a change that only builds on one is not
-  ready. The split is uneven — `dist\msvc\` ships `tclwin.exe`, `tclsafe.exe` and
-  `tkwin.exe`, `dist\mingw\` ships `tclwin.exe` and `tkwin.exe` — because the safe
-  kit is the one deliberate exception: `tclsafe.exe` is MSVC-only for now and has
-  no MinGW counterpart, so a change confined to it cannot fail the MinGW chain by
-  construction. That exception covers the safe-kit target alone — `tclwin.exe`
-  and `tkwin.exe` still have to build on both. A safe GUI flavor (`tksafe.exe`)
-  is planned as MSVC-only too, which would make it six. The `$exes` array in
+- Two toolchains, six executables: a change that only builds on one is not
+  ready. The split is uneven — `dist\msvc\` ships `tclwin.exe`, `tclsafe.exe`,
+  `tkwin.exe` and `tksafe.exe`, `dist\mingw\` ships `tclwin.exe` and `tkwin.exe`
+  — because the safe
+  kit is the one deliberate exception: `tclsafe.exe` and `tksafe.exe` are
+  MSVC-only for now and have
+  no MinGW counterpart, so a change confined to them cannot fail the MinGW chain
+  by
+  construction. That exception covers the safe-kit targets alone — `tclwin.exe`
+  and `tkwin.exe` still have to build on both. The `$exes` array in
   `scripts\check-encoding.ps1` is the list of record, and adding a shipped exe
   there belongs in the same commit that starts producing it. The asymmetry is
   worth knowing: both sections iterate `$present` (what exists on disk), but

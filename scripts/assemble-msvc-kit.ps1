@@ -252,6 +252,15 @@ New-KitZip 'kit-gui.zip'
 Join-Binaries @("$Kit\winkitwish-raw.exe", "$Stage\kit-gui.zip") "$Out\tkwin.exe"
 if (-not (Test-Path "$Out\tkwin.exe")) { throw 'attach failed (gui)' }
 
+# ---- safe GUI kit --------------------------------------------------------
+# Attaches the SAME image to the safe GUI stub: safe mode lives in the exe
+# (kit_safe_wish_main.c publishes ::winkit::safe_mode and points the startup
+# script at lib/winkit/safe_main_gui.tcl), not in the zip, so tkwin.exe and
+# tksafe.exe are byte-identical apart from their stubs. Must run after the
+# GUI pass above, which leaves kit-gui.zip in $Stage.
+Join-Binaries @("$Kit\tksafe-raw.exe", "$Stage\kit-gui.zip") "$Out\tksafe.exe"
+if (-not (Test-Path "$Out\tksafe.exe")) { throw 'attach failed (safe gui)' }
+
 Get-ChildItem $Out\*.exe | Select-Object Name, @{n='MB';e={[math]::Round($_.Length/1MB,2)}}
 if ($PruneStats) {
     '--- kit.vfs prune (runtime-only staging) ---'

@@ -279,11 +279,12 @@ if (-not $sums) {
 
 # --- 5/6. the shipped executables -------------------------------------------
 # Paths are relative to dist\, which keeps one subdirectory per toolchain since
-# the shipped names are chain-agnostic (tclwin.exe / tkwin.exe). tclsafe.exe is
-# listed for MSVC only: the MinGW chain builds no safe-kit counterpart, and
-# naming a path that is never produced would make sections 5 and 6 skip it
-# silently forever instead of failing loudly the day it goes missing.
-$exes = @('msvc/tclwin.exe', 'msvc/tclsafe.exe', 'msvc/tkwin.exe', 'mingw/tclwin.exe', 'mingw/tkwin.exe')
+# the shipped names are chain-agnostic (tclwin.exe / tkwin.exe). tclsafe.exe
+# and tksafe.exe are listed for MSVC only: the MinGW chain builds no safe-kit
+# counterpart, and naming a path that is never produced would make sections 5
+# and 6 skip it silently forever instead of failing loudly the day it goes
+# missing.
+$exes = @('msvc/tclwin.exe', 'msvc/tclsafe.exe', 'msvc/tkwin.exe', 'msvc/tksafe.exe', 'mingw/tclwin.exe', 'mingw/tkwin.exe')
 $present = @()
 foreach ($f in $exes) {
     if (Test-Path -LiteralPath (Join-Path $Repo ('dist/' + $f))) { $present += $f }

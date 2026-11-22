@@ -1,6 +1,6 @@
 # Building tclwinkit from source
 
-Builds five executables and the docs archive on Windows x64. This file is
+Builds six executables and the docs archive on Windows x64. This file is
 written so an agent or a person can follow it top to bottom: every step states
 its precondition, the command, and the invariant it must leave behind. The
 verbose process documentation (conventions, CI, release procedure) is in
@@ -14,6 +14,7 @@ verbose process documentation (conventions, CI, release procedure) is in
 | `dist\msvc\tclwin.exe` | MSVC, static CRT | console |
 | `dist\msvc\tclsafe.exe` | MSVC, static CRT | console |
 | `dist\msvc\tkwin.exe` | MSVC, static CRT | GUI |
+| `dist\msvc\tksafe.exe` | MSVC, static CRT | GUI |
 | `dist\mingw\tclwin.exe` | MinGW-w64, UCRT | console |
 | `dist\mingw\tkwin.exe` | MinGW-w64, UCRT | GUI |
 | `dist\tclwinkit-docs-*.zip` | — | docs archive |
@@ -22,8 +23,8 @@ The exe names carry no toolchain, so `dist/` keeps one subdirectory per
 toolchain; the docs archive stays at the `dist/` root. Release assets are the
 archives, not these files: `tclwinkit-<toolchain>-<version>.zip`, each holding
 one top-level directory with that chain's executables inside (step 5) —
-`tclwin.exe` and `tkwin.exe` for MinGW, and those two plus `tclsafe.exe` for
-MSVC.
+`tclwin.exe` and `tkwin.exe` for MinGW, and those two plus `tclsafe.exe` and
+`tksafe.exe` for MSVC.
 
 `tclsafe.exe` is the safe-interpreter console kit. It carries the same VFS
 image as `tclwin.exe` byte for byte — measured as one 6790837-byte zip, sha256
@@ -31,9 +32,13 @@ image as `tclwin.exe` byte for byte — measured as one 6790837-byte zip, sha256
 to two different stubs — and differs only in its C entry point
 `src/kit/kit_safe_main.c`, which publishes `::winkit::safe_mode` from
 `Tcl_AppInit` so the shared `main.tcl` evaluates user code in a safe child
-interpreter instead of in the master. It is MSVC-only — the MinGW chain builds
-no counterpart — and `build-release-archives.ps1` treats the safe names as
-allowed-but-not-required, so a chain without them is not an error.
+interpreter instead of in the master. `tksafe.exe` is the safe-interpreter GUI
+kit: it shares the GUI image with `tkwin.exe` byte for byte and differs only in
+its C entry point `src/kit/kit_safe_wish_main.c`, which publishes
+`::winkit::safe_mode` and points the startup script at
+`lib/winkit/safe_main_gui.tcl`. Both safe kits are MSVC-only — the MinGW chain
+builds no counterpart — and `build-release-archives.ps1` treats the safe names
+as allowed-but-not-required, so a chain without them is not an error.
 
 ## Preconditions
 
@@ -176,8 +181,8 @@ scripts\assemble-msvc-kit.ps1   # stage VFS -> zip -> attach to exe -> dist\
 build-msvc-ext.bat, build-msvc-img.bat` and invokes none of them — the steps
 above are a sequence, not a retry loop.
 
-**Invariant after step 3:** `dist\msvc\tclwin.exe`, `dist\msvc\tclsafe.exe`
-and `dist\msvc\tkwin.exe` exist.
+**Invariant after step 3:** `dist\msvc\tclwin.exe`, `dist\msvc\tclsafe.exe`,
+`dist\msvc\tkwin.exe` and `dist\msvc\tksafe.exe` exist.
 
 ## Step 4 — MinGW chain
 
@@ -271,8 +276,8 @@ scripts\build-release-archives.ps1   # one exe archive per toolchain -> build\re
   `check-gates-selftest.ps1`) fails with `listed hashes matching no built file`
   plus `built files absent from the list`.
 
-**Invariant after step 5:** `LICENSES/` is up to date; `dist\` holds six
-files — five exe (three under `dist\msvc\`, two under `dist\mingw\`), plus
+**Invariant after step 5:** `LICENSES/` is up to date; `dist\` holds seven
+files — six exe (four under `dist\msvc\`, two under `dist\mingw\`), plus
 `tclwinkit-docs-*.zip` at the `dist\` root — and `build\release-stage\` holds
 the two `tclwinkit-<chain>-<version>.zip` archives that actually ship.
 `build\release-stage\SHA256SUMS.txt` matches those three archives, so
@@ -287,8 +292,9 @@ dist\msvc\tclwin.exe tests\kit-license-check.tcl  # KIT LICENSE CHECK OK
 ```
 
 Run all three against **each of the four** `tclwin.exe` / `tkwin.exe`
-executables — not against `tclsafe.exe`. These tests assume an unsandboxed
-interpreter, and on the safe kit they legitimately fail: measured there, all
+executables — not against the safe kits (`tclsafe.exe`, `tksafe.exe`). These
+tests assume an unsandboxed interpreter, and on a safe kit they legitimately
+fail: measured there, all
 three exit 1 — `smoke.tcl` with 26 failures (`file isdirectory` /
 `file normalize` refused, native `load` reporting `no <pkg>_SafeInit procedure`,
 no `thread::create`, `registry` or `::env`), and the other two on

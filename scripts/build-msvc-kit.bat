@@ -70,9 +70,13 @@ rem safe console flavor. Same compile flags and same libraries as kit_main.c:
 rem the ONLY difference between the two is that its Tcl_AppInit publishes
 rem ::winkit::safe_mode, which main.tcl branches on. Both flavors therefore
 rem share one VFS image (see assemble-msvc-kit.ps1).
-rem The safe GUI flavor (kit_safe_wish_main.c) is built by the B7 target.
 cl %CFLAGS% %KITPKGS% %TCLINC% "%KITSRC%\kit_safe_main.c" /Fo%KITOUT%\kit_safe_main.obj || exit /b 1
 cl %CFLAGS% %KITPKGS% %KITGUIS% %TKINC% "%KITSRC%\kit_wish_main.c" /Fo%KITOUT%\kit_wish_main.obj || exit /b 1
+rem safe GUI flavor. Same compile flags and libraries as kit_wish_main.c; the
+rem only differences are the SAFE-MODE flag it publishes and the SAFE-STARTUP
+rem redirection to lib/winkit/safe_main_gui.tcl (see kit_safe_wish_main.c).
+rem Linked as tksafe-raw.exe below.
+cl %CFLAGS% %KITPKGS% %KITGUIS% %TKINC% "%KITSRC%\kit_safe_wish_main.c" /Fo%KITOUT%\kit_safe_wish_main.obj || exit /b 1
 
 rem ---- Tk resources for the GUI kit (X11 cursor names, tk icon, dialogs) --
 rem Tk on Windows resolves -cursor names like "gumby" through
@@ -104,6 +108,15 @@ rem ---- link GUI kit ---------------------------------------------------------
 echo === Linking winkitwish-raw.exe (GUI) ===
 link %LFLAGS% -subsystem:windows -out:%KITOUT%\winkitwish-raw.exe %KITOUT%\kit_wish_main.obj %KITOUT%\kit_register_g.obj %KITOUT%\kit_wish.res %TKCORELIBS% %CORELIBS% %PKGLIBS% %TWAPILIBS% %EXT2LIBS% %IMGLIBS% %EXT2GUILIBS% %TKSYS% || exit /b 1
 for %%m in ("%TKOUT%\wish90sx.exe.manifest" "%TKOUT%\wish.exe.manifest") do if exist %%m mt -nologo -manifest %%m -outputresource:%KITOUT%\winkitwish-raw.exe;1
+
+rem ---- link safe GUI kit ----------------------------------------------------
+rem Same subsystem and the same library list as winkitwish-raw.exe; only the
+rem stub object differs. The wish manifest is reused verbatim -- the safe GUI
+rem kit is the same program with a sandboxed startup path, not another
+rem application.
+echo === Linking tksafe-raw.exe (GUI, safe) ===
+link %LFLAGS% -subsystem:windows -out:%KITOUT%\tksafe-raw.exe %KITOUT%\kit_safe_wish_main.obj %KITOUT%\kit_register_g.obj %KITOUT%\kit_wish.res %TKCORELIBS% %CORELIBS% %PKGLIBS% %TWAPILIBS% %EXT2LIBS% %IMGLIBS% %EXT2GUILIBS% %TKSYS% || exit /b 1
+for %%m in ("%TKOUT%\wish90sx.exe.manifest" "%TKOUT%\wish.exe.manifest") do if exist %%m mt -nologo -manifest %%m -outputresource:%KITOUT%\tksafe-raw.exe;1
 
 echo === MSVC KIT EXES BUILT ===
 dir /b %KITOUT%\*-raw.exe
