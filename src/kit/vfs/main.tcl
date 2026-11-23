@@ -336,7 +336,7 @@ proc ::winkit::safe_main {argv} {
 	puts "Tab-completion: Shift-Tab always; Ctrl-t toggles plain Tab.\
 		Type \"exit\" or Ctrl-d on an empty line to quit."
 
-	set ::TclReadLine::TARGET $child
+	TclReadLine::setTarget $child
 	set ::TclReadLine::PROMPT {winkit% }
 
 	::TclReadLine::interact

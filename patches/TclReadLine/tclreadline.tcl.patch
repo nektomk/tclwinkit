@@ -1,5 +1,5 @@
 diff --git a/tclreadline.tcl b/tclreadline.tcl
-index 1e886e9..99ef0a6 100644
+index 1e886e9..f3c4ef2 100644
 --- a/tclreadline.tcl
 +++ b/tclreadline.tcl
 @@ -38,19 +38,23 @@
@@ -48,7 +48,7 @@ index 1e886e9..99ef0a6 100644
  
  namespace eval TclReadLine {
  
-@@ -98,8 +102,65 @@ namespace eval TclReadLine {
+@@ -98,8 +102,69 @@ namespace eval TclReadLine {
      # Resource and history files:
      variable HISTORY_SIZE 100
      variable HISTORY_LEVEL 0
@@ -109,6 +109,10 @@ index 1e886e9..99ef0a6 100644
 +    if {$pattern eq "*"} { return [interp eval $TARGET {info commands}] }
 +    return [interp eval $TARGET [list info commands $pattern]]
 +}
++proc TclReadLine::setTarget {interp} {
++    variable TARGET
++    set TARGET $interp
++}
 +proc TclReadLine::targetArrayExists {arrayvar} {
 +    variable TARGET
 +    if {$TARGET eq ""} { return [uplevel #0 [list array exists $arrayvar]] }
@@ -116,7 +120,7 @@ index 1e886e9..99ef0a6 100644
  }
  
  # debugging help procs
-@@ -734,11 +795,11 @@ proc TclReadLine::handleCompletionBase {} {
+@@ -734,11 +799,11 @@ proc TclReadLine::handleCompletionBase {} {
              incr x
              set word [string range $word $x end]
              incr wordstart $x
@@ -131,7 +135,7 @@ index 1e886e9..99ef0a6 100644
                  if {[string match $word* $x]} {
                      lappend vars $x
                  }
-@@ -773,15 +834,15 @@ proc TclReadLine::handleCompletionBase {} {
+@@ -773,15 +838,15 @@ proc TclReadLine::handleCompletionBase {} {
                          }
                      }
                  }
@@ -151,7 +155,7 @@ index 1e886e9..99ef0a6 100644
                      if {[string match $word* $x]} {
                          lappend cmds $x
                      }
-@@ -796,11 +857,11 @@ proc TclReadLine::handleCompletionBase {} {
+@@ -796,11 +861,11 @@ proc TclReadLine::handleCompletionBase {} {
                  incr x
                  set word [string range $word $x end]
                  incr wordstart $x
@@ -166,7 +170,7 @@ index 1e886e9..99ef0a6 100644
                      if {[string match $word* $x]} {
                          lappend vars $x
                      }
-@@ -953,26 +1014,30 @@ proc TclReadLine::doExit {{code 0}} {
+@@ -953,26 +1018,30 @@ proc TclReadLine::doExit {{code 0}} {
      lineInput
      exec stty sane
      
@@ -217,7 +221,7 @@ index 1e886e9..99ef0a6 100644
      
      exit $code
  }
-@@ -989,9 +1054,12 @@ proc TclReadLine::interact {} {
+@@ -989,9 +1058,12 @@ proc TclReadLine::interact {} {
  #    rename TclReadLine::unknown ::unknown
      
      variable RCFILE
@@ -233,7 +237,7 @@ index 1e886e9..99ef0a6 100644
  
      # Load history if available:
      # variable HISTORY
-@@ -999,23 +1067,26 @@ proc TclReadLine::interact {} {
+@@ -999,23 +1071,26 @@ proc TclReadLine::interact {} {
      variable HISTORY_SIZE
      history keep $HISTORY_SIZE
      
@@ -277,7 +281,7 @@ index 1e886e9..99ef0a6 100644
      
      rawInput
      
-@@ -1155,7 +1226,11 @@ proc TclReadLine::tclline {} {
+@@ -1155,7 +1230,11 @@ proc TclReadLine::tclline {} {
                      # 
                      history add $cmdline
                      set TclReadLine::cmd [string trim [regexp -inline {^\s*[^\s]+} $cmdline]]
@@ -290,7 +294,7 @@ index 1e886e9..99ef0a6 100644
                          regsub -- "(?q)$TclReadLine::cmd" $cmdline $TclReadLine::ALIASES($TclReadLine::cmd) cmdline
                      }
  
-@@ -1206,8 +1281,10 @@ proc TclReadLine::tclline {} {
+@@ -1206,8 +1285,15 @@ proc TclReadLine::tclline {} {
                          unset TclReadLine::CMDLINE_PARTIAL
                      }
                      
@@ -299,6 +303,11 @@ index 1e886e9..99ef0a6 100644
 +                    # Run the command. B4/safe-kit: targetEval sends it to
 +                    # TARGET when the safe kit set one, and evaluates it here
 +                    # otherwise.
++                    # B6: re-arm limits for each REPL line so a trip on one
++                    # line does not poison the next.
++                    if {$::TclReadLine::TARGET ne "" && [llength [info commands ::winkit::safe::apply_limits]]} {
++                        ::winkit::safe::apply_limits $::TclReadLine::TARGET repl
++                    }
 +                    set code [catch {TclReadLine::targetEval $cmdline} res]
                      rename ::info TclReadLine::localInfo
                      rename ::_info ::info
