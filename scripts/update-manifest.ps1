@@ -1,8 +1,17 @@
 # update-manifest.ps1 --
 #   Refresh vendor/manifest.json when a new version of a vendor archive is fetched.
-#   Re-measures size/sha256, updates top_dir/kind if they changed, and stops with
-#   a diagnosis on structural changes (component renamed, chains altered, movable
-#   flag flipped) instead of silently substituting.
+#   Re-measures size/sha256, follows the version inside top_dir when the row pins
+#   one, and stops with a diagnosis when the archive changed shape instead of
+#   silently substituting. kind, patch_chains, movable, url and the component name
+#   are hand-maintained: this script never rewrites them, so a change there means
+#   editing the manifest by hand.
+#
+#   What this file is NOT: scripts/fetch-vendor.ps1 remains the authority the
+#   build actually runs (source-parity.ps1 reads its rows), and no build or
+#   gate script reads vendor/manifest.json -- sources.yml uses its bytes only as
+#   part of the vendor cache key. Keeping the two in step is manual until the
+#   rows move here; -VerifyOnly checks this manifest against vendor/, not
+#   against fetch-vendor.ps1.
 #
 #   Usage:
 #     scripts\update-manifest.ps1 -Component Tcl -Version 9.0.5
@@ -33,7 +42,10 @@ if (-not (Test-Path $Vendor)) {
     throw 'vendor directory not found at ' + $Vendor
 }
 
-$manifest = Get-Content $ManifestPath -Raw | ConvertFrom-Json
+# Read with an explicit UTF-8 decode: the manifest carries no BOM, and PS 5.1
+# falls back to the machine ANSI code page for BOM-less files. ASCII-only today,
+# so the two agree -- but a non-ASCII URL would silently corrupt under the default.
+$manifest = Get-Content -LiteralPath $ManifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
 $archives = $manifest.archives
 
 function Get-ShaHex([string]$Path) {
@@ -105,8 +117,21 @@ $newKind = $entry.kind
 $newTop = Test-ArchiveTop $newPath $newKind
 
 $structuralChanges = @()
-if ($newTop -ne $entry.top_dir) {
-    $structuralChanges += 'top_dir changed from "' + $entry.top_dir + '" to "' + $newTop + '"'
+# A version bump moves the archive top with it on every row that pins one
+# ("tcl9.0.4/" -> "tcl9.0.5/"), so the expectation is the recorded value with the
+# same numeric substitution the file name got, not the recorded value verbatim.
+# Comparing verbatim aborted the ten versioned rows -- which is the case this
+# script exists for (measured 2026-11-27 against a synthetic tcl9.0.5 tar.gz).
+# Rows recorded as "" carry no expectation on purpose: four are the movable rows
+# (same reason fetch-vendor.ps1 leaves t = '' there: GitHub names the archive top
+# after the ref, so the branch and the pinned form differ and a fixed expectation
+# would reject one of them); TWAPI's tag is v5.2 while its file is 5.2.0, so its
+# top cannot be derived from the version either. With no expectation nothing is
+# compared and nothing is written.
+$expectedTop = $entry.top_dir
+if ($expectedTop) { $expectedTop = $expectedTop -replace '\d+(\.\d+)*', $Version }
+if ($expectedTop -and $newTop -ne $expectedTop) {
+    $structuralChanges += 'top_dir changed from "' + $entry.top_dir + '" (bump expectation "' + $expectedTop + '") to "' + $newTop + '"'
 }
 
 if ($structuralChanges.Count -gt 0) {
@@ -118,12 +143,58 @@ if ($structuralChanges.Count -gt 0) {
 }
 
 $oldFile = $entry.file
+$oldTop = $entry.top_dir
 $entry.file = $newFile
 $entry.size = $newSize
 $entry.sha256 = $newSha
-if ($newTop) { $entry.top_dir = $newTop }
+# A row recorded as "" is never filled from a probe: that would pin whichever
+# ref form happened to be on disk for a movable row, or the un-derivable tag form
+# for TWAPI (see the guard above). A versioned row follows the bump.
+$hadTop = [bool] $oldTop
+if ($hadTop) { $entry.top_dir = $newTop }
 
-$manifest | ConvertTo-Json -Depth 10 | Set-Content $ManifestPath -Encoding UTF8
+# Patch the changed fields inside this component's entry in the raw text
+# rather than re-rendering the object: ConvertTo-Json cannot reproduce the
+# committed shape in either shell (measured 2026-11-27 -- PS 5.1 indents with 16
+# spaces and writes 10287 B for a 6657 B file, and both shells explode the inline
+# "patch_chains": ["msvc"] arrays across three lines), so a full rewrite would
+# replace a one-line bump with a whole-file diff and a layout that depends on the
+# shell. The lookbehinds keep pin_size/pin_sha256 out of the field matches; each
+# value written is taken from $entry, which came from the same parse, so key
+# order, quoting style and everything else stay untouched.
+$text = [System.IO.File]::ReadAllText($ManifestPath, [System.Text.UTF8Encoding]::new($false))
+$blockRe = '(\{[^{}]*"component":\s*"' + [regex]::Escape($Component) + '"[^{}]*\})'
+$bm = [regex]::Match($text, $blockRe)
+if (-not $bm.Success) { throw 'could not locate the ' + $Component + ' entry block in ' + $ManifestPath }
+$block = $bm.Value
+$newBlock = $block
+$newBlock = [regex]::Replace($newBlock, '(?<![a-z_])"file":\s*"[^"]*"', '"file": "' + $entry.file + '"')
+$newBlock = [regex]::Replace($newBlock, '(?<![a-z_])"size":\s*[0-9]+', '"size": ' + $entry.size)
+$newBlock = [regex]::Replace($newBlock, '(?<!pin_)"sha256":\s*"[^"]*"', '"sha256": "' + $entry.sha256 + '"')
+if ($hadTop) {
+    $newBlock = [regex]::Replace($newBlock, '"top_dir":\s*"[^"]*"', '"top_dir": "' + $entry.top_dir + '"')
+}
+$text = $text.Replace($block, $newBlock)
+
+# UTF-8 without BOM, LF endings, trailing newline: vendor/manifest.json is pinned
+# eol=lf in .gitattributes and carries no BOM, and check-encoding fails a tracked
+# file on either violation (Set-Content -Encoding UTF8 on PS 5.1 prepends a BOM:
+# measured first3 239,187,191).
+$text = $text -replace "`r`n", "`n"
+if (-not $text.EndsWith("`n")) { $text += "`n" }
+[System.IO.File]::WriteAllBytes($ManifestPath, [System.Text.UTF8Encoding]::new($false).GetBytes($text))
+
+# Self-check the written file the way make-patches.ps1 does its manifest:
+# reparse, and require the entry to carry the new values. A replace that missed
+# its regex would otherwise report success while the file kept the old row.
+$check = ([System.IO.File]::ReadAllText($ManifestPath, [System.Text.UTF8Encoding]::new($false)) | ConvertFrom-Json).archives |
+    Where-Object { $_.component -eq $Component }
+if ($check.file -ne $entry.file -or [string]$check.size -ne [string]$entry.size -or $check.sha256 -ne $entry.sha256) {
+    throw 'manifest was written but does not read back with the new values for ' + $Component
+}
+if ($hadTop -and $check.top_dir -ne $entry.top_dir) {
+    throw 'manifest was written but top_dir did not change for ' + $Component
+}
 
 $Component + ' updated: ' + $oldFile + ' -> ' + $newFile
 'size: ' + $entry.size + ' B, sha256: ' + $entry.sha256.Substring(0, 16) + '...'
