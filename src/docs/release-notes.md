@@ -9,11 +9,12 @@ registry writes — copy one file and run it.
 {{ASSET_TABLE}}
 
 Unpack the archive for the toolchain you want — {{MSVC_ZIP}} or {{MINGW_ZIP}}.
-Each unpacks into one directory named after the archive and holds exactly two
-files, `tclwin.exe` (console) and `tkwin.exe` (GUI): no installer, no DLLs to
-place beside them, nothing to register. Both archives and the docs archive are
-built from a single source tree and share one version {{VERSION}}. Checksums are
-in `SHA256SUMS.txt` (`sha256sum -c SHA256SUMS.txt`, or
+Each unpacks into one directory named after the archive: {{MSVC_ZIP}} holds four
+files, `tclwin.exe` (console), `tkwin.exe` (GUI) and the two safe kits
+`tclsafe.exe` / `tksafe.exe`; {{MINGW_ZIP}} holds the first two. No installer, no
+DLLs to place beside them, nothing to register. Both archives and the docs
+archive are built from a single source tree and share one version {{VERSION}}.
+Checksums are in `SHA256SUMS.txt` (`sha256sum -c SHA256SUMS.txt`, or
 `certutil -hashfile <file> SHA256` on Windows; the file ships with the release
 assets).
 
@@ -29,9 +30,43 @@ tkwin.exe                        ;# GUI + Tk console widget
 ```
 
 The console exe is a drop-in `tclsh` replacement (same argument semantics, pipe
-mode and exit codes); the GUI exe is a drop-in `wish` replacement. The msvc and
-mingw builds are interchangeable — pick either archive: msvc links the static
-CRT, mingw the UCRT.
+mode and exit codes); the GUI exe is a drop-in `wish` replacement. For the plain
+interpreter and GUI the msvc and mingw builds are interchangeable — msvc links
+the static CRT, mingw the UCRT. They are **not** interchangeable if you need the
+safe kits: `tclsafe.exe` and `tksafe.exe` ship in the MSVC archive only, because
+the MinGW chain builds no safe counterpart (see «Safe mode»).
+
+## Safe mode
+
+Two of the four MSVC executables — `tclsafe.exe` (console) and `tksafe.exe`
+(GUI) — run the user's script in a **safe child interpreter** rather than in the
+main one, so untrusted code can be executed without handing it the process:
+
+- `accessPath` covers the kit image, the script's own directory and the working
+  directory; file access outside those is refused;
+- `exec`, `socket`, `load`, `registry` and `::env` are unavailable, and packages
+  that need native initialisation outside the safe framework refuse to load with
+  `no <pkg>_SafeInit procedure` (`twapi`, `mpexpr`, `Thread`, `sqlite3`,
+  `tdbc::*`, `Img`, `tkdnd`, `tktreectrl`, `registry`);
+- every run is bounded by time and command count: 300 s / 2·10⁹ commands in
+  script mode, 60 s / 5·10⁸ commands per line in the REPL, none in GUI mode
+  (a limit that fires inside `vwait` would kill an idle applet). The REPL
+  **re-arms the limits for each line**, so tripping one on a single line no
+  longer makes every later line fail;
+- the REPL itself lives in the master and evaluates into the child, because the
+  TWAPI-based line input used by `tclwin.exe` cannot exist inside a safe
+  interpreter. Tab completion therefore resolves the child's variables.
+
+Safe mode is not a security boundary against the machine: it confines the
+*script*, not the process. Memory and CPU are not capped, there is no isolation
+from other processes, and side effects through shared resources remain possible.
+The full statement (including what it does *not* protect against) is the
+«Safe mode» section of `README.md`.
+
+The three kit suites below target the unsandboxed executables and fail on the
+safe kits by design (`smoke.tcl` reports 26 refusals there: `file isdirectory`,
+native `load`, `thread::create`, `registry`, `::env`); the safe kits have no
+suite of their own yet.
 
 ## What is inside
 

@@ -25,7 +25,7 @@
 namespace eval ::winkit {
     variable root    //zipfs:/app
     variable libdir  //zipfs:/app/lib
-    variable version 0.3
+    variable version 0.3.1
 }
 
 # Static/mixed package index — single source of truth.

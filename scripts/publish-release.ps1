@@ -85,7 +85,7 @@ Say 'version' $Version
 $Plan = [ordered]@{}
 $Plan[('tclwinkit-msvc-{0}.zip' -f $Version)] = @{
     path  = (Join-Path $Stage ('tclwinkit-msvc-{0}.zip' -f $Version))
-    label = 'MSVC x64, static CRT: tclwin.exe (console) + tkwin.exe (GUI)'
+    label = 'MSVC x64, static CRT: tclwin.exe (console) + tkwin.exe (GUI) + tclsafe.exe / tksafe.exe (safe mode)'
 }
 $Plan[('tclwinkit-mingw-{0}.zip' -f $Version)] = @{
     path  = (Join-Path $Stage ('tclwinkit-mingw-{0}.zip' -f $Version))
@@ -229,7 +229,8 @@ if (-not $localTagCommit) {
     Put-LfText $tagMsgPath @(
         ('tclwinkit ' + $Version), '',
         'Portable single-file Tcl 9.0.4 / Tk 9.0.4 distribution for Windows x64.',
-        'Four kit executables plus the documentation archive.')
+        'Two toolchain archives holding six kit executables (the MSVC archive adds',
+        'the safe pair tclsafe.exe / tksafe.exe) plus the documentation archive.')
     if ($DryRun) {
         Skip 'tag' ("would create annotated $Tag -> $head and push it")
     } else {

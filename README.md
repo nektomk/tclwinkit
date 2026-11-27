@@ -13,18 +13,22 @@ run it.
 ## Download
 
 Pick **one archive** from the [latest release](https://github.com/nektomk/tclwinkit/releases/latest).
-Both carry the same kit — the toolchain is a matter of taste, not quality:
+Both carry the same console and GUI executables; the MSVC archive adds the two
+safe kits, which is the only functional difference between them. Beyond that the
+toolchain is a matter of taste, not quality:
 
 | Asset | Toolchain | Inside |
 |---|---|---|
-| `tclwinkit-msvc-….zip` | MSVC, static CRT | `tclwin.exe` (`tclsh` replacement + REPL) and `tkwin.exe` (`wish` replacement, Tk apps) |
-| `tclwinkit-mingw-….zip` | MinGW-w64, UCRT | the same two executables, GCC-built |
+| `tclwinkit-msvc-….zip` | MSVC, static CRT | `tclwin.exe` (`tclsh` replacement + REPL), `tkwin.exe` (`wish` replacement, Tk apps), `tclsafe.exe` / `tksafe.exe` (safe mode) |
+| `tclwinkit-mingw-….zip` | MinGW-w64, UCRT | `tclwin.exe` and `tkwin.exe`, GCC-built — this chain ships no safe kits |
 | `tclwinkit-docs-….zip` | — | man pages, HTML docs, demos, licenses |
 
-Each archive unpacks into a single directory named after it and holds those two
+Each archive unpacks into a single directory named after it and holds those
 executables and nothing else: no installer, no DLLs to place beside them,
-nothing registered. Two independent toolchains ship the same kit, so a
-toolchain problem never becomes a distribution problem. `SHA256SUMS.txt`
+nothing registered. Two independent toolchains ship the same console and GUI
+executables, so a toolchain problem never becomes a distribution problem; the
+two safe kits are MSVC-only, which is the one functional difference between the
+archives. `SHA256SUMS.txt`
 accompanies every release:
 
 ```

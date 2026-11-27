@@ -8,9 +8,77 @@ The version number lives in exactly one place: `variable version` in
 [`src/kit/vfs/lib/kit_init.tcl`](src/kit/vfs/lib/kit_init.tcl). Up to and
 including 0.2 a release shipped five artifacts — four executables (MSVC and
 MinGW-w64, console and GUI) plus the documentation archive — and a
-`SHA256SUMS.txt`. From 0.3 it ships four: one archive per toolchain, holding
-the console and GUI executables under short chain-agnostic names
-(`tclwin.exe`, `tkwin.exe`), the documentation archive, and `SHA256SUMS.txt`.
+`SHA256SUMS.txt`. From 0.3 it ships four: one archive per toolchain, the
+documentation archive, and `SHA256SUMS.txt`. Inside an archive the executables
+carry short chain-agnostic names (`tclwin.exe`, `tkwin.exe`); since 0.3 the MSVC
+archive holds four of them, the two safe kits (`tclsafe.exe`, `tksafe.exe`)
+included, while the MinGW archive holds two — that chain builds no safe
+counterpart.
+
+## [0.3.1] — 2026-11-28
+
+Patch release re-issuing 0.3. No bundled component changed version; the sources
+of 0.3 plus documentation and build fixes only.
+
+### Fixed
+
+- **The MinGW archives shipped stale kits.** `v0.3` was tagged at `d69cec2`
+  (2026-11-27) but its `tclwinkit-mingw-0.3.zip` was packed from executables
+  assembled on 2026-11-22, before `7e7b40b` (B4 REPL + B6 per-line limit
+  re-arming) landed in `patches/TclReadLine/tclreadline.tcl.patch`, which
+  applies to **both** chains. Measured inside the shipped exe images: mingw
+  carried a 47-proc TclReadLine with no `TclReadLine::setTarget`, msvc a 48-proc
+  one with it. `dist\mingw\` is re-assembled from the patched tree for this
+  release (`assemble-mingw-kit.ps1`; the chain's C sources are unchanged since
+  its raw stubs were linked, so no compiler run was needed).
+- **The release notes falsified the MSVC archive.** They said each archive
+  "holds exactly two files, `tclwin.exe` and `tkwin.exe`" while
+  `tclwinkit-msvc-0.3.zip` in fact holds four — `tclsafe.exe` and `tksafe.exe`
+  were added by `a7394b2` and the notes were not updated. The MSVC asset label
+  in `publish-release.ps1` carried the same false claim. Both corrected; the
+  notes also gained the missing **Safe mode** section (v0.3's headline feature
+  had zero mentions in the published release text) and the corrected
+  msvc/mingw interchangeability statement — the safe kits are MSVC-only
+  (`scripts/assemble-mingw-kit.ps1` stages no safe kit, by design;
+  `check-encoding.ps1` names this the list of record).
+- `README.md`/`README.ru.md` download tables claimed both archives carry the
+  same files; corrected to the four-vs-two shape.
+
+## [0.3] — 2026-11-27
+
+35 commits since `v0.2`. Two things changed: how a release is **shipped** and
+what it can **confine**.
+
+### Changed
+
+- **Releases ship as two archives, not four loose executables.**
+  `scripts/build-release-archives.ps1` packs `dist\<chain>\*.exe` into
+  deterministic `tclwinkit-<chain>-<version>.zip` (single top-level directory
+  named after the archive, DOS-epoch entry timestamps, ordinal order), so
+  unpacking both toolchains into one folder cannot overwrite one with the other.
+  Inside, the executables carry short chain-agnostic names (`tclwin.exe`,
+  `tkwin.exe`). `scripts/verify-release-archives.ps1` re-gates the packed
+  archives without trusting the builder (entry names, pinned timestamps,
+  single top directory, byte identity with `dist\`).
+
+### Added
+
+- **Safe kits: `tclsafe.exe` (console) and `tksafe.exe` (GUI), MSVC chain.**
+  The user script runs in a safe child interpreter created with an `accessPath`
+  limited to the kit image, the script's own directory and the working
+  directory; `exec`, `socket`, `load`, `registry` and `::env` are unavailable,
+  and native packages without a `SafeInit` refuse to load. Every run is bounded
+  by wall-clock and command count (script 300 s / 2·10⁹; REPL 60 s / 5·10⁸ per
+  line; GUI unlimited — a time limit fires inside `vwait`, so any absolute
+  deadline would kill an idle applet). `src/kit/vfs/lib/winkit/safe_master.tcl`
+  owns the child; `TclReadLine` gained `TARGET`-aware wrappers so the REPL runs
+  in the master (the TWAPI line shim cannot exist in a safe interp) while
+  evaluating and completing in the child, plus per-line limit re-arming (B6) so
+  tripping a limit on one line does not poison the next. The design, the
+  measured limit semantics (`-seconds 0` is a 1970 deadline, not "off") and the
+  stdin policy are in `docs/PLAN.md`; the user-facing statement, including what
+  safe mode does *not* protect against, is the «Safe mode» section of
+  `README.md`.
 
 ## [0.2] — 2026-11-05
 
