@@ -82,6 +82,55 @@ The exact version list of every bundled component is `VERSIONS.txt` in the
 [docs archive](src/docs/README.md); a running kit reports its own version as
 `$::winkit::version`.
 
+## Safe mode
+
+The MSVC toolchain ships two additional executables: `tclsafe.exe` (console)
+and `tksafe.exe` (GUI). They run untrusted Tcl scripts in a sandboxed child
+interpreter with restricted file access and command limits.
+
+**What it protects against.** Safe kits are designed to run **untrusted
+scripts** — for example, third-party code in a CI pipeline or a tooling agent.
+The script runs in a child interpreter whose `accessPath` is limited to its
+own directory and the standard Tcl/Tk libraries. System commands, arbitrary
+file access, and network sockets are blocked by design.
+
+**What it does not protect against.** Safe interpreters protect against the
+**script**, not against the **machine** it runs on. They do not provide
+isolation from other processes, do not limit memory or CPU usage, and do not
+prevent side effects through shared resources (e.g., environment variables or
+temporary files).
+
+**Blocked operations.** The following are unavailable in safe mode:
+
+- `exec` — no external commands or processes.
+- `open` — no arbitrary file handles; only files within `accessPath`.
+- `socket` — no network access.
+- `load` — no loading native libraries at runtime.
+- `file` — restricted to `readable` checks within `accessPath`.
+
+**Command and time limits.** Two limits apply to every safe script:
+
+- **Script mode:** 300 seconds wall-clock, 2·10⁹ commands.
+- **REPL mode:** 60 seconds per line, 5·10⁸ commands per line.
+- **GUI mode:** no limits (intended for trusted applets).
+
+When either limit is exceeded, the child interpreter raises an error and
+becomes unusable for further evaluation — the master remains intact and can
+start a fresh child.
+
+**Unavailable packages.** Packages that require native initialization outside
+the safe framework are not accessible: `twapi`, `mpexpr`, `Thread`, `sqlite3`,
+`tdbc::*`, `Img`, `tkdnd`, `tktreectrl`, `registry`. Attempting to load them
+fails with a clear error message (`no <pkg>_SafeInit procedure`).
+
+**Tk dialogs.** In GUI safe kits (`tksafe.exe`), Tk dialog commands
+(`tk_dialog`, `tk_getOpenFile`, `tk_getSaveFile`) do not work — this is
+stock Tk behaviour in safe interpreters. The commands exist but fail with an
+error.
+
+**Memory and CPU.** Safe interpreters do **not** limit memory consumption or
+CPU time. Only the number of Tcl commands and wall-clock time are enforced.
+
 ## Why
 
 The usual ways to get Tcl 9 on Windows are an installer, a package manager,
